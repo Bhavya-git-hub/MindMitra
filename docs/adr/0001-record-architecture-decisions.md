@@ -8,7 +8,7 @@ CLAUDE.md rule 1 requires that architecture is never rewritten without explanati
 
 ## Decision
 Every significant architectural decision is recorded as a numbered ADR in `docs/adr/`
-(context, decision, consequences). Changes to `ARCHITECTURE.md` reference the ADR that
+(context, decision, consequences). Changes to `docs/ARCHITECTURE.md` reference the ADR that
 motivated them.
 
 ## Consequences

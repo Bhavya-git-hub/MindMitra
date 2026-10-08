@@ -22,9 +22,10 @@ AI-assisted, privacy-preserving student wellness and therapist support platform 
 ## Key documents
 
 - [`CLAUDE.md`](CLAUDE.md): permanent project rules (read first)
-- [`ARCHITECTURE.md`](ARCHITECTURE.md): system architecture
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md): full technical architecture (16 areas + risks)
+- [`docs/DATABASE_DESIGN.md`](docs/DATABASE_DESIGN.md), [`docs/API_DESIGN.md`](docs/API_DESIGN.md), [`docs/SECURITY_ARCHITECTURE.md`](docs/SECURITY_ARCHITECTURE.md), [`docs/AI_ML_ARCHITECTURE.md`](docs/AI_ML_ARCHITECTURE.md), [`docs/USER_FLOWS.md`](docs/USER_FLOWS.md)
 - [`DEVELOPMENT_ROADMAP.md`](DEVELOPMENT_ROADMAP.md): phase-by-phase plan
 
 ## Status
 
-Phase 0 (foundation). No application features have been implemented yet.
+Phase 0 (foundation and architecture design). No application code has been written yet.

@@ -16,7 +16,7 @@ medical device, and **not** a replacement for licensed mental-health professiona
 ## 2. Engineering rules (non-negotiable)
 
 1. **Never rewrite the architecture without explaining why.** Any change to the structure
-   described in `ARCHITECTURE.md` needs a written rationale (an ADR in `docs/adr/`) before
+   described in `docs/ARCHITECTURE.md` needs a written rationale (an ADR in `docs/adr/`) before
    code changes land.
 2. **Never create duplicate functionality.** Search the codebase before adding a module,
    util, component, endpoint or model. Extend what exists.
@@ -78,7 +78,7 @@ medical device, and **not** a replacement for licensed mental-health professiona
 
 ## 4. Data & privacy rules
 
-- Data classification (see `ARCHITECTURE.md §6`): **Public, Internal, Personal, Sensitive,
+- Data classification (see `docs/DATABASE_DESIGN.md §5`): **Public, Internal, Personal, Sensitive,
   Clinical-Confidential**. Clinical-Confidential data is encrypted at the field level.
 - Principle of least privilege and data minimisation everywhere.
 - Never log message bodies, journal text, therapy notes, or PII. Log IDs and event types.
@@ -117,7 +117,7 @@ medical device, and **not** a replacement for licensed mental-health professiona
 
 - Small, reviewable changes. One concern per PR.
 - Conventional commits (`feat:`, `fix:`, `docs:`, `chore:`, `test:`, `refactor:`).
-- Update `ARCHITECTURE.md` / `DEVELOPMENT_ROADMAP.md` when a change affects them.
+- Update the `docs/` architecture documents / `DEVELOPMENT_ROADMAP.md` when a change affects them.
 - Record significant decisions as ADRs in `docs/adr/`.
 - Do not add dependencies without need; justify new ones in the PR description.
 - Run lint, type-check and tests locally before declaring work complete.

@@ -12,7 +12,9 @@ says otherwise. Each phase ends with tests run and passing (rule 20).
 
 - [x] `CLAUDE.md` permanent rules
 - [x] Monorepo structure (`apps/web`, `services/api`, `services/ml`, `packages`, `infra`, `data`, `docs`)
-- [x] `ARCHITECTURE.md`, `DEVELOPMENT_ROADMAP.md`, ADRs 0001–0002
+- [x] `DEVELOPMENT_ROADMAP.md`, ADRs 0001–0002
+- [x] Full architecture design in `docs/`: ARCHITECTURE, DATABASE_DESIGN, API_DESIGN,
+      SECURITY_ARCHITECTURE, AI_ML_ARCHITECTURE, USER_FLOWS (with Mermaid diagrams and risk register)
 - [x] `.env.example`, `.gitignore`, local `docker-compose.yml` (Postgres + Redis)
 
 **Exit:** owner reviews and approves architecture and roadmap.

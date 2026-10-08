@@ -1,0 +1,286 @@
+# MindMitra Security Architecture
+
+- Status: **Proposed** (design only)
+- Baseline: OWASP ASVS Level 2 overall, Level 3 controls for Clinical-Confidential data
+- Related: [ARCHITECTURE.md](ARCHITECTURE.md), [DATABASE_DESIGN.md §5-6](DATABASE_DESIGN.md#5-encryption-design), [API_DESIGN.md](API_DESIGN.md)
+
+## 1. Security objectives
+
+1. **Confidentiality**: therapy and wellbeing data is visible only to people with a need, a
+   relationship and (where required) consent.
+2. **Integrity**: clinical records and audit logs are tamper-evident.
+3. **Availability of the crisis path**: students can always reach help.
+4. **Accountability**: every sensitive access is attributable.
+5. **Privacy by design**: minimise, separate, encrypt, expire.
+
+## 2. Threat model
+
+### 2.1 Assets (ranked)
+
+| Rank | Asset | Class |
+|-----:|-------|-------|
+| 1 | Session notes, escalation details | Clinical-Confidential |
+| 2 | Journals, companion chats, messages, check-in notes, ML signals | Sensitive |
+| 3 | Identity data, credentials, tokens, keys | Personal / secret |
+| 4 | Aggregates, configuration | Internal |
+| 5 | Audit logs | Restricted (integrity-critical) |
+
+### 2.2 Actors
+
+| Actor | Motivation / capability |
+|-------|-------------------------|
+| External attacker | Data theft, extortion; web exploits, credential stuffing, phishing |
+| Curious insider (teacher/admin/therapist) | Looks up a student they know; legitimate credentials |
+| Malicious student | Tries to reach others' data, abuse companion (prompt injection) |
+| Compromised third party | LLM, SMS/email vendor, npm/pip dependency |
+| Peer/ex-partner of student | Account takeover, shared device snooping |
+| Cloud misconfiguration | Public bucket, over-broad IAM |
+
+### 2.3 STRIDE summary
+
+| Threat | Example | Primary controls |
+|--------|---------|------------------|
+| **S**poofing | Credential stuffing, stolen session | Argon2id, MFA, rate limits, breached-password check, token rotation with reuse detection, device/session list |
+| **T**ampering | Altering a session note or audit row | Versioned notes, hash-chained audit, DB grants (no UPDATE/DELETE on audit), integrity monitoring |
+| **R**epudiation | Therapist denies viewing a record | Append-only audit with actor, reason, request id |
+| **I**nformation disclosure | IDOR, teacher reads notes, log leakage, over-broad API response | Central policy layer, RLS, field encryption, 404-on-invisible, log scrubbing, response schemas allow-list |
+| **D**enial of service | Flood login, flood companion (cost) | WAF, rate limits, per-user AI quotas, autoscaling, static crisis page |
+| **E**levation of privilege | Student calls therapist endpoint, role tampering | Server-side role lookup, JWT minimal claims, permission tests per route, admin changes need step-up |
+
+### 2.4 Attack trees (top concerns)
+
+```mermaid
+flowchart TD
+    G1[Goal: read a student's session notes without being their therapist]
+    G1 --> A1[Abuse API]
+    G1 --> A2[Abuse database]
+    G1 --> A3[Abuse people/process]
+    A1 --> A1a[IDOR: guess note id] -->|blocked by| C1[Policy check: author or grant; UUIDv7; 404 on invisible]
+    A1 --> A1b[Privilege escalation via role edit] -->|blocked by| C2[Role changes: admin + step-up + audit; no self-edit]
+    A2 --> A2a[SQL injection] -->|blocked by| C3[Parameterised queries; least-privilege DB role]
+    A2 --> A2b[Direct DB access by staff] -->|blocked by| C4[Field encryption: DB dump is ciphertext; no standing human DB access]
+    A3 --> A3a[Therapist browses non-assigned students] -->|blocked by| C5[Care-team scope; anomaly alerts; student-visible access history]
+    A3 --> A3b[Stolen therapist session] -->|blocked by| C6[MFA, short tokens, step-up for notes, idle timeout]
+```
+
+## 3. Authentication
+
+### 3.1 Credentials and policy
+
+| Control | Setting |
+|---------|---------|
+| Password hashing | Argon2id (m=64 MiB, t=3, p=1 initially; tuned to ~250 ms), per-user salt, server-side pepper from Secrets Manager |
+| Password rules | ≥ 12 chars, no composition rules, breached-password check, no reuse of last 5 |
+| Lockout | Progressive delay and temporary lock after 5 failures per account + IP-aware throttling; no hard lock that enables denial of service for a student in distress |
+| MFA | TOTP mandatory for therapist, admin, platform admin; offered to students/faculty; WebAuthn passkeys in a later phase; recovery codes hashed |
+| Account recovery | Email link (single-use, 30 min, hashed); MFA reset requires admin + identity check |
+| Enumeration resistance | Identical responses/timing for unknown email on login, reset and register |
+| SSO | OIDC then SAML per institution (Phase 9); local MFA policy still enforced for therapists |
+
+### 3.2 Tokens and sessions
+
+| Token | Format | Lifetime | Storage |
+|-------|--------|----------|---------|
+| Access | JWT (EdDSA), claims: `sub`, `inst`, `roles`, `sid`, `iat`, `exp`, `amr` | 10 min | `__Host-access` httpOnly Secure SameSite=Lax cookie |
+| Refresh | Opaque 256-bit random | 7 days idle / 30 days absolute | `__Host-refresh` cookie; stored **hashed** (SHA-256) server-side |
+| CSRF | Double-submit random token bound to session | Session | Non-httpOnly cookie + `X-CSRF-Token` header |
+| MFA token | Short JWT, `scope=mfa` | 5 min | Memory only |
+| WS ticket | One-time random | 30 s | Redis |
+| Service token (api→ml) | JWT `aud=ml` | 5 min | In memory, signed with key from Secrets Manager |
+
+- **Refresh rotation with family reuse detection**: reuse of an already-rotated token revokes
+  the entire family and forces re-login (alerts security).
+- Access JWTs carry roles but **permissions are re-evaluated server-side each request**;
+  deactivation takes effect within the next request via session revocation check (Redis
+  denylist keyed by `sid`).
+- Idle timeouts: 15 min for therapists/admins in the clinical area (with warning), 60 min for
+  students (configurable), absolute 12 h for staff.
+- **Step-up authentication** (fresh password + MFA within 5 min) is required for: exporting
+  data, changing roles, viewing session notes in bulk, break-glass, disabling MFA.
+
+### 3.3 Login sequence
+
+See the sequence diagram in [ARCHITECTURE.md §7](ARCHITECTURE.md#7-authentication-architecture).
+
+## 4. Authorization (RBAC + ABAC)
+
+### 4.1 Layers
+
+```mermaid
+flowchart TD
+    L1[1. Edge: WAF, TLS, rate limits] --> L2[2. Authentication: token valid, session not revoked]
+    L2 --> L3[3. Route guard: require_permission]
+    L3 --> L4[4. Resource policy: relationship + consent + purpose]
+    L4 --> L5[5. Database: RLS tenant + role policies]
+    L5 --> L6[6. Field encryption: KMS context bound to tenant]
+    L6 --> L7[7. Audit: allow and deny recorded]
+```
+
+Any single layer failing open should still leave the others denying access.
+
+### 4.2 Policy engine
+
+- Policies are **pure Python functions** in `domain/policies` taking `(actor, action,
+  resource, context)` and returning `Allow(reason)` or `Deny(reason)`.
+- Context includes: care-team relationships, active consents, active break-glass grants, and
+  institution settings.
+- Policy results are logged (deny always, allow for Sensitive/Clinical).
+- The policy module has no framework imports and is tested exhaustively, including
+  property-based tests for "teacher never allowed on clinical resource types".
+
+### 4.3 Hard invariants (tested in CI)
+
+| ID | Invariant |
+|----|-----------|
+| INV-1 | Faculty can never read `care.*`, `comm.*`, `wellbeing.*`, `insights.*`, `safety.escalation*` content |
+| INV-2 | Institution admins can read metadata only (counts, statuses, timestamps), never ciphertext fields |
+| INV-3 | A therapist can read student data only with an active care-team row and (for check-ins/signals) active consent, or an active audited break-glass grant |
+| INV-4 | Aggregate endpoints never return a cell with fewer than 10 individuals |
+| INV-5 | Cross-tenant access is impossible even with a valid token (RLS + policy) |
+| INV-6 | The ML service never receives user identifiers or persists text |
+| INV-7 | Every read of Clinical-Confidential data writes an audit event |
+| INV-8 | Companion content is never visible to anyone except the owning student |
+
+### 4.4 Break-glass
+
+A clinical supervisor can open a time-boxed (≤ 24 h), reason-required grant for a specific
+escalation. It: requires step-up auth, is visible to the student afterwards ("your
+information was accessed in an emergency"), triggers an alert to the clinical lead and
+privacy officer, and auto-expires.
+
+## 5. Encryption and key management
+
+| Layer | Mechanism |
+|-------|-----------|
+| In transit | TLS 1.2+ (prefer 1.3) at CloudFront and ALB; TLS inside VPC for RDS, Redis, ML service (mTLS between services on ECS Service Connect is a stretch goal) |
+| At rest (infra) | RDS, EBS, S3, ElastiCache encrypted with KMS CMKs |
+| At rest (application) | AES-256-GCM envelope encryption for free text and clinical fields, AAD binds to row and tenant ([DATABASE_DESIGN.md §5](DATABASE_DESIGN.md#5-encryption-design)) |
+| Keys | KMS CMKs per environment, institution and class; annual automatic rotation; deletion protection with 30-day waiting period; separate IAM roles for encrypt vs decrypt |
+| Secrets | Secrets Manager (pepper, JWT signing keys, DB creds) with rotation; no secrets in images, env files or Git |
+| Backups | Encrypted with the same CMK family; restore tested |
+| Client side | No sensitive data in localStorage / sessionStorage / URLs; `Cache-Control: no-store` on authenticated responses |
+
+## 6. Application security controls
+
+### 6.1 Web (Next.js)
+
+- Strict **CSP** (nonce-based, no inline scripts, `frame-ancestors 'none'`), HSTS preload,
+  `X-Content-Type-Options`, `Referrer-Policy: same-origin`, `Permissions-Policy` (camera and
+  mic only on the video page).
+- React escapes output; no `dangerouslySetInnerHTML` except via a sanitised markdown renderer
+  (allow-listed, DOMPurify) for vetted resources.
+- Subresource integrity for any third-party script (target: none on authenticated pages).
+- No third-party analytics or session-replay on authenticated pages.
+
+### 6.2 API (FastAPI)
+
+- Pydantic strict validation, request size limits, content-type allow-list.
+- SQL via SQLAlchemy parameters only; ORM raw SQL banned by lint rule.
+- SSRF protection: no user-supplied URLs fetched server-side.
+- File uploads: pre-signed S3 URLs, size/type limits, antivirus scan (ClamAV Lambda) before
+  release, served via short-lived URLs with `Content-Disposition: attachment`.
+- Mass-assignment protection: separate input and output schemas.
+- Uniform 404 for invisible resources; constant-time comparisons for tokens.
+- CORS allow-list; CSRF protection on cookie-authenticated unsafe methods.
+
+### 6.3 AI-specific (see [AI_ML_ARCHITECTURE.md](AI_ML_ARCHITECTURE.md))
+
+- Companion has no tools, DB, or network access; context = own session + vetted resources.
+- Prompt-injection and jailbreak test suite in CI; output PII scrub; per-user quotas.
+- Provider contract: no training on data, no retention beyond processing, region-pinned.
+
+### 6.4 Supply chain
+
+- Lockfiles, pinned versions, Dependabot/Renovate, `pip-audit`, `npm audit`, Trivy image
+  scan, SBOM (CycloneDX) per build, signed images (cosign), GitHub Actions pinned by SHA.
+- Minimal base images (distroless / slim), non-root containers, read-only root FS.
+- Dependencies are added only when needed (CLAUDE.md), with justification.
+
+## 7. Audit and monitoring
+
+### 7.1 Audit log
+
+| Aspect | Design |
+|--------|--------|
+| What | All authentication events, role/assignment changes, every read/write of Sensitive and Clinical data, consent changes, exports, break-glass, admin config changes, authorization denials |
+| Content | `actor`, `role`, `action`, `resource_type/id`, `subject_student_id`, `outcome`, `reason`, `request_id`, `ip_hash`, time. **Never** content bodies |
+| Integrity | Append-only table; DB role has INSERT only; each row stores `hash = H(prev_hash || row)`; hourly chain checkpoint written to S3 Object Lock (WORM) |
+| Access | Admins search metadata; students see a role-level view of access to their own data; export to SIEM |
+| Retention | 7 years |
+
+### 7.2 Detection and response
+
+| Signal | Alert |
+|--------|-------|
+| Therapist reads unusually many non-recent students, or students outside care team | Privacy officer review |
+| Many 403s from one actor (probing) | Security on-call |
+| Refresh-token reuse | Security on-call, session family revoked |
+| Unacknowledged critical escalation | Clinical + platform on-call |
+| Crisis detector errors/timeouts spike | Platform on-call |
+| KMS decrypt anomalies, IAM changes, GuardDuty findings | Security on-call |
+| Failed audit hash chain verification | Critical incident |
+
+Tools: CloudWatch Logs/Alarms, GuardDuty, Security Hub, AWS Config, CloudTrail (org-wide),
+Sentry (PII scrubbed), OpenTelemetry. Logs contain IDs, never message bodies or PII.
+
+### 7.3 Incident response
+
+Runbooks for: credential compromise, suspected data exposure, crisis-path outage, model
+misbehaviour (kill switch), key compromise. Breach notification workflow aligned with
+DPDP/GDPR timelines (e.g. 72 h to regulator where applicable). Quarterly tabletop exercises
+including a "missed escalation" scenario.
+
+## 8. Infrastructure security (AWS)
+
+| Area | Controls |
+|------|----------|
+| Accounts | Separate AWS accounts per environment (dev, staging, prod) and a security/logging account; SCPs deny risky actions; root MFA and no root keys |
+| Network | 3-AZ VPC; private subnets for app and data; data subnets have no internet route; security groups least-privilege (api→rds, api→redis, api→ml only); VPC endpoints for AWS services; WAF on CloudFront/ALB; Shield Standard |
+| Identity | IAM roles per ECS task (no long-lived keys); GitHub Actions uses OIDC; human access via IAM Identity Center with MFA; no standing DB access (time-boxed break-glass via SSM) |
+| Data | S3 Block Public Access org-wide; bucket policies require TLS and KMS; RDS not publicly accessible; deletion protection on RDS and CMKs |
+| Hardening | Fargate (no host management), container image scanning, ECR immutable tags, SSM Parameter/Secrets rotation |
+| Logging | CloudTrail, VPC Flow Logs, ALB/WAF logs to a central immutable bucket |
+| IaC | Terraform with tfsec/Checkov in CI; plans reviewed; drift detection |
+
+## 9. Secure SDLC
+
+1. Threat-model review for each new feature touching Sensitive or Clinical data.
+2. PR checklist: authorization, audit, tests, no secrets, no PII in logs.
+3. CI gates: lint, type-check, unit/integration tests, authorization matrix, RLS tests, SAST
+   (Bandit, Semgrep, ESLint security), secret scanning (gitleaks), dependency and container
+   scans, IaC scanning, license check.
+4. DAST (OWASP ZAP) against staging per release; external penetration test before launch and
+   annually.
+5. Synthetic data only outside production; production access is restricted and logged.
+6. Security champions rotation; yearly privacy and security training for staff.
+
+## 10. Privacy engineering controls
+
+- **Data minimisation**: no DOB, address, government IDs; profile minimal.
+- **Purpose limitation**: analytics DB role cannot read OLTP; ML training uses only consented
+  de-identified data.
+- **Pseudonymisation**: ML features reference opaque ids; ML never receives names/emails.
+- **Transparency**: plain-language privacy centre, AI notice, access history.
+- **DPIA** completed before launch; Records of Processing maintained; DPO / privacy officer
+  role named per institution.
+- **Vendor management**: DPAs with LLM (Bedrock/AWS), email/SMS providers; sub-processor list.
+
+## 11. Compliance mapping (design intent, not legal advice)
+
+| Regime | Relevant design elements |
+|--------|-------------------------|
+| India DPDP Act 2023 | Consent records, purpose limitation, erasure, breach notification, children's data (18+ platform; minors need guardian flow if enrolled), Data Protection Officer |
+| GDPR (if EU students) | Lawful basis, special-category data safeguards, DSAR tooling, DPIA, data residency, SCCs |
+| FERPA (US) | Institution-controlled education records; access logging; directory-info exclusion |
+| HIPAA-style safeguards | Access control, audit, encryption, minimum necessary, BAAs if US covered entities |
+| Local mental-health records rules | Retention, access by patient, confidentiality exceptions (duty to warn) configured by institution |
+
+Legal and clinical review is required before production use.
+
+## 12. Residual risks (see also [ARCHITECTURE.md §17](ARCHITECTURE.md#17-architectural-risks-and-mitigations))
+
+- Insider misuse with legitimate access can be deterred and detected but not fully prevented.
+- Shared or monitored personal devices can expose students; mitigations: quick-exit button,
+  content-free notifications, session timeouts, discreet app naming option.
+- Free-text crisis detection will never be perfect; the system is designed so humans and
+  explicit help paths are always available.
