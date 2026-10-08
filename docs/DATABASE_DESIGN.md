@@ -1,8 +1,132 @@
 # MindMitra Database Design
 
-- Status: **Proposed** (design only, no migrations yet)
-- Engine: PostgreSQL 16 (AWS RDS Multi-AZ) with `pgcrypto`, `pg_trgm`, `pgvector`
+- Status: **Partially implemented.** The database layer (models, migration `0001`, seed) exists in
+  `services/api`; section 0 below states exactly what was built and where it differs from the
+  original design in sections 1-10. Where they disagree, **section 0 is authoritative**.
+- Engine: PostgreSQL 16 (AWS RDS Multi-AZ). Implemented extension: `btree_gist`. Designed but not
+  yet used: `pg_trgm`, `pgvector`.
 - Related: [ARCHITECTURE.md §4](ARCHITECTURE.md#4-database-architecture), [SECURITY_ARCHITECTURE.md](SECURITY_ARCHITECTURE.md)
+
+## 0. Implementation status (database layer, as built)
+
+Code: `services/api/app/infrastructure/db/` (models, session, audit helper, seed),
+`services/api/alembic/versions/0001_initial_schema.py`, tests in `services/api/tests/`.
+Verified against PostgreSQL 16: migration up/down/up, `alembic check` (models == migration),
+63 tests, `ruff`, `mypy --strict`.
+
+### 0.1 What exists
+
+32 tables in 10 PostgreSQL schemas. Confidential therapy data lives in its own `therapy` schema
+(plus `comm` and `safety`), apart from general wellness data in `wellness`, so grants, backups and
+row-level security can be applied per schema. A test proves a role with access to `wellness` only
+gets `permission denied` on `therapy`, `comm` and `safety`.
+
+| Schema | Tables |
+|--------|--------|
+| `iam` | `users`, `credentials` |
+| `org` | `institutions`, `departments`, `courses`, `students`, `teachers`, `therapists`, `administrators`, `course_enrollments`, `course_teachers`, `care_team_members` |
+| `wellness` | `mood_entries`, `wellness_assessments`, `stress_assessments`, `sleep_entries`, `journal_entries`, `journal_shares`, `wellness_goals`, `resources` |
+| `therapy` (confidential) | `therapist_availability`, `appointments`, `therapy_sessions`, `therapy_notes` |
+| `comm` | `messages` |
+| `ai` | `ai_conversations`, `ai_messages`, `recommendations` |
+| `safety` | `risk_alerts` |
+| `consent` | `consents` |
+| `notify` | `notifications` |
+| `audit` | `audit_logs` |
+
+```mermaid
+erDiagram
+    INSTITUTION ||--o{ USER : has
+    USER ||--o| CREDENTIAL : "argon2id hash only"
+    USER ||--o| STUDENT : "role=student"
+    USER ||--o| THERAPIST : "role=therapist"
+    USER ||--o| TEACHER : "role=teacher"
+    USER ||--o| ADMINISTRATOR : "role=administrator"
+    DEPARTMENT ||--o{ COURSE : offers
+    STUDENT }o--o{ COURSE : "course_enrollments"
+    TEACHER }o--o{ COURSE : "course_teachers"
+    STUDENT ||--o{ CARE_TEAM_MEMBER : receives
+    THERAPIST ||--o{ CARE_TEAM_MEMBER : serves
+    STUDENT ||--o{ MOOD_ENTRY : logs
+    STUDENT ||--o{ SLEEP_ENTRY : logs
+    STUDENT ||--o{ WELLNESS_ASSESSMENT : completes
+    STUDENT ||--o{ STRESS_ASSESSMENT : completes
+    STUDENT ||--o{ JOURNAL_ENTRY : writes
+    JOURNAL_ENTRY ||--o{ JOURNAL_SHARE : "shared via"
+    STUDENT ||--o{ WELLNESS_GOAL : sets
+    STUDENT ||--o{ AI_CONVERSATION : opens
+    AI_CONVERSATION ||--o{ AI_MESSAGE : contains
+    STUDENT ||--o{ RECOMMENDATION : receives
+    RESOURCE ||--o{ RECOMMENDATION : "suggested as"
+    THERAPIST ||--o{ THERAPIST_AVAILABILITY : offers
+    THERAPIST_AVAILABILITY ||--o| APPOINTMENT : "booked as"
+    STUDENT ||--o{ APPOINTMENT : books
+    APPOINTMENT ||--o| THERAPY_SESSION : "delivered as"
+    THERAPY_SESSION ||--o{ THERAPY_NOTE : "versions"
+    STUDENT ||--o{ MESSAGE : "conversation with therapist"
+    STUDENT ||--o{ RISK_ALERT : "may need support"
+    USER ||--o{ CONSENT : grants
+    USER ||--o{ NOTIFICATION : receives
+```
+
+### 0.2 Requirements checklist
+
+| Requirement | How it is met |
+|-------------|---------------|
+| Foreign keys | 70 FKs. Profile tables use composite FKs `(user_id, role, institution_id)` so a `students` row can only reference a `student` user of the same institution; departments must belong to the same institution; a note's author must be the session's therapist; a slot belongs to the appointment's therapist; a session's parties equal its appointment's parties |
+| Indexes | 121 indexes. Every FK column leads an index (enforced by a test), plus time-descending indexes on student/therapist timelines, partial indexes for open alerts / unread items / active care teams, a GIN index on resource tags |
+| `created_at` / `updated_at` | On every table except `audit_logs`, which is append-only and has `occurred_at` |
+| UUIDs | UUIDv7 primary keys generated in the application (`ids.uuid7`), with `gen_random_uuid()` as the server default. `audit_logs.seq` is an identity column used only for chain ordering |
+| Confidential vs general data | Separate schemas (above); no FK from `wellness` to `therapy` (tested) |
+| No plaintext passwords | Only `credentials.password_hash`; a CHECK requires the `$argon2id$` prefix; hashing in `app/core/security.py`; the seed hashes every password; no password column exists anywhere else (tested) |
+| Constraints | 116 CHECK / UNIQUE / EXCLUDE constraints (94 / 19 / 3) besides primary keys: value ranges, enum membership, lowercase unique email per institution, no overlapping availability slots, no double-booked therapist or student, one live appointment per slot, one active primary therapist per student, one active consent per scope, state consistency (`resolved_at` iff resolved/dismissed, `cancelled_at` iff cancelled, ...), `risk_alerts.requires_human` always true |
+| Cascade behaviour | See 0.3 |
+| Migrations | `0001_initial_schema` creates extensions, schemas, tables, indexes, audit triggers; downgrade removes everything |
+| Synthetic data | `python -m app.infrastructure.db.seed` (about 15,000 rows for 120 students in about 10 s); fictional, `.example` emails, clearly marked therapy notes and alert excerpts; refuses to run when `APP_ENV=production` or if already seeded |
+
+### 0.3 Delete behaviour
+
+| Relationship | Policy | Why |
+|--------------|--------|-----|
+| User to credentials, profiles, wellness data, AI conversations/messages, recommendations, consents, notifications, journal shares | `CASCADE` | Right to erasure of self-tracked data |
+| Anything to `institutions`, `departments` | `RESTRICT` | A tenant is never deleted by accident |
+| Therapy appointments, sessions, notes; messages; risk alerts, to student/therapist | `RESTRICT` | Clinical and safety records follow the retention policy; a user with clinical history cannot be hard-deleted, only deactivated or removed by the retention job |
+| `recommendations.resource_id`, `resources.reviewed_by`, `appointments.cancelled_by`, `risk_alerts.assigned_to` | `SET NULL` | Keep the record when the referenced item goes away |
+| Course to enrollments / teaching links | `CASCADE` | Pure association rows |
+| Audit rows to users, students, resources | none (soft references) | Audit must outlive the people it describes; a FK `SET NULL` would also require an `UPDATE`, which the append-only trigger forbids |
+
+### 0.4 Differences from the original design (sections 1-10)
+
+| Area | Design said | Implemented | Reason / next step |
+|------|-------------|-------------|--------------------|
+| Schema names | `wellbeing`, `care`, `insights`, `referral`, `analytics` | `wellness`, `therapy`, plus a new `ai` schema; `insights`, `referral`, `analytics` not created yet | Matches the requested entity list; remaining schemas arrive with their features |
+| Roles | `faculty`, `institution_admin`, `platform_admin`, `clinical_supervisor` as roles | `user_role` = `student`, `therapist`, `teacher`, `administrator`; `administrators.admin_level` distinguishes institution vs platform admin | Requested entity names; supervisor role comes with break-glass work |
+| Role tables | RBAC tables (`role`, `permission`, `role_permission`, `user_role`) | Not created. One role per user, enforced by composite FKs | Authorization phase will add permissions; authentication is explicitly out of scope here |
+| Auth tables | `mfa_factor`, `auth_session`, `refresh_token`, `invitation`, `password_reset` | Not created | Authentication phase |
+| Check-ins | One `checkin` table | Split into `mood_entries`, `sleep_entries`, `wellness_assessments`, `stress_assessments` | Requested entities; each has its own constraints and timeline index |
+| Messaging | `message_thread`, `message`, `message_read`, `attachment` | Single `messages` table keyed by (student, therapist) pair, with `read_at`, `client_msg_id` (idempotent retries) and `crisis_checked_at`; sender must be one of the pair | Simpler for a one-to-one care relationship; threads/attachments can be added without breaking it |
+| Crisis workflow | `crisis_signal`, `escalation`, `escalation_event`, `on_call_rota`, `on_call_shift`, `break_glass_grant`, `crisis_resource` | One `risk_alerts` table (source, detector, category, severity, SLA deadline, status, minimal encrypted excerpt) | Requested entity; timeline, rota and break-glass tables are deferred to the safety phase. Categories contain no diagnostic labels (tested) |
+| Consent | Append-only rows with `status` | One row per grant; `revoked_at` ends it; re-granting inserts a new row; partial unique index allows one active grant per (user, scope) | History is preserved and the "one active consent" rule is a database constraint |
+| Appointments | `appointment` + `session_note` | `appointments`, `therapy_sessions` (delivered session), `therapy_notes` (versioned, one row per edit) | Separates scheduling from the clinical session record |
+| Encryption | KMS envelope encryption, per-user/per-note data keys, AAD bound to row | Interim: AES-256-GCM, one key from `FIELD_ENCRYPTION_KEY`, AAD bound to the **column** (`EncryptedText(context)`), versioned ciphertext format | KMS and per-record keys need AWS wiring (deployment phase). Ciphertext moved to another column fails to decrypt (tested) |
+| Row-level security | Policies on tenant tables | **Not yet.** `institution_id` is on all tenant tables and `session.set_rls_context()` sets `app.user_id`, `app.institution_id`, `app.role` per transaction | Policies need the authorization model; they ship with it |
+| Enum storage | Not specified | `VARCHAR(32)` + named CHECK constraint instead of native PostgreSQL enums | Values can be added by a normal migration without `ALTER TYPE` |
+| Audit | Append-only, hash-chained | Implemented: BEFORE UPDATE/DELETE/TRUNCATE triggers reject changes; `hash = SHA256(prev_hash + canonical fields)` per institution; advisory lock serialises appends; `verify_chain()` finds the first altered row | As designed; S3 Object Lock checkpoints are a deployment task |
+| Retention | Sweep jobs | `ai_conversations.expires_at` and soft-delete columns exist; no job yet | Background-worker phase |
+| Not yet built | `resource_interaction`, `video_session`, `referral*`, `notification_preference`, `delivery_log`, `outbox_event`, `push_subscription`, `analytics.*`, resource embeddings | Deferred | Each belongs to a later feature phase |
+
+### 0.5 Running it
+
+```bash
+cd services/api
+cp ../../.env.example .env            # then set real local values; never commit .env
+uv sync                               # install dependencies
+alembic upgrade head                  # create schemas and tables
+python -m app.infrastructure.db.seed  # synthetic data (prints a one-time password if SEED_USER_PASSWORD is unset)
+TEST_DATABASE_URL=postgresql+asyncpg://USER:PASS@localhost:5432/postgres pytest
+```
+
+---
 
 ## 1. Design principles
 
@@ -175,6 +299,8 @@ erDiagram
 ```
 
 ## 4. Table catalogue
+
+> This catalogue is the original design. For what is built, and the names it uses, see section 0.
 
 Notation: **PK** primary key, **FK** foreign key, 🔒 field-encrypted, ⚑ indexed for hot path.
 All tables also have `created_at`, `updated_at`; tenant tables have `institution_id` (omitted

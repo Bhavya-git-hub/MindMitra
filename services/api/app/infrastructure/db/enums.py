@@ -1,0 +1,190 @@
+"""Domain enumerations persisted as VARCHAR + CHECK constraints."""
+
+import enum
+
+
+class UserRole(enum.StrEnum):
+    STUDENT = "student"
+    THERAPIST = "therapist"
+    TEACHER = "teacher"
+    ADMINISTRATOR = "administrator"
+
+
+class UserStatus(enum.StrEnum):
+    INVITED = "invited"
+    ACTIVE = "active"
+    SUSPENDED = "suspended"
+    DEACTIVATED = "deactivated"
+
+
+class AdminLevel(enum.StrEnum):
+    INSTITUTION_ADMIN = "institution_admin"
+    PLATFORM_ADMIN = "platform_admin"
+
+
+class CareRole(enum.StrEnum):
+    PRIMARY = "primary"
+    SECONDARY = "secondary"
+
+
+class EnrollmentStatus(enum.StrEnum):
+    ENROLLED = "enrolled"
+    DROPPED = "dropped"
+    COMPLETED = "completed"
+
+
+class GoalCategory(enum.StrEnum):
+    SLEEP = "sleep"
+    MOVEMENT = "movement"
+    MINDFULNESS = "mindfulness"
+    SOCIAL = "social"
+    ACADEMIC_BALANCE = "academic_balance"
+    NUTRITION = "nutrition"
+    OTHER = "other"
+
+
+class GoalStatus(enum.StrEnum):
+    ACTIVE = "active"
+    COMPLETED = "completed"
+    PAUSED = "paused"
+    ABANDONED = "abandoned"
+
+
+class ResourceType(enum.StrEnum):
+    ARTICLE = "article"
+    VIDEO = "video"
+    EXERCISE = "exercise"
+    AUDIO = "audio"
+    SERVICE = "service"
+
+
+class SessionMode(enum.StrEnum):
+    VIDEO = "video"
+    IN_PERSON = "in_person"
+    PHONE = "phone"
+
+
+class AppointmentStatus(enum.StrEnum):
+    REQUESTED = "requested"
+    CONFIRMED = "confirmed"
+    COMPLETED = "completed"
+    CANCELLED = "cancelled"
+    NO_SHOW = "no_show"
+
+
+class TherapySessionStatus(enum.StrEnum):
+    SCHEDULED = "scheduled"
+    IN_PROGRESS = "in_progress"
+    COMPLETED = "completed"
+    ABANDONED = "abandoned"
+
+
+class AIMessageRole(enum.StrEnum):
+    USER = "user"
+    ASSISTANT = "assistant"
+
+
+class AIConversationStatus(enum.StrEnum):
+    ACTIVE = "active"
+    ENDED = "ended"
+    CRISIS_HANDOFF = "crisis_handoff"
+
+
+class RecommendationSource(enum.StrEnum):
+    RULE = "rule"
+    MODEL = "model"
+    THERAPIST = "therapist"
+
+
+class RecommendationStatus(enum.StrEnum):
+    PENDING = "pending"
+    VIEWED = "viewed"
+    DISMISSED = "dismissed"
+    COMPLETED = "completed"
+
+
+class AlertSource(enum.StrEnum):
+    MOOD_ENTRY = "mood_entry"
+    JOURNAL = "journal"
+    AI_CHAT = "ai_chat"
+    MESSAGE = "message"
+    HELP_BUTTON = "help_button"
+    FACULTY_REFERRAL = "faculty_referral"
+    MODEL = "model"
+    THERAPIST = "therapist"
+
+
+class AlertDetector(enum.StrEnum):
+    RULES = "rules"
+    CLASSIFIER = "classifier"
+    HUMAN = "human"
+
+
+class AlertCategory(enum.StrEnum):
+    """Support-need categories. Deliberately contains no diagnostic labels."""
+
+    SELF_HARM_LANGUAGE = "self_harm_language"
+    SUICIDAL_LANGUAGE = "suicidal_language"
+    HARM_TO_OTHERS = "harm_to_others"
+    UNSAFE_SITUATION = "unsafe_situation"
+    ACUTE_DISTRESS = "acute_distress"
+    SUSTAINED_LOW_WELLBEING = "sustained_low_wellbeing"
+    ENGAGEMENT_DROP = "engagement_drop"
+
+
+class AlertSeverity(enum.StrEnum):
+    LOW = "low"
+    MODERATE = "moderate"
+    HIGH = "high"
+    IMMINENT = "imminent"
+
+
+class AlertStatus(enum.StrEnum):
+    OPEN = "open"
+    ACKNOWLEDGED = "acknowledged"
+    ESCALATED = "escalated"
+    IN_PROGRESS = "in_progress"
+    RESOLVED = "resolved"
+    DISMISSED = "dismissed"
+
+
+class ConsentScope(enum.StrEnum):
+    TERMS_AND_PRIVACY = "terms_and_privacy"
+    SHARE_MOOD_WITH_CARE_TEAM = "share_mood_with_care_team"
+    SHARE_ASSESSMENTS_WITH_CARE_TEAM = "share_assessments_with_care_team"
+    SHARE_AI_SIGNALS_WITH_CARE_TEAM = "share_ai_signals_with_care_team"
+    JOURNAL_SAFETY_SCANNING = "journal_safety_scanning"
+    AI_COMPANION_HISTORY = "ai_companion_history"
+    ANONYMOUS_AGGREGATE_RESEARCH = "anonymous_aggregate_research"
+    EMAIL_NOTIFICATIONS = "email_notifications"
+    SMS_NOTIFICATIONS = "sms_notifications"
+
+
+class NotificationType(enum.StrEnum):
+    APPOINTMENT_REMINDER = "appointment_reminder"
+    APPOINTMENT_UPDATE = "appointment_update"
+    NEW_MESSAGE = "new_message"
+    RISK_ALERT = "risk_alert"
+    RECOMMENDATION = "recommendation"
+    GOAL_REMINDER = "goal_reminder"
+    SYSTEM = "system"
+
+
+class NotificationPriority(enum.StrEnum):
+    LOW = "low"
+    NORMAL = "normal"
+    HIGH = "high"
+    CRITICAL = "critical"
+
+
+class NotificationChannel(enum.StrEnum):
+    IN_APP = "in_app"
+    EMAIL = "email"
+    SMS = "sms"
+    PUSH = "push"
+
+
+class AuditOutcome(enum.StrEnum):
+    ALLOWED = "allowed"
+    DENIED = "denied"
+    ERROR = "error"
