@@ -43,6 +43,7 @@ says otherwise. Each phase ends with tests run and passing (rule 20).
 **Goal:** secure foundation every later feature depends on.
 
 - Data model: institution, user, role profiles, therapist assignment, consent, audit log
+  (**done early** in the database-layer work; see `docs/DATABASE_DESIGN.md` section 0)
 - Registration/invite flows (admin invites therapists/faculty; students via institution email)
 - Login, logout, refresh rotation, Argon2id, optional TOTP MFA
 - Central policy layer (`domain/policies`) and `require_permission` dependency
