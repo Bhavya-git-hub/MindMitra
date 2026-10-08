@@ -13,7 +13,13 @@ from sqlalchemy import BigInteger, CheckConstraint, DateTime, Identity, Index, S
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.infrastructure.db.base import Base, TenantMixin, UUIDPrimaryKeyMixin, enum_col
+from app.infrastructure.db.base import (
+    Base,
+    TenantMixin,
+    UUIDPrimaryKeyMixin,
+    enum_col,
+    tenant_column,
+)
 from app.infrastructure.db.enums import AuditOutcome, UserRole
 
 
@@ -34,6 +40,8 @@ class AuditLog(UUIDPrimaryKeyMixin, TenantMixin, Base):
         {"schema": "audit"},
     )
 
+    # ix_audit_logs_institution_seq already leads with institution_id: no separate index.
+    institution_id: Mapped[uuid.UUID] = tenant_column(index=False)
     seq: Mapped[int] = mapped_column(BigInteger, Identity(always=True), nullable=False)
     occurred_at: Mapped[dt.datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()

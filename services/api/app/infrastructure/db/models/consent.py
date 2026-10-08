@@ -12,7 +12,8 @@ from app.infrastructure.db.base import (
     TimestampMixin,
     UUIDPrimaryKeyMixin,
     enum_col,
-    fk_uuid,
+    tenant_fk,
+    uuid_col,
 )
 from app.infrastructure.db.enums import ConsentScope
 
@@ -26,6 +27,7 @@ class Consent(UUIDPrimaryKeyMixin, TenantMixin, TimestampMixin, Base):
 
     __tablename__ = "consents"
     __table_args__ = (
+        tenant_fk("user_id", "iam.users", ondelete="CASCADE", target_column="id"),
         CheckConstraint(
             "revoked_at IS NULL OR revoked_at >= granted_at", name="revoked_after_granted"
         ),
@@ -41,7 +43,7 @@ class Consent(UUIDPrimaryKeyMixin, TenantMixin, TimestampMixin, Base):
         {"schema": "consent"},
     )
 
-    user_id: Mapped[uuid.UUID] = fk_uuid("iam.users.id", ondelete="CASCADE")
+    user_id: Mapped[uuid.UUID] = uuid_col()
     scope: Mapped[ConsentScope] = mapped_column(
         enum_col(ConsentScope, "consent_scope"), nullable=False
     )

@@ -38,8 +38,8 @@ os.environ.setdefault("FIELD_ENCRYPTION_KEY", generate_key())  # fresh random ke
 os.environ["DATABASE_URL"] = _ADMIN_URL  # replaced per-run below
 
 from app.core.config import get_settings  # noqa: E402
+from app.infrastructure.db.column_types import reset_cipher  # noqa: E402
 from app.infrastructure.db.seed import SeedConfig, SeedResult, seed_database  # noqa: E402
-from app.infrastructure.db.types import reset_cipher  # noqa: E402
 
 API_ROOT = Path(__file__).resolve().parent.parent
 SEED_PASSWORD = secrets.token_urlsafe(18)  # random per run; only protects throwaway test data

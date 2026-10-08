@@ -90,3 +90,40 @@ async def count(session: AsyncSession, table: str, where: str = "true", **params
 
 
 LIVE = (AppointmentStatus.REQUESTED, AppointmentStatus.CONFIRMED)
+
+
+async def other_institution(session: AsyncSession) -> tuple[m.Institution, m.Department]:
+    """A second, empty tenant (with one department) for cross-tenant isolation tests."""
+    tag = uuid.uuid4().hex[:8]
+    inst = m.Institution(id=uuid7(), name=f"Other {tag}", slug=f"other-{tag}")
+    session.add(inst)
+    await session.flush()
+    dept = m.Department(id=uuid7(), institution_id=inst.id, name="Other Dept", code="OTH")
+    session.add(dept)
+    await session.flush()
+    return inst, dept
+
+
+async def student_in(session: AsyncSession, inst: m.Institution, dept: m.Department) -> m.Student:
+    u = await new_user(session, inst, UserRole.STUDENT)
+    s = m.Student(
+        user_id=u.id,
+        institution_id=inst.id,
+        department_id=dept.id,
+        student_number=f"X-{uuid.uuid4().hex[:8]}",
+        enrollment_year=2025,
+        year_of_study=1,
+    )
+    session.add(s)
+    await session.flush()
+    return s
+
+
+async def therapist_in(session: AsyncSession, inst: m.Institution) -> m.Therapist:
+    u = await new_user(session, inst, UserRole.THERAPIST)
+    t = m.Therapist(
+        user_id=u.id, institution_id=inst.id, licence_number=f"L-{uuid.uuid4().hex[:8]}"
+    )
+    session.add(t)
+    await session.flush()
+    return t

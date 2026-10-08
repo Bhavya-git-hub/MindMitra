@@ -23,6 +23,7 @@ from app.infrastructure.db.base import (
     UUIDPrimaryKeyMixin,
     enum_col,
     fk_uuid,
+    tenant_column,
 )
 from app.infrastructure.db.enums import UserRole, UserStatus
 
@@ -38,10 +39,14 @@ class User(UUIDPrimaryKeyMixin, TenantMixin, TimestampMixin, SoftDeleteMixin, Ba
         # Target of composite FKs: a profile row can only reference a user of its own role
         # and tenant.
         UniqueConstraint("id", "role", "institution_id", name="uq_users_id_role_institution"),
+        # Target of composite tenant FKs (consents, notifications).
+        UniqueConstraint("id", "institution_id", name="uq_users_id_institution"),
         Index("ix_users_institution_role_status", "institution_id", "role", "status"),
         {"schema": "iam"},
     )
 
+    # Already the leading column of ix_users_institution_role_status, so no separate index.
+    institution_id: Mapped[uuid.UUID] = tenant_column(index=False)
     email: Mapped[str] = mapped_column(String(320), nullable=False)
     full_name: Mapped[str] = mapped_column(String(200), nullable=False)
     role: Mapped[UserRole] = mapped_column(enum_col(UserRole, "user_role"), nullable=False)

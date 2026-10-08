@@ -19,6 +19,34 @@ from app.infrastructure.db.enums import AuditOutcome, UserRole
 from app.infrastructure.db.ids import uuid7
 from app.infrastructure.db.models.audit import AuditLog
 
+# Audit details are metadata only. Content-bearing or credential-like keys are rejected so a
+# careless caller cannot leak message bodies, notes or secrets into an append-only table.
+FORBIDDEN_DETAIL_KEYS = frozenset(
+    {
+        "body", "content", "text", "message", "note", "notes", "title", "excerpt",
+        "journal", "reason_text", "password", "password_hash", "token", "secret",
+        "authorization", "cookie", "email", "phone", "full_name", "name",
+    }
+)  # fmt: skip
+MAX_DETAIL_VALUE_LENGTH = 200
+
+
+class AuditDetailsError(ValueError):
+    """``details`` contains a forbidden key or an over-long string value."""
+
+
+def validate_details(value: Any, path: str = "details") -> None:
+    if isinstance(value, dict):
+        for key, inner in value.items():
+            if str(key).lower() in FORBIDDEN_DETAIL_KEYS:
+                raise AuditDetailsError(f"{path}.{key}: key not allowed in audit details")
+            validate_details(inner, f"{path}.{key}")
+    elif isinstance(value, list | tuple):
+        for i, inner in enumerate(value):
+            validate_details(inner, f"{path}[{i}]")
+    elif isinstance(value, str) and len(value) > MAX_DETAIL_VALUE_LENGTH:
+        raise AuditDetailsError(f"{path}: string longer than {MAX_DETAIL_VALUE_LENGTH} characters")
+
 
 def _canonical(fields: dict[str, Any]) -> str:
     return json.dumps(fields, sort_keys=True, separators=(",", ":"), default=str)
@@ -64,6 +92,7 @@ async def append_audit_event(
     details: dict[str, Any] | None = None,
     occurred_at: dt.datetime | None = None,
 ) -> AuditLog:
+    validate_details(details or {})
     await session.execute(
         text("SELECT pg_advisory_xact_lock(hashtextextended(:k, 0))"),
         {"k": f"audit:{institution_id}"},

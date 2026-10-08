@@ -225,8 +225,8 @@ async def test_sleep_entry_rules(session: AsyncSession) -> None:
         student_id=s.user_id,
         sleep_date=NOW.date() + dt.timedelta(days=1),
         bedtime=bed,
-        wake_time=bed - dt.timedelta(hours=1),
-        duration_minutes=60,
+        wake_time=bed - dt.timedelta(seconds=30),  # within the 1-minute duration tolerance
+        duration_minutes=0,
         quality=3,
     )
     await rejected(session, other, match="wake_after_bedtime")
@@ -235,11 +235,21 @@ async def test_sleep_entry_rules(session: AsyncSession) -> None:
         student_id=s.user_id,
         sleep_date=NOW.date() + dt.timedelta(days=2),
         bedtime=bed,
-        wake_time=bed + dt.timedelta(hours=1),
+        wake_time=bed + dt.timedelta(minutes=2000),
         duration_minutes=2000,
         quality=3,
     )
     await rejected(session, bad, match="duration_range")
+    mismatch = m.SleepEntry(
+        institution_id=s.institution_id,
+        student_id=s.user_id,
+        sleep_date=NOW.date() + dt.timedelta(days=3),
+        bedtime=bed,
+        wake_time=bed + dt.timedelta(hours=1),
+        duration_minutes=600,  # claims 10h for a 1h interval
+        quality=3,
+    )
+    await rejected(session, mismatch, match="duration_matches_times")
 
 
 async def test_assessment_scores_cannot_exceed_maximum(session: AsyncSession) -> None:
@@ -304,11 +314,15 @@ async def test_journal_share_unique_and_revocation_order(session: AsyncSession) 
     )
     session.add(e)
     await session.flush()
-    session.add(m.JournalShare(entry_id=e.id, therapist_id=th.user_id, shared_at=NOW))
+    session.add(
+        m.JournalShare(
+            institution_id=s.institution_id, entry_id=e.id, therapist_id=th.user_id, shared_at=NOW
+        )
+    )
     await session.flush()
     await rejected(
         session,
-        m.JournalShare(entry_id=e.id, therapist_id=th.user_id),
+        m.JournalShare(institution_id=s.institution_id, entry_id=e.id, therapist_id=th.user_id),
         match="uq_journal_shares_entry_therapist",
     )
     e2 = m.JournalEntry(
@@ -319,6 +333,7 @@ async def test_journal_share_unique_and_revocation_order(session: AsyncSession) 
     await rejected(
         session,
         m.JournalShare(
+            institution_id=s.institution_id,
             entry_id=e2.id,
             therapist_id=th.user_id,
             shared_at=NOW,
@@ -336,33 +351,50 @@ async def test_one_active_primary_therapist_per_student(session: AsyncSession) -
     t1, t2 = (await session.execute(select(m.Therapist).limit(2))).scalars().all()
     session.add(
         m.CareTeamMember(
-            student_id=s.user_id, therapist_id=t1.user_id, role=CareRole.PRIMARY, starts_at=NOW
+            institution_id=s.institution_id,
+            student_id=s.user_id,
+            therapist_id=t1.user_id,
+            role=CareRole.PRIMARY,
+            starts_at=NOW,
         )
     )
     await session.flush()
     await rejected(
         session,
         m.CareTeamMember(
-            student_id=s.user_id, therapist_id=t2.user_id, role=CareRole.PRIMARY, starts_at=NOW
+            institution_id=s.institution_id,
+            student_id=s.user_id,
+            therapist_id=t2.user_id,
+            role=CareRole.PRIMARY,
+            starts_at=NOW,
         ),
         match="uq_care_team_active_primary",
     )
     session.add(
         m.CareTeamMember(
-            student_id=s.user_id, therapist_id=t2.user_id, role=CareRole.SECONDARY, starts_at=NOW
+            institution_id=s.institution_id,
+            student_id=s.user_id,
+            therapist_id=t2.user_id,
+            role=CareRole.SECONDARY,
+            starts_at=NOW,
         )
     )
     await session.flush()
     await rejected(
         session,
         m.CareTeamMember(
-            student_id=s.user_id, therapist_id=t2.user_id, role=CareRole.SECONDARY, starts_at=NOW
+            institution_id=s.institution_id,
+            student_id=s.user_id,
+            therapist_id=t2.user_id,
+            role=CareRole.SECONDARY,
+            starts_at=NOW,
         ),
         match="uq_care_team_active_pair",
     )
     await rejected(
         session,
         m.CareTeamMember(
+            institution_id=s.institution_id,
             student_id=(await helpers.new_student(session)).user_id,
             therapist_id=t1.user_id,
             starts_at=NOW,

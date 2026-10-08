@@ -33,19 +33,22 @@ from app.infrastructure.db.base import (
     UUIDPrimaryKeyMixin,
     enum_col,
     fk_uuid,
+    tenant_fk,
+    uuid_col,
 )
+from app.infrastructure.db.column_types import EncryptedText
 from app.infrastructure.db.enums import (
     AIConversationStatus,
     AIMessageRole,
     RecommendationSource,
     RecommendationStatus,
 )
-from app.infrastructure.db.types import EncryptedText
 
 
 class AIConversation(UUIDPrimaryKeyMixin, TenantMixin, TimestampMixin, SoftDeleteMixin, Base):
     __tablename__ = "ai_conversations"
     __table_args__ = (
+        tenant_fk("student_id", "org.students", ondelete="CASCADE"),
         CheckConstraint("ended_at IS NULL OR ended_at >= started_at", name="ended_after_started"),
         CheckConstraint(
             "expires_at IS NULL OR expires_at > started_at", name="expires_after_start"
@@ -59,7 +62,7 @@ class AIConversation(UUIDPrimaryKeyMixin, TenantMixin, TimestampMixin, SoftDelet
         {"schema": "ai"},
     )
 
-    student_id: Mapped[uuid.UUID] = fk_uuid("org.students.user_id", ondelete="CASCADE")
+    student_id: Mapped[uuid.UUID] = uuid_col()
     status: Mapped[AIConversationStatus] = mapped_column(
         enum_col(AIConversationStatus, "ai_conversation_status"),
         nullable=False,
@@ -100,6 +103,7 @@ class Recommendation(UUIDPrimaryKeyMixin, TenantMixin, TimestampMixin, Base):
 
     __tablename__ = "recommendations"
     __table_args__ = (
+        tenant_fk("student_id", "org.students", ondelete="CASCADE"),
         CheckConstraint("btrim(title) <> ''", name="title_not_blank"),
         CheckConstraint(
             "confidence IS NULL OR confidence BETWEEN 0 AND 1", name="confidence_range"
@@ -112,7 +116,7 @@ class Recommendation(UUIDPrimaryKeyMixin, TenantMixin, TimestampMixin, Base):
         {"schema": "ai"},
     )
 
-    student_id: Mapped[uuid.UUID] = fk_uuid("org.students.user_id", ondelete="CASCADE")
+    student_id: Mapped[uuid.UUID] = uuid_col()
     resource_id: Mapped[uuid.UUID | None] = fk_uuid(
         "wellness.resources.id", ondelete="SET NULL", nullable=True
     )

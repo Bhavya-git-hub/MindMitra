@@ -19,8 +19,9 @@ from app.infrastructure.db.base import (
     TenantMixin,
     TimestampMixin,
     UUIDPrimaryKeyMixin,
+    tenant_fk,
 )
-from app.infrastructure.db.types import EncryptedText
+from app.infrastructure.db.column_types import EncryptedText
 
 
 class Message(UUIDPrimaryKeyMixin, TenantMixin, TimestampMixin, Base):
@@ -33,18 +34,8 @@ class Message(UUIDPrimaryKeyMixin, TenantMixin, TimestampMixin, Base):
 
     __tablename__ = "messages"
     __table_args__ = (
-        ForeignKeyConstraint(
-            ["student_id"],
-            ["org.students.user_id"],
-            ondelete="RESTRICT",
-            name="fk_messages_student_id_students",
-        ),
-        ForeignKeyConstraint(
-            ["therapist_id"],
-            ["org.therapists.user_id"],
-            ondelete="RESTRICT",
-            name="fk_messages_therapist_id_therapists",
-        ),
+        tenant_fk("student_id", "org.students", ondelete="RESTRICT"),
+        tenant_fk("therapist_id", "org.therapists", ondelete="RESTRICT"),
         ForeignKeyConstraint(
             ["sender_id"],
             ["iam.users.id"],
@@ -55,6 +46,8 @@ class Message(UUIDPrimaryKeyMixin, TenantMixin, TimestampMixin, Base):
         CheckConstraint("read_at IS NULL OR read_at >= created_at", name="read_after_created"),
         UniqueConstraint("sender_id", "client_msg_id", name="uq_messages_sender_client_msg"),
         Index("ix_messages_conversation_created", "student_id", "therapist_id", "created_at"),
+        # Backs the therapist foreign key (ix_messages_unread below is partial).
+        Index("ix_messages_therapist_id", "therapist_id"),
         Index(
             "ix_messages_unread",
             "therapist_id",

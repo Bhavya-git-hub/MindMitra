@@ -85,8 +85,8 @@ def _utc(d: dt.date, hour: int, minute: int = 0) -> dt.datetime:
 
 async def seed_database(session: AsyncSession, cfg: SeedConfig | None = None) -> SeedResult:
     cfg = cfg or SeedConfig()
-    if get_settings().is_production:
-        raise SeedRefused("refusing to seed synthetic data when APP_ENV=production")
+    if not get_settings().allows_seeding:
+        raise SeedRefused("refusing to seed synthetic data unless APP_ENV is development or test")
     exists = await session.scalar(
         select(m.Institution.id).where(m.Institution.slug == INSTITUTION_SLUG)
     )
@@ -258,7 +258,7 @@ async def seed_database(session: AsyncSession, cfg: SeedConfig | None = None) ->
     ct = []
     for tch in teachers:
         for crs in courses_by_dept[tch.department_id][:2]:
-            ct.append(m.CourseTeacher(course_id=crs.id, teacher_id=tch.user_id))
+            ct.append(m.CourseTeacher(institution_id=iid, course_id=crs.id, teacher_id=tch.user_id))
     session.add_all(ct)
     enrolls = []
     for s in students:
@@ -267,7 +267,9 @@ async def seed_database(session: AsyncSession, cfg: SeedConfig | None = None) ->
         other = rng.choice(courses)
         picks.add(other)
         for crs in picks:
-            enrolls.append(m.CourseEnrollment(course_id=crs.id, student_id=s.user_id))
+            enrolls.append(
+                m.CourseEnrollment(institution_id=iid, course_id=crs.id, student_id=s.user_id)
+            )
     session.add_all(enrolls)
     await session.flush()
     bump("course_teachers", len(ct))
@@ -287,6 +289,7 @@ async def seed_database(session: AsyncSession, cfg: SeedConfig | None = None) ->
         care_pairs.append((s, t))
     session.add_all(
         m.CareTeamMember(
+            institution_id=iid,
             student_id=s.user_id,
             therapist_id=t.user_id,
             role=CareRole.PRIMARY,
@@ -481,6 +484,7 @@ async def seed_database(session: AsyncSession, cfg: SeedConfig | None = None) ->
                 if th and rng.random() < 0.15:
                     shares.append(
                         m.JournalShare(
+                            institution_id=iid,
                             entry_id=entry.id,
                             therapist_id=th.user_id,
                             shared_at=created + dt.timedelta(hours=2),
