@@ -22,8 +22,10 @@ from app.infrastructure.db.base import (
     TimestampMixin,
     UUIDPrimaryKeyMixin,
     enum_col,
-    fk_uuid,
+    tenant_fk,
+    uuid_col,
 )
+from app.infrastructure.db.column_types import EncryptedText
 from app.infrastructure.db.enums import (
     AlertCategory,
     AlertDetector,
@@ -31,7 +33,6 @@ from app.infrastructure.db.enums import (
     AlertSource,
     AlertStatus,
 )
-from app.infrastructure.db.types import EncryptedText
 
 
 class RiskAlert(UUIDPrimaryKeyMixin, TenantMixin, TimestampMixin, Base):
@@ -43,6 +44,9 @@ class RiskAlert(UUIDPrimaryKeyMixin, TenantMixin, TimestampMixin, Base):
 
     __tablename__ = "risk_alerts"
     __table_args__ = (
+        # RESTRICT: safety records follow the retention policy, not cascade deletion.
+        tenant_fk("student_id", "org.students", ondelete="RESTRICT"),
+        tenant_fk("assigned_to", "org.therapists", ondelete="RESTRICT"),
         CheckConstraint("requires_human", name="always_requires_human"),
         CheckConstraint(
             "confidence IS NULL OR confidence BETWEEN 0 AND 1", name="confidence_range"
@@ -52,7 +56,7 @@ class RiskAlert(UUIDPrimaryKeyMixin, TenantMixin, TimestampMixin, Base):
             name="resolved_at_matches_status",
         ),
         CheckConstraint(
-            "status = 'open' OR status = 'dismissed' OR acknowledged_at IS NOT NULL",
+            "status IN ('open','escalated','dismissed') OR acknowledged_at IS NOT NULL",
             name="acknowledged_before_progress",
         ),
         CheckConstraint(
@@ -72,11 +76,8 @@ class RiskAlert(UUIDPrimaryKeyMixin, TenantMixin, TimestampMixin, Base):
         {"schema": "safety"},
     )
 
-    # RESTRICT: clinical/safety records follow the retention policy, not cascade deletion.
-    student_id: Mapped[uuid.UUID] = fk_uuid("org.students.user_id", ondelete="RESTRICT")
-    assigned_to: Mapped[uuid.UUID | None] = fk_uuid(
-        "org.therapists.user_id", ondelete="SET NULL", nullable=True
-    )
+    student_id: Mapped[uuid.UUID] = uuid_col()
+    assigned_to: Mapped[uuid.UUID | None] = uuid_col(nullable=True)
     source: Mapped[AlertSource] = mapped_column(
         enum_col(AlertSource, "alert_source"), nullable=False
     )

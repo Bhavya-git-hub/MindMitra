@@ -5,7 +5,7 @@ import enum
 import uuid
 from typing import Any
 
-from sqlalchemy import DateTime, Enum, ForeignKey, MetaData, func, text
+from sqlalchemy import DateTime, Enum, ForeignKey, ForeignKeyConstraint, MetaData, func, text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, declared_attr, mapped_column
 
@@ -72,17 +72,44 @@ class TimestampMixin:
     )
 
 
+def tenant_column(*, index: bool = True) -> Mapped[uuid.UUID]:
+    return mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("org.institutions.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=index,
+    )
+
+
 class TenantMixin:
-    """Adds institution_id so row-level security can isolate tenants (policies come later)."""
+    """Adds institution_id so row-level security can isolate tenants (policies come later).
+
+    Tables that reference a student/therapist/user also declare a *composite* foreign key
+    (``tenant_fk``) so ``institution_id`` can never disagree with the referenced row's tenant.
+    """
 
     @declared_attr
     def institution_id(cls) -> Mapped[uuid.UUID]:  # noqa: N805
-        return mapped_column(
-            UUID(as_uuid=True),
-            ForeignKey("org.institutions.id", ondelete="RESTRICT"),
-            nullable=False,
-            index=True,
-        )
+        return tenant_column()
+
+
+def uuid_col(*, nullable: bool = False, **kw: Any) -> Mapped[Any]:
+    """Plain UUID column; the foreign key is declared in ``__table_args__``."""
+    return mapped_column(UUID(as_uuid=True), nullable=nullable, **kw)
+
+
+def tenant_fk(
+    column: str, target: str, *, ondelete: str, target_column: str = "user_id"
+) -> ForeignKeyConstraint:
+    """Composite FK ``(column, institution_id) -> target(target_column, institution_id)``.
+
+    Guarantees the child row belongs to the same institution as the row it references.
+    """
+    return ForeignKeyConstraint(
+        [column, "institution_id"],
+        [f"{target}.{target_column}", f"{target}.institution_id"],
+        ondelete=ondelete,
+    )
 
 
 class SoftDeleteMixin:

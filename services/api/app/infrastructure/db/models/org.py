@@ -26,6 +26,9 @@ from app.infrastructure.db.base import (
     UUIDPrimaryKeyMixin,
     enum_col,
     fk_uuid,
+    tenant_column,
+    tenant_fk,
+    uuid_col,
 )
 from app.infrastructure.db.enums import AdminLevel, CareRole, EnrollmentStatus
 
@@ -59,24 +62,10 @@ class Department(UUIDPrimaryKeyMixin, TenantMixin, TimestampMixin, Base):
         {"schema": "org"},
     )
 
+    # uq_departments_institution_code already leads with institution_id: no separate index.
+    institution_id: Mapped[uuid.UUID] = tenant_column(index=False)
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     code: Mapped[str] = mapped_column(String(20), nullable=False)
-
-
-class Course(UUIDPrimaryKeyMixin, TenantMixin, TimestampMixin, Base):
-    __tablename__ = "courses"
-    __table_args__ = (
-        UniqueConstraint("department_id", "code", "term", name="uq_courses_department_code_term"),
-        CheckConstraint("credits BETWEEN 0 AND 30", name="credits_range"),
-        Index("ix_courses_department_term", "department_id", "term"),
-        {"schema": "org"},
-    )
-
-    department_id: Mapped[uuid.UUID] = fk_uuid("org.departments.id", ondelete="RESTRICT")
-    code: Mapped[str] = mapped_column(String(20), nullable=False)
-    title: Mapped[str] = mapped_column(String(200), nullable=False)
-    term: Mapped[str] = mapped_column(String(20), nullable=False)  # e.g. "2026-autumn"
-    credits: Mapped[int] = mapped_column(SmallInteger, nullable=False, server_default=text("3"))
 
 
 def _dept_fk(table: str) -> ForeignKeyConstraint:
@@ -87,6 +76,24 @@ def _dept_fk(table: str) -> ForeignKeyConstraint:
         ondelete="RESTRICT",
         name=f"fk_{table}_department_institution",
     )
+
+
+class Course(UUIDPrimaryKeyMixin, TenantMixin, TimestampMixin, Base):
+    __tablename__ = "courses"
+    __table_args__ = (
+        _dept_fk("courses"),
+        UniqueConstraint("id", "institution_id", name="uq_courses_id_institution"),
+        UniqueConstraint("department_id", "code", "term", name="uq_courses_department_code_term"),
+        CheckConstraint("credits BETWEEN 0 AND 30", name="credits_range"),
+        Index("ix_courses_department_term", "department_id", "term"),
+        {"schema": "org"},
+    )
+
+    department_id: Mapped[uuid.UUID] = uuid_col()
+    code: Mapped[str] = mapped_column(String(20), nullable=False)
+    title: Mapped[str] = mapped_column(String(200), nullable=False)
+    term: Mapped[str] = mapped_column(String(20), nullable=False)  # e.g. "2026-autumn"
+    credits: Mapped[int] = mapped_column(SmallInteger, nullable=False, server_default=text("3"))
 
 
 def _profile_fk(role: str) -> tuple[ForeignKeyConstraint, CheckConstraint]:
@@ -106,6 +113,7 @@ class Student(TimestampMixin, Base):
     __tablename__ = "students"
     __table_args__ = (
         *_profile_fk("student"),
+        UniqueConstraint("user_id", "institution_id", name="uq_students_user_institution"),
         _dept_fk("students"),
         UniqueConstraint("institution_id", "student_number", name="uq_students_institution_number"),
         CheckConstraint("enrollment_year BETWEEN 1990 AND 2100", name="enrollment_year_range"),
@@ -114,7 +122,7 @@ class Student(TimestampMixin, Base):
         {"schema": "org"},
     )
 
-    user_id: Mapped[uuid.UUID] = fk_uuid("iam.users.id", ondelete="CASCADE", primary_key=True)
+    user_id: Mapped[uuid.UUID] = uuid_col(primary_key=True)  # FK is the composite above
     role: Mapped[str] = mapped_column(String(32), nullable=False, server_default="student")
     institution_id: Mapped[uuid.UUID] = fk_uuid("org.institutions.id", ondelete="RESTRICT")
     department_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
@@ -130,6 +138,7 @@ class Teacher(TimestampMixin, Base):
     __tablename__ = "teachers"
     __table_args__ = (
         *_profile_fk("teacher"),
+        UniqueConstraint("user_id", "institution_id", name="uq_teachers_user_institution"),
         _dept_fk("teachers"),
         UniqueConstraint(
             "institution_id", "employee_number", name="uq_teachers_institution_number"
@@ -138,7 +147,7 @@ class Teacher(TimestampMixin, Base):
         {"schema": "org"},
     )
 
-    user_id: Mapped[uuid.UUID] = fk_uuid("iam.users.id", ondelete="CASCADE", primary_key=True)
+    user_id: Mapped[uuid.UUID] = uuid_col(primary_key=True)  # FK is the composite above
     role: Mapped[str] = mapped_column(String(32), nullable=False, server_default="teacher")
     institution_id: Mapped[uuid.UUID] = fk_uuid("org.institutions.id", ondelete="RESTRICT")
     department_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
@@ -150,6 +159,7 @@ class Therapist(TimestampMixin, Base):
     __tablename__ = "therapists"
     __table_args__ = (
         *_profile_fk("therapist"),
+        UniqueConstraint("user_id", "institution_id", name="uq_therapists_user_institution"),
         UniqueConstraint(
             "institution_id", "licence_number", name="uq_therapists_institution_licence"
         ),
@@ -157,7 +167,7 @@ class Therapist(TimestampMixin, Base):
         {"schema": "org"},
     )
 
-    user_id: Mapped[uuid.UUID] = fk_uuid("iam.users.id", ondelete="CASCADE", primary_key=True)
+    user_id: Mapped[uuid.UUID] = uuid_col(primary_key=True)  # FK is the composite above
     role: Mapped[str] = mapped_column(String(32), nullable=False, server_default="therapist")
     institution_id: Mapped[uuid.UUID] = fk_uuid("org.institutions.id", ondelete="RESTRICT")
     licence_number: Mapped[str] = mapped_column(String(60), nullable=False)
@@ -184,7 +194,7 @@ class Administrator(TimestampMixin, Base):
         {"schema": "org"},
     )
 
-    user_id: Mapped[uuid.UUID] = fk_uuid("iam.users.id", ondelete="CASCADE", primary_key=True)
+    user_id: Mapped[uuid.UUID] = uuid_col(primary_key=True)  # FK is the composite above
     role: Mapped[str] = mapped_column(String(32), nullable=False, server_default="administrator")
     institution_id: Mapped[uuid.UUID] = fk_uuid("org.institutions.id", ondelete="RESTRICT")
     admin_level: Mapped[AdminLevel] = mapped_column(
@@ -194,16 +204,18 @@ class Administrator(TimestampMixin, Base):
     )
 
 
-class CourseEnrollment(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+class CourseEnrollment(UUIDPrimaryKeyMixin, TenantMixin, TimestampMixin, Base):
     __tablename__ = "course_enrollments"
     __table_args__ = (
+        tenant_fk("course_id", "org.courses", ondelete="CASCADE", target_column="id"),
+        tenant_fk("student_id", "org.students", ondelete="CASCADE"),
         UniqueConstraint("course_id", "student_id", name="uq_course_enrollments_course_student"),
         Index("ix_course_enrollments_student_id", "student_id"),
         {"schema": "org"},
     )
 
-    course_id: Mapped[uuid.UUID] = fk_uuid("org.courses.id", ondelete="CASCADE")
-    student_id: Mapped[uuid.UUID] = fk_uuid("org.students.user_id", ondelete="CASCADE")
+    course_id: Mapped[uuid.UUID] = uuid_col()
+    student_id: Mapped[uuid.UUID] = uuid_col()
     status: Mapped[EnrollmentStatus] = mapped_column(
         enum_col(EnrollmentStatus, "enrollment_status"),
         nullable=False,
@@ -211,21 +223,26 @@ class CourseEnrollment(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     )
 
 
-class CourseTeacher(TimestampMixin, Base):
+class CourseTeacher(TenantMixin, TimestampMixin, Base):
     __tablename__ = "course_teachers"
-    __table_args__ = (Index("ix_course_teachers_teacher_id", "teacher_id"), {"schema": "org"})
-
-    course_id: Mapped[uuid.UUID] = fk_uuid("org.courses.id", ondelete="CASCADE", primary_key=True)
-    teacher_id: Mapped[uuid.UUID] = fk_uuid(
-        "org.teachers.user_id", ondelete="CASCADE", primary_key=True
+    __table_args__ = (
+        tenant_fk("course_id", "org.courses", ondelete="CASCADE", target_column="id"),
+        tenant_fk("teacher_id", "org.teachers", ondelete="CASCADE"),
+        Index("ix_course_teachers_teacher_id", "teacher_id"),
+        {"schema": "org"},
     )
 
+    course_id: Mapped[uuid.UUID] = uuid_col(primary_key=True)
+    teacher_id: Mapped[uuid.UUID] = uuid_col(primary_key=True)
 
-class CareTeamMember(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+
+class CareTeamMember(UUIDPrimaryKeyMixin, TenantMixin, TimestampMixin, Base):
     """Therapist-student relationship. The backbone of relationship-based authorization."""
 
     __tablename__ = "care_team_members"
     __table_args__ = (
+        tenant_fk("student_id", "org.students", ondelete="CASCADE"),
+        tenant_fk("therapist_id", "org.therapists", ondelete="RESTRICT"),
         CheckConstraint("ends_at IS NULL OR ends_at > starts_at", name="period_valid"),
         # At most one *active* primary therapist per student.
         Index(
@@ -242,16 +259,14 @@ class CareTeamMember(UUIDPrimaryKeyMixin, TimestampMixin, Base):
             unique=True,
             postgresql_where=text("ends_at IS NULL"),
         ),
-        Index(
-            "ix_care_team_therapist_active",
-            "therapist_id",
-            postgresql_where=text("ends_at IS NULL"),
-        ),
+        # Full (non-partial) indexes: they back the foreign keys for cascade/restrict checks.
+        Index("ix_care_team_members_student_id", "student_id"),
+        Index("ix_care_team_members_therapist_id", "therapist_id"),
         {"schema": "org"},
     )
 
-    student_id: Mapped[uuid.UUID] = fk_uuid("org.students.user_id", ondelete="CASCADE")
-    therapist_id: Mapped[uuid.UUID] = fk_uuid("org.therapists.user_id", ondelete="RESTRICT")
+    student_id: Mapped[uuid.UUID] = uuid_col()
+    therapist_id: Mapped[uuid.UUID] = uuid_col()
     role: Mapped[CareRole] = mapped_column(
         enum_col(CareRole, "care_role"), nullable=False, server_default=CareRole.PRIMARY.value
     )

@@ -8,6 +8,8 @@ from app.infrastructure.db import models as m
 from app.infrastructure.db.seed import SeedConfig, SeedRefused, seed_database
 from tests import helpers
 
+_TLS_URL = "postgresql+asyncpg://u:p@db.internal:5432/x?ssl=require"
+
 
 async def test_seed_populates_every_entity(session: AsyncSession) -> None:
     tables = [
@@ -84,7 +86,17 @@ async def test_seed_refuses_in_production(
     session: AsyncSession, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setenv("APP_ENV", "production")
-    with pytest.raises(SeedRefused, match="production"):
+    monkeypatch.setenv("DATABASE_URL", _TLS_URL)
+    with pytest.raises(SeedRefused, match="development or test"):
+        await seed_database(session, SeedConfig(students=3))
+
+
+async def test_seed_refuses_in_staging(
+    session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("APP_ENV", "staging")
+    monkeypatch.setenv("DATABASE_URL", _TLS_URL)
+    with pytest.raises(SeedRefused, match="development or test"):
         await seed_database(session, SeedConfig(students=3))
 
 

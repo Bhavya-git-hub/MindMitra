@@ -18,7 +18,8 @@ from app.infrastructure.db.base import (
     TimestampMixin,
     UUIDPrimaryKeyMixin,
     enum_col,
-    fk_uuid,
+    tenant_fk,
+    uuid_col,
 )
 from app.infrastructure.db.enums import NotificationChannel, NotificationPriority, NotificationType
 
@@ -26,6 +27,7 @@ from app.infrastructure.db.enums import NotificationChannel, NotificationPriorit
 class Notification(UUIDPrimaryKeyMixin, TenantMixin, TimestampMixin, Base):
     __tablename__ = "notifications"
     __table_args__ = (
+        tenant_fk("user_id", "iam.users", ondelete="CASCADE", target_column="id"),
         CheckConstraint("jsonb_typeof(payload) = 'object'", name="payload_is_object"),
         CheckConstraint("attempts >= 0", name="attempts_non_negative"),
         CheckConstraint("read_at IS NULL OR read_at >= created_at", name="read_after_created"),
@@ -39,7 +41,7 @@ class Notification(UUIDPrimaryKeyMixin, TenantMixin, TimestampMixin, Base):
         {"schema": "notify"},
     )
 
-    user_id: Mapped[uuid.UUID] = fk_uuid("iam.users.id", ondelete="CASCADE")
+    user_id: Mapped[uuid.UUID] = uuid_col()
     type: Mapped[NotificationType] = mapped_column(
         enum_col(NotificationType, "notification_type"), nullable=False
     )
