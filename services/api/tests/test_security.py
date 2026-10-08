@@ -9,8 +9,8 @@ from app.core.crypto import DecryptionError, FieldCipher, generate_key
 from app.core.security import hash_password, verify_password
 from app.infrastructure.db import models as m
 from app.infrastructure.db.base import Base
+from app.infrastructure.db.column_types import EncryptedText
 from app.infrastructure.db.enums import UserRole
-from app.infrastructure.db.types import EncryptedText
 from tests import helpers
 from tests.conftest import SEED_PASSWORD
 

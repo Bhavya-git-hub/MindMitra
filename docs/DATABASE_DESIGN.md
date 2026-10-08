@@ -1,6 +1,6 @@
 # MindMitra Database Design
 
-- Status: **Partially implemented.** The database layer (models, migration `0001`, seed) exists in
+- Status: **Partially implemented.** The database layer (models, migrations `0001`-`0002`, seed) exists in
   `services/api`; section 0 below states exactly what was built and where it differs from the
   original design in sections 1-10. Where they disagree, **section 0 is authoritative**.
 - Engine: PostgreSQL 16 (AWS RDS Multi-AZ). Implemented extension: `btree_gist`. Designed but not
@@ -10,9 +10,9 @@
 ## 0. Implementation status (database layer, as built)
 
 Code: `services/api/app/infrastructure/db/` (models, session, audit helper, seed),
-`services/api/alembic/versions/0001_initial_schema.py`, tests in `services/api/tests/`.
+`services/api/alembic/versions/` (`0001_initial_schema.py`, `0002_tenant_safe_foreign_keys.py`), tests in `services/api/tests/`.
 Verified against PostgreSQL 16: migration up/down/up, `alembic check` (models == migration),
-63 tests, `ruff`, `mypy --strict`.
+107 tests, `ruff`, `mypy --strict`, `pip-audit`. Migration `0002` was also checked against a seeded database (backfill) and downgraded/upgraded again; schemas from `0001 -> 0002`, from scratch, and `0002 -> 0001` are identical to the expected ones. See 0.6 for the review that produced `0002`.
 
 ### 0.1 What exists
 
@@ -73,16 +73,16 @@ erDiagram
 
 | Requirement | How it is met |
 |-------------|---------------|
-| Foreign keys | 70 FKs. Profile tables use composite FKs `(user_id, role, institution_id)` so a `students` row can only reference a `student` user of the same institution; departments must belong to the same institution; a note's author must be the session's therapist; a slot belongs to the appointment's therapist; a session's parties equal its appointment's parties |
-| Indexes | 121 indexes. Every FK column leads an index (enforced by a test), plus time-descending indexes on student/therapist timelines, partial indexes for open alerts / unread items / active care teams, a GIN index on resource tags |
+| Foreign keys | 70 FKs. **Every FK between tenant-scoped tables is composite and includes `institution_id`** (enforced by a catch-all test), so a child row can never point at a parent in another institution. Profile tables use `(user_id, role, institution_id)`; departments, courses, enrolments, care teams, wellness data, appointments, sessions, notes, messages, alerts, consents, notifications and journal shares all carry the tenant in their FK; a note's author must be the session's therapist; a slot belongs to the appointment's therapist; a session's parties and tenant equal its appointment's |
+| Indexes | 131 indexes (including primary-key and unique indexes). Every FK column leads a full index (partial indexes do not count; tested), no index is a redundant prefix of another (tested), `institution_id` leads an index on every tenant table (tested), plus time-descending indexes on student/therapist timelines, partial indexes for open alerts / unread items / active care teams, a GIN index on resource tags |
 | `created_at` / `updated_at` | On every table except `audit_logs`, which is append-only and has `occurred_at` |
 | UUIDs | UUIDv7 primary keys generated in the application (`ids.uuid7`), with `gen_random_uuid()` as the server default. `audit_logs.seq` is an identity column used only for chain ordering |
 | Confidential vs general data | Separate schemas (above); no FK from `wellness` to `therapy` (tested) |
 | No plaintext passwords | Only `credentials.password_hash`; a CHECK requires the `$argon2id$` prefix; hashing in `app/core/security.py`; the seed hashes every password; no password column exists anywhere else (tested) |
-| Constraints | 116 CHECK / UNIQUE / EXCLUDE constraints (94 / 19 / 3) besides primary keys: value ranges, enum membership, lowercase unique email per institution, no overlapping availability slots, no double-booked therapist or student, one live appointment per slot, one active primary therapist per student, one active consent per scope, state consistency (`resolved_at` iff resolved/dismissed, `cancelled_at` iff cancelled, ...), `risk_alerts.requires_human` always true |
+| Constraints | 123 CHECK / UNIQUE / EXCLUDE constraints (95 / 25 / 3) besides primary keys: value ranges, enum membership, lowercase unique email per institution, no overlapping availability slots, no double-booked therapist or student, one live appointment per slot, one active primary therapist per student, one active consent per scope, state consistency (`resolved_at` iff resolved/dismissed, `cancelled_at` iff cancelled, ...), `risk_alerts.requires_human` always true, sleep duration agrees with bedtime/wake time |
 | Cascade behaviour | See 0.3 |
-| Migrations | `0001_initial_schema` creates extensions, schemas, tables, indexes, audit triggers; downgrade removes everything |
-| Synthetic data | `python -m app.infrastructure.db.seed` (about 15,000 rows for 120 students in about 10 s); fictional, `.example` emails, clearly marked therapy notes and alert excerpts; refuses to run when `APP_ENV=production` or if already seeded |
+| Migrations | `0001_initial_schema` creates extensions, schemas, tables, indexes, audit triggers; `0002_tenant_safe_foreign_keys` is the review hardening (0.6). Both are reversible; `alembic check` is a test |
+| Synthetic data | `python -m app.infrastructure.db.seed` (about 15,000 rows for 120 students in about 10 s); fictional, `.example` emails, clearly marked therapy notes and alert excerpts; only runs when `APP_ENV` is `development` or `test` (refuses staging, production and an unset value) and refuses if already seeded |
 
 ### 0.3 Delete behaviour
 
@@ -91,7 +91,8 @@ erDiagram
 | User to credentials, profiles, wellness data, AI conversations/messages, recommendations, consents, notifications, journal shares | `CASCADE` | Right to erasure of self-tracked data |
 | Anything to `institutions`, `departments` | `RESTRICT` | A tenant is never deleted by accident |
 | Therapy appointments, sessions, notes; messages; risk alerts, to student/therapist | `RESTRICT` | Clinical and safety records follow the retention policy; a user with clinical history cannot be hard-deleted, only deactivated or removed by the retention job |
-| `recommendations.resource_id`, `resources.reviewed_by`, `appointments.cancelled_by`, `risk_alerts.assigned_to` | `SET NULL` | Keep the record when the referenced item goes away |
+| `recommendations.resource_id`, `resources.reviewed_by`, `appointments.cancelled_by` | `SET NULL` | Keep the record when the referenced item goes away |
+| `risk_alerts.assigned_to` to therapist | `RESTRICT` | Composite tenant FKs cannot `SET NULL` (it would null `institution_id`); a therapist with assigned alerts is offboarded through the retention flow anyway |
 | Course to enrollments / teaching links | `CASCADE` | Pure association rows |
 | Audit rows to users, students, resources | none (soft references) | Audit must outlive the people it describes; a FK `SET NULL` would also require an `UPDATE`, which the append-only trigger forbids |
 
@@ -125,6 +126,52 @@ alembic upgrade head                  # create schemas and tables
 python -m app.infrastructure.db.seed  # synthetic data (prints a one-time password if SEED_USER_PASSWORD is unset)
 TEST_DATABASE_URL=postgresql+asyncpg://USER:PASS@localhost:5432/postgres pytest
 ```
+
+### 0.6 Review of the database layer (migration `0002`)
+
+A full review (tests, migrations, foreign keys, indexes, security and privacy) found the
+following. All were fixed in `0002` or in code; no features were added.
+
+| # | Finding | Severity | Fix |
+|---|---------|----------|-----|
+| A | Child rows carried their own `institution_id` but nothing tied it to the parent's. A bug (or a missing check in future code) could attach institution A's mood entry, message, appointment or alert to a student of institution B. | High (tenant isolation) | Composite `(id, institution_id)` foreign keys everywhere; four join tables (`care_team_members`, `course_enrollments`, `course_teachers`, `journal_shares`) gained `institution_id`, backfilled from their parent. Test: `test_tenant_isolation.py`, including a catch-all that fails if a new tenant-scoped FK omits `institution_id`. |
+| B | `risk_alerts` check `acknowledged_before_progress` forbade the `escalated` status without an acknowledgement, so automatic escalation of an unacknowledged alert would have been rejected. | Medium (safety workflow) | `escalated` is allowed without acknowledgement; `acknowledged`, `in_progress` and `resolved` still require it. |
+| C | `risk_alerts.assigned_to` was `SET NULL`; with a composite tenant FK that would try to null `institution_id`. | Medium | `RESTRICT` (see 0.3). |
+| D | Foreign keys backed only by partial indexes (`care_team_members` student/therapist, `messages.therapist_id`, `appointments.availability_id`) would scan on every parent delete. The old index test accepted partial indexes. | Medium (performance) | Full indexes added; the test now rejects partial indexes unless the predicate is `col IS NOT NULL`. |
+| E | Redundant single-column `institution_id` indexes on `users`, `departments`, `audit_logs` (each already leads a composite or unique index). | Low | Dropped; new test `test_no_redundant_indexes`. |
+| F | Profile tables had both a plain `user_id -> users` FK and the stronger composite one. | Low | Plain FK dropped. |
+| G | `sleep_entries.duration_minutes` could disagree with bedtime/wake time. | Low (data quality) | CHECK `duration_matches_times` (1 minute tolerance). |
+| H | `updated_at` was maintained only by the ORM; raw SQL left it stale. | Low | `public.set_updated_at()` BEFORE UPDATE trigger on every table with `updated_at`; test checks all of them. |
+| I | `APP_ENV` defaulted to `development`: a missing variable silently allowed seeding synthetic data. | Medium (privacy) | `APP_ENV` is required. Seeding is allowed only for `development` and `test` (an allow-list, not a production deny-list). |
+| J | Staging/production could connect to the database without TLS; a malformed `FIELD_ENCRYPTION_KEY` only failed on first write. | Medium | Settings validation: TLS (`ssl=require` or stronger) required for staging/production; key must be base64 of 32 bytes at startup. |
+| K | Failing SQL statements echo bound parameters in exception text and logs, which can contain journal or message text. | Medium (privacy) | Engine created with `hide_parameters=True` (tested with a deliberately failing statement). |
+| L | Nothing stopped a caller from writing message bodies, notes, e-mail addresses or secrets into the append-only audit `details`. | Medium (privacy, irreversible) | `append_audit_event` rejects forbidden keys (body, content, note, email, password, token, ...) at any depth and values over 200 characters. |
+| M | `docker-compose.yml` published Postgres and Redis on all interfaces. | Medium (dev hygiene) | Bound to `127.0.0.1`. |
+| N | `app/infrastructure/db/types.py` shadowed the standard library `types` module when run from that directory. | Low | Renamed `column_types.py`. |
+
+Checked and found sound: Argon2id-only password storage (CHECK + tests); AES-256-GCM with the column
+as AAD (a ciphertext copied to another column fails to authenticate); audit triggers and hash
+chain; no FK between `wellness` and `therapy`; every FK has an explicit delete policy; seed data is
+fictional and marked as such; no secrets in the repository; `pip-audit` reports no known
+vulnerabilities.
+
+**Known gaps (deliberately not addressed here; each belongs to a later phase):**
+
+- No row-level-security policies and no separate database roles or grants yet. Today the application
+  role could read every schema; the schema split makes least-privilege grants possible (a test
+  proves a wellness-only role cannot read `therapy`), but the roles are not created.
+- Field encryption uses a single environment key (interim). KMS envelope encryption and key
+  rotation are a deployment task.
+- The audit trigger stops application roles, not a database owner or superuser; S3 Object Lock
+  checkpoints and restricted ownership close this later.
+- Rules that need a *relationship* rather than a *tenant* are enforced by the application, not the
+  database: that a message sender has a care-team link, that a journal share targets a therapist on
+  the student's care team, and that a recommendation's resource is visible to the student's
+  institution. `appointments.cancelled_by`, `messages.sender_id` and `resources.reviewed_by` are
+  plain user references (tenant is implied by the other tenant-checked columns or global).
+- `0002` downgrade restores the old foreign keys and drops the new tenant columns; downgrading
+  production is not a supported operation, and `0001` downgrade removes all data.
+- There is no CI workflow yet running the tests on every push.
 
 ---
 

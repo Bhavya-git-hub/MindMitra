@@ -13,7 +13,7 @@ app/
   infrastructure/
     db/             models/, session management, UUIDv7 ids, audit hash chain, seed/
   api/ application/ domain/    reserved for later phases (clean architecture layers)
-alembic/            migrations (0001_initial_schema)
+alembic/            migrations (0001_initial_schema, 0002_tenant_safe_foreign_keys)
 tests/              migration, constraint, cascade, security and seed tests against real PostgreSQL
 ```
 

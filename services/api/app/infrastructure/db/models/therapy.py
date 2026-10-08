@@ -29,18 +29,21 @@ from app.infrastructure.db.base import (
     UUIDPrimaryKeyMixin,
     enum_col,
     fk_uuid,
+    tenant_fk,
+    uuid_col,
 )
+from app.infrastructure.db.column_types import EncryptedText
 from app.infrastructure.db.enums import (
     AppointmentStatus,
     SessionMode,
     TherapySessionStatus,
 )
-from app.infrastructure.db.types import EncryptedText
 
 
 class TherapistAvailability(UUIDPrimaryKeyMixin, TenantMixin, TimestampMixin, Base):
     __tablename__ = "therapist_availability"
     __table_args__ = (
+        tenant_fk("therapist_id", "org.therapists", ondelete="RESTRICT"),
         CheckConstraint("ends_at > starts_at", name="slot_valid"),
         UniqueConstraint("id", "therapist_id", name="uq_therapist_availability_id_therapist"),
         # A therapist cannot offer overlapping slots.
@@ -54,7 +57,7 @@ class TherapistAvailability(UUIDPrimaryKeyMixin, TenantMixin, TimestampMixin, Ba
         {"schema": "therapy"},
     )
 
-    therapist_id: Mapped[uuid.UUID] = fk_uuid("org.therapists.user_id", ondelete="RESTRICT")
+    therapist_id: Mapped[uuid.UUID] = uuid_col()
     starts_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     ends_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     mode: Mapped[SessionMode] = mapped_column(
@@ -73,13 +76,15 @@ class Appointment(UUIDPrimaryKeyMixin, TenantMixin, TimestampMixin, Base):
             ondelete="RESTRICT",
             name="fk_appointments_availability_therapist",
         ),
-        ForeignKeyConstraint(
-            ["therapist_id"],
-            ["org.therapists.user_id"],
-            ondelete="RESTRICT",
-            name="fk_appointments_therapist_id_therapists",
+        tenant_fk("therapist_id", "org.therapists", ondelete="RESTRICT"),
+        tenant_fk("student_id", "org.students", ondelete="RESTRICT"),
+        UniqueConstraint(
+            "id",
+            "student_id",
+            "therapist_id",
+            "institution_id",
+            name="uq_appointments_id_parties_tenant",
         ),
-        UniqueConstraint("id", "student_id", "therapist_id", name="uq_appointments_id_parties"),
         CheckConstraint("ends_at > starts_at", name="period_valid"),
         CheckConstraint(
             "(status = 'cancelled') = (cancelled_at IS NOT NULL)",
@@ -110,6 +115,12 @@ class Appointment(UUIDPrimaryKeyMixin, TenantMixin, TimestampMixin, Base):
             where=text("status IN ('requested','confirmed')"),
             name="ex_appointments_student_no_overlap",
         ),
+        # Backs the availability foreign key (the unique index above is partial).
+        Index(
+            "ix_appointments_availability_id",
+            "availability_id",
+            postgresql_where=text("availability_id IS NOT NULL"),
+        ),
         Index("ix_appointments_student_starts", "student_id", text("starts_at DESC")),
         Index("ix_appointments_therapist_starts", "therapist_id", text("starts_at DESC")),
         Index(
@@ -120,8 +131,8 @@ class Appointment(UUIDPrimaryKeyMixin, TenantMixin, TimestampMixin, Base):
         {"schema": "therapy"},
     )
 
-    student_id: Mapped[uuid.UUID] = fk_uuid("org.students.user_id", ondelete="RESTRICT")
-    therapist_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    student_id: Mapped[uuid.UUID] = uuid_col()
+    therapist_id: Mapped[uuid.UUID] = uuid_col()
     availability_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
     starts_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     ends_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), nullable=False)
@@ -148,17 +159,20 @@ class TherapySession(UUIDPrimaryKeyMixin, TenantMixin, TimestampMixin, Base):
     __tablename__ = "therapy_sessions"
     __table_args__ = (
         ForeignKeyConstraint(
-            ["appointment_id", "student_id", "therapist_id"],
+            ["appointment_id", "student_id", "therapist_id", "institution_id"],
             [
                 "therapy.appointments.id",
                 "therapy.appointments.student_id",
                 "therapy.appointments.therapist_id",
+                "therapy.appointments.institution_id",
             ],
             ondelete="RESTRICT",
             name="fk_therapy_sessions_appointment_parties",
         ),
         UniqueConstraint("appointment_id", name="uq_therapy_sessions_appointment_id"),
-        UniqueConstraint("id", "therapist_id", name="uq_therapy_sessions_id_therapist"),
+        UniqueConstraint(
+            "id", "therapist_id", "institution_id", name="uq_therapy_sessions_id_therapist_tenant"
+        ),
         CheckConstraint("ended_at IS NULL OR ended_at >= started_at", name="ended_after_started"),
         CheckConstraint(
             "(status = 'completed') = (ended_at IS NOT NULL)", name="ended_at_matches_status"
@@ -193,8 +207,12 @@ class TherapyNote(UUIDPrimaryKeyMixin, TenantMixin, TimestampMixin, Base):
     __tablename__ = "therapy_notes"
     __table_args__ = (
         ForeignKeyConstraint(
-            ["session_id", "author_id"],
-            ["therapy.therapy_sessions.id", "therapy.therapy_sessions.therapist_id"],
+            ["session_id", "author_id", "institution_id"],
+            [
+                "therapy.therapy_sessions.id",
+                "therapy.therapy_sessions.therapist_id",
+                "therapy.therapy_sessions.institution_id",
+            ],
             ondelete="RESTRICT",
             name="fk_therapy_notes_session_author",
         ),

@@ -34,14 +34,17 @@ from app.infrastructure.db.base import (
     UUIDPrimaryKeyMixin,
     enum_col,
     fk_uuid,
+    tenant_fk,
+    uuid_col,
 )
+from app.infrastructure.db.column_types import EncryptedText
 from app.infrastructure.db.enums import GoalCategory, GoalStatus, ResourceType
-from app.infrastructure.db.types import EncryptedText
 
 
 class MoodEntry(UUIDPrimaryKeyMixin, TenantMixin, TimestampMixin, Base):
     __tablename__ = "mood_entries"
     __table_args__ = (
+        tenant_fk("student_id", "org.students", ondelete="CASCADE"),
         CheckConstraint("mood_score BETWEEN 1 AND 5", name="mood_score_range"),
         CheckConstraint(
             "energy_level IS NULL OR energy_level BETWEEN 1 AND 5", name="energy_range"
@@ -50,7 +53,7 @@ class MoodEntry(UUIDPrimaryKeyMixin, TenantMixin, TimestampMixin, Base):
         {"schema": "wellness"},
     )
 
-    student_id: Mapped[uuid.UUID] = fk_uuid("org.students.user_id", ondelete="CASCADE")
+    student_id: Mapped[uuid.UUID] = uuid_col()
     mood_score: Mapped[int] = mapped_column(SmallInteger, nullable=False)
     energy_level: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
     emotions: Mapped[list[str]] = mapped_column(
@@ -69,13 +72,14 @@ class WellnessAssessment(UUIDPrimaryKeyMixin, TenantMixin, TimestampMixin, Base)
 
     __tablename__ = "wellness_assessments"
     __table_args__ = (
+        tenant_fk("student_id", "org.students", ondelete="CASCADE"),
         CheckConstraint("max_score > 0", name="max_score_positive"),
         CheckConstraint("score >= 0 AND score <= max_score", name="score_within_max"),
         Index("ix_wellness_assessments_student_completed", "student_id", text("completed_at DESC")),
         {"schema": "wellness"},
     )
 
-    student_id: Mapped[uuid.UUID] = fk_uuid("org.students.user_id", ondelete="CASCADE")
+    student_id: Mapped[uuid.UUID] = uuid_col()
     instrument: Mapped[str] = mapped_column(String(60), nullable=False)
     instrument_version: Mapped[str] = mapped_column(String(20), nullable=False, server_default="1")
     score: Mapped[Decimal] = mapped_column(Numeric(6, 2), nullable=False)
@@ -91,6 +95,7 @@ class WellnessAssessment(UUIDPrimaryKeyMixin, TenantMixin, TimestampMixin, Base)
 class StressAssessment(UUIDPrimaryKeyMixin, TenantMixin, TimestampMixin, Base):
     __tablename__ = "stress_assessments"
     __table_args__ = (
+        tenant_fk("student_id", "org.students", ondelete="CASCADE"),
         CheckConstraint("max_score > 0", name="max_score_positive"),
         CheckConstraint("score >= 0 AND score <= max_score", name="score_within_max"),
         CheckConstraint("perceived_stress_level BETWEEN 1 AND 5", name="stress_level_range"),
@@ -98,7 +103,7 @@ class StressAssessment(UUIDPrimaryKeyMixin, TenantMixin, TimestampMixin, Base):
         {"schema": "wellness"},
     )
 
-    student_id: Mapped[uuid.UUID] = fk_uuid("org.students.user_id", ondelete="CASCADE")
+    student_id: Mapped[uuid.UUID] = uuid_col()
     scale: Mapped[str] = mapped_column(String(60), nullable=False)
     score: Mapped[Decimal] = mapped_column(Numeric(6, 2), nullable=False)
     max_score: Mapped[Decimal] = mapped_column(Numeric(6, 2), nullable=False)
@@ -114,15 +119,20 @@ class StressAssessment(UUIDPrimaryKeyMixin, TenantMixin, TimestampMixin, Base):
 class SleepEntry(UUIDPrimaryKeyMixin, TenantMixin, TimestampMixin, Base):
     __tablename__ = "sleep_entries"
     __table_args__ = (
+        tenant_fk("student_id", "org.students", ondelete="CASCADE"),
         UniqueConstraint("student_id", "sleep_date", name="uq_sleep_entries_student_date"),
         CheckConstraint("duration_minutes BETWEEN 0 AND 1440", name="duration_range"),
         CheckConstraint("quality BETWEEN 1 AND 5", name="quality_range"),
         CheckConstraint("wake_time > bedtime", name="wake_after_bedtime"),
+        CheckConstraint(
+            "abs(duration_minutes - extract(epoch FROM (wake_time - bedtime)) / 60) <= 1",
+            name="duration_matches_times",
+        ),
         Index("ix_sleep_entries_student_date", "student_id", text("sleep_date DESC")),
         {"schema": "wellness"},
     )
 
-    student_id: Mapped[uuid.UUID] = fk_uuid("org.students.user_id", ondelete="CASCADE")
+    student_id: Mapped[uuid.UUID] = uuid_col()
     sleep_date: Mapped[dt.date] = mapped_column(Date, nullable=False)  # the morning you woke up
     bedtime: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     wake_time: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), nullable=False)
@@ -135,11 +145,13 @@ class JournalEntry(UUIDPrimaryKeyMixin, TenantMixin, TimestampMixin, SoftDeleteM
 
     __tablename__ = "journal_entries"
     __table_args__ = (
+        tenant_fk("student_id", "org.students", ondelete="CASCADE"),
+        UniqueConstraint("id", "institution_id", name="uq_journal_entries_id_institution"),
         Index("ix_journal_entries_student_created", "student_id", text("created_at DESC")),
         {"schema": "wellness"},
     )
 
-    student_id: Mapped[uuid.UUID] = fk_uuid("org.students.user_id", ondelete="CASCADE")
+    student_id: Mapped[uuid.UUID] = uuid_col()
     title: Mapped[str | None] = mapped_column(
         EncryptedText("wellness.journal_entries.title"), nullable=True
     )
@@ -149,9 +161,11 @@ class JournalEntry(UUIDPrimaryKeyMixin, TenantMixin, TimestampMixin, SoftDeleteM
     mood_tag: Mapped[str | None] = mapped_column(String(40), nullable=True)
 
 
-class JournalShare(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+class JournalShare(UUIDPrimaryKeyMixin, TenantMixin, TimestampMixin, Base):
     __tablename__ = "journal_shares"
     __table_args__ = (
+        tenant_fk("entry_id", "wellness.journal_entries", ondelete="CASCADE", target_column="id"),
+        tenant_fk("therapist_id", "org.therapists", ondelete="CASCADE"),
         UniqueConstraint("entry_id", "therapist_id", name="uq_journal_shares_entry_therapist"),
         CheckConstraint(
             "revoked_at IS NULL OR revoked_at >= shared_at", name="revoked_after_shared"
@@ -160,8 +174,8 @@ class JournalShare(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         {"schema": "wellness"},
     )
 
-    entry_id: Mapped[uuid.UUID] = fk_uuid("wellness.journal_entries.id", ondelete="CASCADE")
-    therapist_id: Mapped[uuid.UUID] = fk_uuid("org.therapists.user_id", ondelete="CASCADE")
+    entry_id: Mapped[uuid.UUID] = uuid_col()
+    therapist_id: Mapped[uuid.UUID] = uuid_col()
     shared_at: Mapped[dt.datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
@@ -171,6 +185,7 @@ class JournalShare(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 class WellnessGoal(UUIDPrimaryKeyMixin, TenantMixin, TimestampMixin, Base):
     __tablename__ = "wellness_goals"
     __table_args__ = (
+        tenant_fk("student_id", "org.students", ondelete="CASCADE"),
         CheckConstraint("btrim(title) <> ''", name="title_not_blank"),
         CheckConstraint(
             "target_date IS NULL OR target_date >= start_date", name="target_after_start"
@@ -185,7 +200,7 @@ class WellnessGoal(UUIDPrimaryKeyMixin, TenantMixin, TimestampMixin, Base):
         {"schema": "wellness"},
     )
 
-    student_id: Mapped[uuid.UUID] = fk_uuid("org.students.user_id", ondelete="CASCADE")
+    student_id: Mapped[uuid.UUID] = uuid_col()
     title: Mapped[str] = mapped_column(String(200), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     category: Mapped[GoalCategory] = mapped_column(

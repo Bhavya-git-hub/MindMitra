@@ -3,6 +3,7 @@
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -18,6 +19,8 @@ def create_engine(settings: Settings | None = None) -> AsyncEngine:
     return create_async_engine(
         s.database_url.get_secret_value(),
         echo=s.db_echo,
+        # Bound parameters (which can hold PII) must never appear in logged SQL errors.
+        hide_parameters=True,
         pool_size=s.db_pool_size,
         max_overflow=s.db_max_overflow,
         pool_timeout=s.db_pool_timeout_seconds,
@@ -50,8 +53,6 @@ async def set_rls_context(
     connection layer is complete. ``set_config(..., true)`` is transaction-local, which is
     safe with pooled/PgBouncer transaction-mode connections.
     """
-    from sqlalchemy import text
-
     await session.execute(
         text(
             "SELECT set_config('app.user_id', :u, true), "

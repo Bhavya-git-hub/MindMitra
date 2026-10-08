@@ -33,7 +33,7 @@ async def test_deleting_a_user_erases_their_wellness_data(session: AsyncSession)
     session.add(conv)
     await session.flush()
     session.add(m.AIMessage(conversation_id=conv.id, seq=1, role=AIMessageRole.USER, content="hi"))
-    session.add(m.JournalShare(entry_id=jid, therapist_id=th.user_id))
+    session.add(m.JournalShare(institution_id=inst_id, entry_id=jid, therapist_id=th.user_id))
     session.add(
         m.Consent(
             institution_id=inst_id,
