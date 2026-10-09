@@ -1,6 +1,6 @@
 # MindMitra Database Design
 
-- Status: **Partially implemented.** The database layer (models, migrations `0001`-`0002`, seed) exists in
+- Status: **Partially implemented.** The database layer (models, migrations `0001`-`0003`, seed) exists in
   `services/api`; section 0 below states exactly what was built and where it differs from the
   original design in sections 1-10. Where they disagree, **section 0 is authoritative**.
 - Engine: PostgreSQL 16 (AWS RDS Multi-AZ). Implemented extension: `btree_gist`. Designed but not
@@ -10,20 +10,22 @@
 ## 0. Implementation status (database layer, as built)
 
 Code: `services/api/app/infrastructure/db/` (models, session, audit helper, seed),
-`services/api/alembic/versions/` (`0001_initial_schema.py`, `0002_tenant_safe_foreign_keys.py`), tests in `services/api/tests/`.
+`services/api/alembic/versions/` (`0001_initial_schema.py`, `0002_tenant_safe_foreign_keys.py`,
+`0003_auth_sessions.py`), tests in `services/api/tests/`. Migration `0003` (authentication phase)
+adds the three `iam` session and token tables; see [SECURITY_ARCHITECTURE.md §0](SECURITY_ARCHITECTURE.md#0-implementation-status-authentication-and-authorization-as-built).
 Verified against PostgreSQL 16: migration up/down/up, `alembic check` (models == migration),
 107 tests, `ruff`, `mypy --strict`, `pip-audit`. Migration `0002` was also checked against a seeded database (backfill) and downgraded/upgraded again; schemas from `0001 -> 0002`, from scratch, and `0002 -> 0001` are identical to the expected ones. See 0.6 for the review that produced `0002`.
 
 ### 0.1 What exists
 
-32 tables in 10 PostgreSQL schemas. Confidential therapy data lives in its own `therapy` schema
+35 tables in 10 PostgreSQL schemas. Confidential therapy data lives in its own `therapy` schema
 (plus `comm` and `safety`), apart from general wellness data in `wellness`, so grants, backups and
 row-level security can be applied per schema. A test proves a role with access to `wellness` only
 gets `permission denied` on `therapy`, `comm` and `safety`.
 
 | Schema | Tables |
 |--------|--------|
-| `iam` | `users`, `credentials` |
+| `iam` | `users`, `credentials`, `auth_sessions`, `refresh_tokens`, `one_time_tokens` |
 | `org` | `institutions`, `departments`, `courses`, `students`, `teachers`, `therapists`, `administrators`, `course_enrollments`, `course_teachers`, `care_team_members` |
 | `wellness` | `mood_entries`, `wellness_assessments`, `stress_assessments`, `sleep_entries`, `journal_entries`, `journal_shares`, `wellness_goals`, `resources` |
 | `therapy` (confidential) | `therapist_availability`, `appointments`, `therapy_sessions`, `therapy_notes` |
@@ -102,8 +104,8 @@ erDiagram
 |------|-------------|-------------|--------------------|
 | Schema names | `wellbeing`, `care`, `insights`, `referral`, `analytics` | `wellness`, `therapy`, plus a new `ai` schema; `insights`, `referral`, `analytics` not created yet | Matches the requested entity list; remaining schemas arrive with their features |
 | Roles | `faculty`, `institution_admin`, `platform_admin`, `clinical_supervisor` as roles | `user_role` = `student`, `therapist`, `teacher`, `administrator`; `administrators.admin_level` distinguishes institution vs platform admin | Requested entity names; supervisor role comes with break-glass work |
-| Role tables | RBAC tables (`role`, `permission`, `role_permission`, `user_role`) | Not created. One role per user, enforced by composite FKs | Authorization phase will add permissions; authentication is explicitly out of scope here |
-| Auth tables | `mfa_factor`, `auth_session`, `refresh_token`, `invitation`, `password_reset` | Not created | Authentication phase |
+| Role tables | RBAC tables (`role`, `permission`, `role_permission`, `user_role`) | Not created. One role per user, enforced by composite FKs; the role-to-permission map is code (`app/domain/auth/permissions.py`), reviewed and tested like the policies | A table adds nothing while roles are fixed; revisit if institutions need custom roles |
+| Auth tables | `mfa_factor`, `auth_session`, `refresh_token`, `invitation`, `password_reset` | `0003`: `auth_sessions` (absolute expiry, revocation reason, hashed IP), `refresh_tokens` (SHA-256 token and CSRF hashes, single use), `one_time_tokens` (hashed; purpose `password_reset`, `account_setup` or `email_verification`, which also replaces `invitation`). All tenant-scoped with composite FKs and `updated_at` triggers | `mfa_factor` comes with MFA |
 | Check-ins | One `checkin` table | Split into `mood_entries`, `sleep_entries`, `wellness_assessments`, `stress_assessments` | Requested entities; each has its own constraints and timeline index |
 | Messaging | `message_thread`, `message`, `message_read`, `attachment` | Single `messages` table keyed by (student, therapist) pair, with `read_at`, `client_msg_id` (idempotent retries) and `crisis_checked_at`; sender must be one of the pair | Simpler for a one-to-one care relationship; threads/attachments can be added without breaking it |
 | Crisis workflow | `crisis_signal`, `escalation`, `escalation_event`, `on_call_rota`, `on_call_shift`, `break_glass_grant`, `crisis_resource` | One `risk_alerts` table (source, detector, category, severity, SLA deadline, status, minimal encrypted excerpt) | Requested entity; timeline, rota and break-glass tables are deferred to the safety phase. Categories contain no diagnostic labels (tested) |

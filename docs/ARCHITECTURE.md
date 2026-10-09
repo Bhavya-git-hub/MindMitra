@@ -480,7 +480,7 @@ Detail in [SECURITY_ARCHITECTURE.md §3](SECURITY_ARCHITECTURE.md#3-authenticati
 | Passwords | Argon2id, breached-password check (k-anonymity range API or local list), min length 12 |
 | MFA | TOTP required for therapists and admins; optional for students and faculty; WebAuthn later |
 | Tokens | Access JWT (EdDSA, 10 min) + opaque rotating refresh token (7 days idle, 30 days absolute) stored hashed in DB |
-| Transport | `__Host-` prefixed httpOnly, Secure, SameSite=Lax cookies; CSRF double-submit token for unsafe methods |
+| Transport | Superseded by [ADR 0003](adr/0003-access-token-transport-and-session-checks.md): access token as `Authorization: Bearer` (memory only); refresh token in an httpOnly, Secure, SameSite=Strict cookie scoped to `/api/v1/auth`, with a CSRF header on refresh. (Original design: `__Host-` cookies with double-submit CSRF.) |
 | Reuse detection | Refresh-token families: reuse of a rotated token revokes the whole family |
 | Session control | Users can view/revoke sessions; admins can force logout; password change revokes all |
 | Step-up auth | Re-authentication (password + MFA) to view session notes in bulk, export data, change roles |
@@ -503,9 +503,9 @@ sequenceDiagram
         W->>A: POST /api/v1/auth/mfa/verify
     end
     A->>DB: create session + refresh token family (hashed)
-    A-->>W: Set-Cookie access (10 min), refresh (rotating), csrf
+    A-->>W: access token + csrf token (body, 10 min); Set-Cookie refresh (rotating)
     W-->>U: redirect to role portal
-    Note over W,A: On 401, web calls /auth/refresh, and the old refresh token is rotated and denylisted
+    Note over W,A: On 401, web calls /auth/refresh (cookie + X-CSRF-Token); the old refresh token is single use, and replaying it revokes the session
 ```
 
 ---

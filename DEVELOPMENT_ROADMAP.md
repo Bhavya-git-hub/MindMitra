@@ -45,13 +45,16 @@ says otherwise. Each phase ends with tests run and passing (rule 20).
 - Data model: institution, user, role profiles, therapist assignment, consent, audit log
   (**done early** in the database-layer work; see `docs/DATABASE_DESIGN.md` section 0)
 - Registration/invite flows (admin invites therapists/faculty; students via institution email)
-- Login, logout, refresh rotation, Argon2id, optional TOTP MFA
-- Central policy layer (`domain/policies`) and `require_permission` dependency
-- Audit logging middleware for Sensitive/Clinical access
-- Rate limiting on auth endpoints (Redis)
-- Frontend: auth pages, role-based route groups and layouts, session handling
-- Admin: basic user & role management UI
-- **Authorization matrix test suite** (every endpoint × every role)
+  (**done**: API)
+- Login, logout, refresh rotation, Argon2id (**done**); optional TOTP MFA (to do)
+- Central policy layer (`domain/auth/policies.py`) and `require_permission` dependency (**done**)
+- Audit logging for Sensitive/Clinical access and every denial (**done**)
+- Rate limiting on auth endpoints (**done** in-process; Redis-backed later)
+- Frontend: auth pages, role-based route groups and layouts, session handling (to do)
+- Admin: basic user & role management UI (API **done**; UI to do)
+- **Authorization matrix test suite** (every endpoint × every role) (**done**; see
+  `services/api/tests/test_rbac_api.py`)
+- PostgreSQL row-level security policies as a second tenant guard (to do)
 
 **Exit:** four roles can log in to their own portal; cross-role access denied and tested.
 

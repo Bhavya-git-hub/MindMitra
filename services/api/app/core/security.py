@@ -9,6 +9,11 @@ _hasher = PasswordHasher()
 ARGON2ID_PREFIX = "$argon2id$"
 
 
+def needs_rehash(password_hash: str) -> bool:
+    """True when the stored hash uses older Argon2 parameters than the current defaults."""
+    return _hasher.check_needs_rehash(password_hash)
+
+
 def hash_password(password: str) -> str:
     if len(password) < 12:
         raise ValueError("password must be at least 12 characters")

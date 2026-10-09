@@ -9,6 +9,7 @@ from sqlalchemy import select, text
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.access_tokens import generate_private_key_pem
 from app.core.config import Settings
 from app.core.crypto import generate_key
 from app.infrastructure.db import models as m
@@ -31,6 +32,7 @@ def _settings(**kw: Any) -> Settings:
         "app_env": "development",
         "database_url": PLAIN,
         "field_encryption_key": generate_key(),
+        "jwt_private_key": generate_private_key_pem(),
     }
     values.update(kw)
     if values["app_env"] is None:
