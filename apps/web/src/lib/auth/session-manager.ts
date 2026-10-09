@@ -31,7 +31,9 @@ export type SignedOutReason = "user" | "expired";
 export type SessionState =
   | { status: "loading"; user: null }
   | { status: "authenticated"; user: Me }
-  | { status: "unauthenticated"; user: null; reason: SignedOutReason };
+  | { status: "unauthenticated"; user: null; reason: SignedOutReason }
+  /** The session could not be checked (offline, API down). Nobody is signed out; retry. */
+  | { status: "unavailable"; user: null };
 
 export interface SessionManagerDeps {
   /** Overrides for tests; the defaults use the real browser APIs. */
@@ -45,6 +47,7 @@ export interface SessionManagerDeps {
 }
 
 const LOADING: SessionState = { status: "loading", user: null };
+const UNAVAILABLE: SessionState = { status: "unavailable", user: null };
 const EXPIRED: SessionState = { status: "unauthenticated", user: null, reason: "expired" };
 const SIGNED_OUT_BY_USER: SessionState = { status: "unauthenticated", user: null, reason: "user" };
 
@@ -157,17 +160,29 @@ export class SessionManager {
     const refreshed = await this.refresh();
     if (!refreshed) {
       // refresh() already ended the session if the server rejected it. If the server was
-      // merely unreachable the user stays "signed out" for this page view only.
-      if (this.state.status === "loading") this.setState(EXPIRED);
+      // merely unreachable, say so rather than pretend the person is signed out: redirecting
+      // to /login would bounce straight back (the portal pass is still valid) and loop.
+      if (this.state.status === "loading") this.setState(UNAVAILABLE);
       return;
     }
     try {
       const me = await this.auth.me();
       await this.syncPass(this.accessToken);
       this.setState({ status: "authenticated", user: me });
-    } catch {
-      await this.endSession();
+    } catch (error) {
+      if (isApiError(error) && (error.status === 401 || error.status === 403)) {
+        await this.endSession();
+      } else {
+        this.setState(UNAVAILABLE);
+      }
     }
+  }
+
+  /** Tries again after "unavailable". */
+  retry(): Promise<void> {
+    if (this.state.status !== "unavailable") return Promise.resolve();
+    this.setState(LOADING);
+    return this.bootstrap();
   }
 
   async login(input: LoginInput): Promise<Me> {

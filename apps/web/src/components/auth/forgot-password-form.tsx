@@ -7,19 +7,16 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 
 import { AuthCard } from "@/components/auth/auth-card";
-import { SubmitButton, TextField } from "@/components/forms/fields";
+import { EmailField, SubmitButton } from "@/components/forms/fields";
 import { InlineAlert } from "@/components/states/inline-alert";
 import { Button } from "@/components/ui/button";
 import { Form } from "@/components/ui/form";
 import { describeError } from "@/lib/api/errors";
 import { useAuth } from "@/lib/auth/auth-context";
+import { emailSchema } from "@/lib/validation";
 
 const schema = z.object({
-  email: z
-    .string()
-    .trim()
-    .min(1, "Enter your email address")
-    .pipe(z.email("Enter a valid email address")),
+  email: emailSchema(),
 });
 type Values = z.infer<typeof schema>;
 
@@ -66,14 +63,7 @@ export function ForgotPasswordForm() {
       {formError && <InlineAlert tone="destructive">{formError}</InlineAlert>}
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} noValidate className="space-y-4">
-          <TextField<Values>
-            name="email"
-            label="Email"
-            type="email"
-            autoComplete="email"
-            inputMode="email"
-            autoFocus
-          />
+          <EmailField<Values> name="email" label="Email" autoFocus />
           <SubmitButton
             pending={form.formState.isSubmitting}
             pendingLabel="Sending…"

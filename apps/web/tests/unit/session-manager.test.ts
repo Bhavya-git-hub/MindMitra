@@ -121,14 +121,60 @@ describe("SessionManager.bootstrap", () => {
     expect(syncPass).toHaveBeenCalledWith(null);
   });
 
-  it("keeps the CSRF token when the server is merely unreachable", async () => {
-    const { manager, store } = setup(
+  it("reports 'unavailable' (not signed out) and keeps the CSRF token when the server is unreachable", async () => {
+    const { manager, store, syncPass } = setup(
       { "POST /auth/refresh": () => problem(503, "down") },
       { csrf: "csrf-1" },
     );
     await manager.bootstrap();
-    expect(manager.getState().status).toBe("unauthenticated");
+    expect(manager.getState().status).toBe("unavailable");
     expect(store.get(CSRF_STORAGE_KEY)).toBe("csrf-1");
+    expect(syncPass).not.toHaveBeenCalledWith(null); // the portal pass must survive an outage
+  });
+
+  it("does not sign out when only the profile call fails with a server error", async () => {
+    const { manager, store } = setup(
+      {
+        "POST /auth/refresh": () => json(tokens("student", 2)),
+        "GET /me": () => problem(500, "boom"),
+      },
+      { csrf: "csrf-1" },
+    );
+    await manager.bootstrap();
+    expect(manager.getState().status).toBe("unavailable");
+    expect(store.get(CSRF_STORAGE_KEY)).toBe("csrf-2");
+  });
+
+  it("signs out when the profile call is rejected", async () => {
+    const { manager, store } = setup(
+      {
+        "POST /auth/refresh": () => json(tokens("student", 2)),
+        "GET /me": () => problem(401, "revoked"),
+      },
+      { csrf: "csrf-1" },
+    );
+    await manager.bootstrap();
+    expect(manager.getState().status).toBe("unauthenticated");
+    expect(store.size).toBe(0);
+  });
+
+  it("recovers when retried after an outage", async () => {
+    let up = false;
+    const { manager } = setup(
+      {
+        "POST /auth/refresh": () => (up ? json(tokens("teacher", 2)) : problem(503, "down")),
+        "GET /me": () => json(me("teacher")),
+      },
+      { csrf: "csrf-1" },
+    );
+    await manager.bootstrap();
+    expect(manager.getState().status).toBe("unavailable");
+    up = true;
+    await manager.retry();
+    expect(manager.getState()).toMatchObject({
+      status: "authenticated",
+      user: { role: "teacher" },
+    });
   });
 
   it("runs once even when called twice (React StrictMode)", async () => {

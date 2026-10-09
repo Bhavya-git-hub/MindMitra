@@ -2,8 +2,6 @@
 
 import { LogOut, UserRound } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import * as React from "react";
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -17,7 +15,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/lib/auth/auth-context";
 import { PORTAL_PATHS, ROLE_LABELS } from "@/lib/auth/roles";
-import { notify } from "@/lib/toast";
+import { useSignOut } from "@/lib/auth/use-sign-out";
 
 function initials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
@@ -27,17 +25,9 @@ function initials(name: string): string {
 }
 
 export function UserMenu() {
-  const { user, logout } = useAuth();
-  const router = useRouter();
-  const [signingOut, setSigningOut] = React.useState(false);
+  const { user } = useAuth();
+  const { signOut, signingOut } = useSignOut();
   if (!user) return null;
-
-  async function signOut() {
-    setSigningOut(true);
-    await logout();
-    notify.success("You're signed out", "Take care of yourself.");
-    router.replace("/login");
-  }
 
   return (
     <DropdownMenu>

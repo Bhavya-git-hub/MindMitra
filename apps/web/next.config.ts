@@ -10,6 +10,7 @@ const config: NextConfig = {
       {
         source: "/:path*",
         headers: [
+          { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains" },
           { key: "X-Content-Type-Options", value: "nosniff" },
           { key: "X-Frame-Options", value: "DENY" },
           { key: "Referrer-Policy", value: "no-referrer" },
@@ -17,9 +18,13 @@ const config: NextConfig = {
             key: "Permissions-Policy",
             value: "camera=(), microphone=(), geolocation=(), payment=(), usb=()",
           },
-          // Authenticated pages and the session endpoint must never be cached.
-          { key: "Cache-Control", value: "private, no-store" },
         ],
+      },
+      {
+        // Authenticated pages and the session endpoint must never be cached. Hashed static
+        // assets keep Next.js's own long-lived caching headers.
+        source: "/((?!_next/static|_next/image).*)",
+        headers: [{ key: "Cache-Control", value: "private, no-store" }],
       },
     ];
   },
