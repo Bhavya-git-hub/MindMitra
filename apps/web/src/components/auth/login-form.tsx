@@ -8,19 +8,16 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 
 import { AuthCard } from "@/components/auth/auth-card";
-import { PasswordField, SubmitButton, TextField } from "@/components/forms/fields";
+import { EmailField, PasswordField, SubmitButton } from "@/components/forms/fields";
 import { InlineAlert } from "@/components/states/inline-alert";
 import { Form } from "@/components/ui/form";
 import { describeError, isApiError } from "@/lib/api/errors";
 import { useAuth } from "@/lib/auth/auth-context";
 import { safeNext } from "@/lib/auth/route-access";
+import { emailSchema } from "@/lib/validation";
 
 const schema = z.object({
-  email: z
-    .string()
-    .trim()
-    .min(1, "Enter your email address")
-    .pipe(z.email("Enter a valid email address")),
+  email: emailSchema(),
   password: z.string().min(1, "Enter your password"),
 });
 type Values = z.infer<typeof schema>;
@@ -80,14 +77,7 @@ export function LoginForm({ next }: { next?: string }) {
       {formError && <InlineAlert tone="destructive">{formError}</InlineAlert>}
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} noValidate className="space-y-4">
-          <TextField<Values>
-            name="email"
-            label="Email"
-            type="email"
-            autoComplete="username"
-            inputMode="email"
-            autoFocus
-          />
+          <EmailField<Values> name="email" label="Email" autoComplete="username" autoFocus />
           <PasswordField<Values> name="password" label="Password" />
           <div className="flex justify-end">
             <Link

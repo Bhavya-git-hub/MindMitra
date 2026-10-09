@@ -8,7 +8,7 @@ import { PortalOverview } from "@/components/portal/portal-overview";
 import type { Role } from "@/lib/auth/roles";
 
 import { navigation } from "../helpers/navigation";
-import { makeSession, renderWithApp } from "../helpers/render";
+import { json, makeSession, me, problem, renderWithApp, tokens } from "../helpers/render";
 
 const PLANNED = [{ title: "Daily check-in", description: "A short note." }];
 
@@ -44,6 +44,29 @@ describe("portal guard (AuthGate)", () => {
       expect(navigation.router.replace).toHaveBeenCalledWith("/login?next=%2Ftherapist%2Faccount"),
     );
     expect(screen.queryByText("Welcome")).not.toBeInTheDocument();
+  });
+
+  it("shows a retry, and does not redirect, when the session cannot be checked", async () => {
+    navigation.pathname = "/student";
+    let up = false;
+    const outage = makeSession(
+      {
+        "POST /auth/refresh": () => (up ? json(tokens("student", 2)) : problem(503, "down")),
+        "GET /me": () => json(me("student")),
+      },
+      { signedInAs: "student" },
+    );
+    renderWithApp(portal("student"), outage);
+
+    expect(await screen.findByText("We couldn't check your session")).toBeInTheDocument();
+    expect(navigation.router.replace).not.toHaveBeenCalled();
+
+    up = true;
+    await userEvent.setup().click(screen.getByRole("button", { name: "Try again" }));
+    expect(
+      await screen.findByRole("heading", { level: 1, name: "Welcome, Asha" }),
+    ).toBeInTheDocument();
+    expect(navigation.router.replace).not.toHaveBeenCalled();
   });
 
   it.each<[Role, Role, string]>([

@@ -3,6 +3,7 @@
 import { usePathname, useRouter } from "next/navigation";
 import * as React from "react";
 
+import { ErrorState } from "@/components/states/error-state";
 import { LoadingState } from "@/components/states/loading-state";
 import { useAuth } from "@/lib/auth/auth-context";
 import { portalFor, type Role } from "@/lib/auth/roles";
@@ -13,7 +14,7 @@ import { portalFor, type Role } from "@/lib/auth/roles";
  * role to their own portal. This is a UX layer: every API call is authorized by the server.
  */
 export function AuthGate({ role, children }: { role: Role; children: React.ReactNode }) {
-  const { status, user, signedOutReason } = useAuth();
+  const { status, user, signedOutReason, retry } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
 
@@ -32,6 +33,18 @@ export function AuthGate({ role, children }: { role: Role; children: React.React
   }, [redirectTo, router]);
 
   if (status === "authenticated" && user?.role === role) return <>{children}</>;
+
+  if (status === "unavailable") {
+    return (
+      <div className="grid min-h-dvh place-items-center px-4">
+        <ErrorState
+          title="We couldn't check your session"
+          description="MindMitra can't be reached right now. You haven't been signed out. Check your connection and try again."
+          onRetry={() => void retry()}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="grid min-h-dvh place-items-center">

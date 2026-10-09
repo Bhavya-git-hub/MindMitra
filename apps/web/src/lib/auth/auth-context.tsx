@@ -20,6 +20,8 @@ interface AuthContextValue {
   manager: SessionManager;
   login: (input: LoginInput) => Promise<Me>;
   logout: () => Promise<void>;
+  /** After status "unavailable": check the session again. */
+  retry: () => Promise<void>;
 }
 
 const AuthContext = React.createContext<AuthContextValue | null>(null);
@@ -53,6 +55,7 @@ export function AuthProvider({
       manager: resolved,
       login: (input) => resolved.login(input),
       logout: () => resolved.logout(),
+      retry: () => resolved.retry(),
     }),
     [state, resolved],
   );

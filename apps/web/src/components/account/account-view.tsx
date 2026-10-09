@@ -1,7 +1,6 @@
 "use client";
 
 import { LogOut } from "lucide-react";
-import { useRouter } from "next/navigation";
 import * as React from "react";
 
 import { SectionCard } from "@/components/cards/section-card";
@@ -10,13 +9,13 @@ import { useModal } from "@/components/providers/modal-provider";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/auth/auth-context";
 import { ROLE_LABELS } from "@/lib/auth/roles";
-import { notify } from "@/lib/toast";
+import { useSignOut } from "@/lib/auth/use-sign-out";
 
 /** The signed-in person's own details and sign-out. Shared by all four portals. */
 export function AccountView() {
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const modal = useModal();
-  const router = useRouter();
+  const { signOut: performSignOut } = useSignOut();
   if (!user) return null;
 
   async function signOut() {
@@ -25,10 +24,7 @@ export function AccountView() {
       description: "You'll need to sign in again to get back to your space.",
       confirmLabel: "Sign out",
     });
-    if (!ok) return;
-    await logout();
-    notify.success("You're signed out", "Take care of yourself.");
-    router.replace("/login");
+    if (ok) await performSignOut();
   }
 
   const rows: [string, string][] = [

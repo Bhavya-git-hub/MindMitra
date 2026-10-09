@@ -84,3 +84,32 @@ export const AXIS_PROPS = {
   tick: { fill: "var(--muted-foreground)", fontSize: 12 },
   tickLine: false,
 } as const;
+
+export const TOOLTIP_STYLE = {
+  background: "var(--popover)",
+  border: "1px solid var(--border)",
+  borderRadius: 12,
+  color: "var(--popover-foreground)",
+  fontSize: 13,
+} as const;
+
+export const CHART_MARGIN = { top: 8, right: 12, bottom: 0, left: -16 } as const;
+export const GRID_PROPS = {
+  stroke: "var(--border)",
+  strokeDasharray: "3 3",
+  vertical: false,
+} as const;
+
+/** The screen-reader table for a chart with one row per x value and one column per series. */
+export function seriesTable(
+  title: string,
+  data: Record<string, string | number>[],
+  xKey: string,
+  series: { key: string; label: string }[],
+): ChartTable {
+  return {
+    caption: title,
+    columns: [xKey, ...series.map((s) => s.label)],
+    rows: data.map((d) => [d[xKey] ?? "", ...series.map((s) => d[s.key] ?? "")]),
+  };
+}

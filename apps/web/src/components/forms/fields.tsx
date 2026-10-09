@@ -36,6 +36,26 @@ interface BaseFieldProps<T extends FieldValues> {
   description?: string;
 }
 
+/** Label, control, description and error message wired together; the one place that layout lives. */
+function FieldFrame({
+  label,
+  description,
+  children,
+}: {
+  label: React.ReactNode;
+  description?: string;
+  children: React.ReactElement;
+}) {
+  return (
+    <FormItem>
+      <FormLabel>{label}</FormLabel>
+      <FormControl>{children}</FormControl>
+      {description && <FormDescription>{description}</FormDescription>}
+      <FormMessage />
+    </FormItem>
+  );
+}
+
 export function TextField<T extends FieldValues>({
   name,
   label,
@@ -49,17 +69,19 @@ export function TextField<T extends FieldValues>({
       control={control}
       name={name}
       render={({ field }) => (
-        <FormItem>
-          <FormLabel>{label}</FormLabel>
-          <FormControl>
-            <Input {...inputProps} {...field} value={field.value ?? ""} />
-          </FormControl>
-          {description && <FormDescription>{description}</FormDescription>}
-          <FormMessage />
-        </FormItem>
+        <FieldFrame label={label} description={description}>
+          <Input {...inputProps} {...field} value={field.value ?? ""} />
+        </FieldFrame>
       )}
     />
   );
+}
+
+export function EmailField<T extends FieldValues>({
+  autoComplete = "email",
+  ...props
+}: Omit<React.ComponentProps<typeof TextField<T>>, "type" | "inputMode">) {
+  return <TextField<T> {...props} type="email" inputMode="email" autoComplete={autoComplete} />;
 }
 
 export function PasswordField<T extends FieldValues>({
@@ -126,14 +148,9 @@ export function TextareaField<T extends FieldValues>({
       control={control}
       name={name}
       render={({ field }) => (
-        <FormItem>
-          <FormLabel>{label}</FormLabel>
-          <FormControl>
-            <Textarea {...props} {...field} value={field.value ?? ""} />
-          </FormControl>
-          {description && <FormDescription>{description}</FormDescription>}
-          <FormMessage />
-        </FormItem>
+        <FieldFrame label={label} description={description}>
+          <Textarea {...props} {...field} value={field.value ?? ""} />
+        </FieldFrame>
       )}
     />
   );

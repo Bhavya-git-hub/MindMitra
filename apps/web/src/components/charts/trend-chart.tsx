@@ -11,7 +11,16 @@ import {
   YAxis,
 } from "recharts";
 
-import { AXIS_PROPS, ChartFrame, SERIES_DASH, seriesColor } from "./chart-frame";
+import {
+  AXIS_PROPS,
+  CHART_MARGIN,
+  ChartFrame,
+  GRID_PROPS,
+  SERIES_DASH,
+  TOOLTIP_STYLE,
+  seriesColor,
+  seriesTable,
+} from "./chart-frame";
 
 export interface Series {
   key: string;
@@ -19,14 +28,6 @@ export interface Series {
 }
 
 export type ChartDatum = Record<string, string | number>;
-
-const TOOLTIP_STYLE = {
-  background: "var(--popover)",
-  border: "1px solid var(--border)",
-  borderRadius: 12,
-  color: "var(--popover-foreground)",
-  fontSize: 13,
-} as const;
 
 /** Lines over time (for example a week of check-ins). */
 export function TrendChart({
@@ -51,19 +52,11 @@ export function TrendChart({
       title={title}
       description={description}
       height={height}
-      table={{
-        caption: title,
-        columns: [xKey, ...series.map((s) => s.label)],
-        rows: data.map((d) => [d[xKey] ?? "", ...series.map((s) => d[s.key] ?? "")]),
-      }}
+      table={seriesTable(title, data, xKey, series)}
     >
       <ResponsiveContainer width="100%" height="100%">
-        <LineChart
-          accessibilityLayer={false}
-          data={data}
-          margin={{ top: 8, right: 12, bottom: 0, left: -16 }}
-        >
-          <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" vertical={false} />
+        <LineChart accessibilityLayer={false} data={data} margin={CHART_MARGIN}>
+          <CartesianGrid {...GRID_PROPS} />
           <XAxis dataKey={xKey} {...AXIS_PROPS} />
           <YAxis domain={yDomain} {...AXIS_PROPS} axisLine={false} />
           <Tooltip contentStyle={TOOLTIP_STYLE} />

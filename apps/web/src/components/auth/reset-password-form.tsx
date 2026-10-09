@@ -14,13 +14,11 @@ import { Form } from "@/components/ui/form";
 import { isApiError } from "@/lib/api/errors";
 import { useAuth } from "@/lib/auth/auth-context";
 import { applyApiErrors } from "@/lib/forms";
+import { newPasswordSchema } from "@/lib/validation";
 
 const schema = z
   .object({
-    new_password: z
-      .string()
-      .min(12, "Use at least 12 characters")
-      .max(128, "Use at most 128 characters"),
+    new_password: newPasswordSchema,
     confirm: z.string().min(1, "Type your new password again"),
   })
   .refine((v) => v.new_password === v.confirm, {
