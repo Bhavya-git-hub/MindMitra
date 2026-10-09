@@ -6,14 +6,14 @@
 
 Companion documents:
 
-| Document | Covers |
-|----------|--------|
-| [DATABASE_DESIGN.md](DATABASE_DESIGN.md) | Schemas, tables, ER diagrams, encryption, row-level security, retention |
-| [API_DESIGN.md](API_DESIGN.md) | REST conventions, endpoint catalogue, authorization per endpoint, WebSocket events |
-| [SECURITY_ARCHITECTURE.md](SECURITY_ARCHITECTURE.md) | Threat model, authentication, RBAC/ABAC, encryption, audit, compliance |
-| [AI_ML_ARCHITECTURE.md](AI_ML_ARCHITECTURE.md) | AI companion, ML models, safety layer, MLOps, evaluation |
-| [USER_FLOWS.md](USER_FLOWS.md) | End-to-end flows for each role, including crisis support |
-| [../DEVELOPMENT_ROADMAP.md](../DEVELOPMENT_ROADMAP.md) | Phase-by-phase delivery plan |
+| Document                                               | Covers                                                                             |
+| ------------------------------------------------------ | ---------------------------------------------------------------------------------- |
+| [DATABASE_DESIGN.md](DATABASE_DESIGN.md)               | Schemas, tables, ER diagrams, encryption, row-level security, retention            |
+| [API_DESIGN.md](API_DESIGN.md)                         | REST conventions, endpoint catalogue, authorization per endpoint, WebSocket events |
+| [SECURITY_ARCHITECTURE.md](SECURITY_ARCHITECTURE.md)   | Threat model, authentication, RBAC/ABAC, encryption, audit, compliance             |
+| [AI_ML_ARCHITECTURE.md](AI_ML_ARCHITECTURE.md)         | AI companion, ML models, safety layer, MLOps, evaluation                           |
+| [USER_FLOWS.md](USER_FLOWS.md)                         | End-to-end flows for each role, including crisis support                           |
+| [../DEVELOPMENT_ROADMAP.md](../DEVELOPMENT_ROADMAP.md) | Phase-by-phase delivery plan                                                       |
 
 ---
 
@@ -53,25 +53,25 @@ Companion documents:
 
 ### 0.2 Functional requirements by role
 
-| Role | Key capabilities |
-|------|------------------|
-| Student | Onboarding and consent, daily check-ins, private journal, AI wellness companion, self-help resource library, book/reschedule/cancel appointments, secure messaging with assigned therapist, "Get help now", view own insights, export/delete own data |
-| Therapist | Caseload, availability and calendar, appointments, secure messaging, confidential session notes, consented check-in trends, AI support-need signals, crisis escalation queue, referral triage, handoff to colleagues |
-| Teacher/Faculty | Submit concern referral, see referral status only, cohort-level aggregate wellbeing trends (k-anonymised), wellbeing resources and guidance |
-| Administrator | Institution setup, user lifecycle (invite, deactivate), role and therapist assignment, on-call rota, crisis resources config, audit log, system health, institution-level aggregate analytics |
+| Role            | Key capabilities                                                                                                                                                                                                                                      |
+| --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Student         | Onboarding and consent, daily check-ins, private journal, AI wellness companion, self-help resource library, book/reschedule/cancel appointments, secure messaging with assigned therapist, "Get help now", view own insights, export/delete own data |
+| Therapist       | Caseload, availability and calendar, appointments, secure messaging, confidential session notes, consented check-in trends, AI support-need signals, crisis escalation queue, referral triage, handoff to colleagues                                  |
+| Teacher/Faculty | Submit concern referral, see referral status only, cohort-level aggregate wellbeing trends (k-anonymised), wellbeing resources and guidance                                                                                                           |
+| Administrator   | Institution setup, user lifecycle (invite, deactivate), role and therapist assignment, on-call rota, crisis resources config, audit log, system health, institution-level aggregate analytics                                                         |
 
 ### 0.3 Non-functional requirements
 
-| Category | Target |
-|----------|--------|
-| Availability | 99.9% for core API; **crisis path (help page + escalation creation) 99.95%** with degraded-mode fallbacks |
-| Latency | p95 < 300 ms for standard API calls; crisis detection on submitted text < 1 s; companion first token < 2 s |
-| Scale (initial) | 10 institutions, 50k students, 500 therapists, ~5k concurrent users; design to scale horizontally 10× |
-| Privacy | Least privilege, consent-driven sharing, field-level encryption for sensitive and clinical text, full audit |
-| Security | OWASP ASVS L2 baseline, L3 controls for clinical data |
-| Accessibility | WCAG 2.1 AA |
+| Category        | Target                                                                                                                     |
+| --------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| Availability    | 99.9% for core API; **crisis path (help page + escalation creation) 99.95%** with degraded-mode fallbacks                  |
+| Latency         | p95 < 300 ms for standard API calls; crisis detection on submitted text < 1 s; companion first token < 2 s                 |
+| Scale (initial) | 10 institutions, 50k students, 500 therapists, ~5k concurrent users; design to scale horizontally 10×                      |
+| Privacy         | Least privilege, consent-driven sharing, field-level encryption for sensitive and clinical text, full audit                |
+| Security        | OWASP ASVS L2 baseline, L3 controls for clinical data                                                                      |
+| Accessibility   | WCAG 2.1 AA                                                                                                                |
 | Maintainability | Clean architecture, typed code, ≥ 80% coverage on domain/application layers, 100% of endpoints in the authorization matrix |
-| Data residency | Single AWS region per deployment (e.g. `ap-south-1` for India); configurable |
+| Data residency  | Single AWS region per deployment (e.g. `ap-south-1` for India); configurable                                               |
 
 ### 0.4 Key constraints
 
@@ -142,12 +142,12 @@ flowchart TB
 
 ### 1.1 Deployable units
 
-| Unit | Responsibility | Scales on |
-|------|---------------|-----------|
-| `apps/web` | UI for four roles, SSR, thin backend-for-frontend (cookie handling, API proxy) | Request rate |
-| `services/api` | Authentication, authorization, domain logic, REST + WebSocket, audit, escalation orchestration | Request rate, WS connections |
-| `services/api` (worker mode) | Notifications, escalation timers, ML batch scoring, exports, retention jobs, analytics aggregation | Queue depth |
-| `services/ml` | Crisis detection, sentiment, support-need signals, companion orchestration with guardrails | Inference latency/CPU |
+| Unit                         | Responsibility                                                                                     | Scales on                    |
+| ---------------------------- | -------------------------------------------------------------------------------------------------- | ---------------------------- |
+| `apps/web`                   | UI for four roles, SSR, thin backend-for-frontend (cookie handling, API proxy)                     | Request rate                 |
+| `services/api`               | Authentication, authorization, domain logic, REST + WebSocket, audit, escalation orchestration     | Request rate, WS connections |
+| `services/api` (worker mode) | Notifications, escalation timers, ML batch scoring, exports, retention jobs, analytics aggregation | Queue depth                  |
+| `services/ml`                | Crisis detection, sentiment, support-need signals, companion orchestration with guardrails         | Inference latency/CPU        |
 
 ### 1.2 Architectural style
 
@@ -197,51 +197,66 @@ Playwright.
 ```
 apps/web/src/
   app/
-    (public)/            landing, login, invite acceptance, /help (crisis resources, static, no auth)
-    (student)/student/   dashboard, check-in, journal, companion, resources, appointments, messages, privacy
-    (therapist)/therapist/ caseload, calendar, sessions/[id], notes, messages, escalations, referrals
-    (faculty)/faculty/   referrals/new, referrals, insights, resources
-    (admin)/admin/       users, assignments, on-call, crisis-config, audit, analytics, settings
-    api/                 BFF route handlers (auth cookie exchange only)
-    layout.tsx, middleware.ts
+    (auth)/              login, register, verify-email, forgot-password, reset-password
+    (public)/help/       crisis/help page (server-rendered, works without JS and without login)
+    (student)/student/   overview, account (dashboards, check-in, companion ... follow in later phases)
+    (therapist)/therapist/ overview, account
+    (teacher)/teacher/   overview, account
+    (admin)/admin/       overview, account
+    api/session/         the only route handler: sets/clears the signed portal-pass cookie
+    design-system/       living style guide (development only unless ENABLE_DESIGN_SYSTEM=true)
+    layout.tsx, error.tsx, global-error.tsx, not-found.tsx
+  proxy.ts               optimistic role redirects + per-request CSP nonce (Next.js 16's middleware)
   components/
-    ui/                  shadcn/ui primitives (generated)
-    shared/              AppShell, DisclaimerBanner, GetHelpButton, EmptyState, DataTable
-    features/            per-feature components (checkin/, journal/, companion/, ...)
+    ui/                  shadcn/ui primitives (Radix)
+    layout/              AppShell, Sidebar, MobileNav, Header, UserMenu, ThemeToggle, PageHeader
+    states/              LoadingState, PageSkeleton, EmptyState, ErrorState, InlineAlert, ComingSoon
+    cards/               SectionCard, StatCard
+    charts/              TrendChart, BarSeriesChart, DonutChart, Sparkline (accessible by default)
+    forms/               TextField, PasswordField, SelectField, CheckboxField, SubmitButton ...
+    safety/              DisclaimerBanner, GetHelpButton
+    auth/                AuthGate, PortalLayout, login/register/reset forms
+    providers/           ModalProvider (confirm/open), Providers
   lib/
-    api/                 generated typed client from OpenAPI + fetch wrapper
-    auth/                session helpers, role guards
-    realtime/            WebSocket client with reconnect
-    validation/          Zod schemas shared with forms
-  hooks/, styles/, i18n/
-tests/ unit/ e2e/
+    api/                 typed fetch client (zod-validated, problem+json), auth endpoints
+    auth/                roles, route-access rules, portal pass, session manager, AuthProvider
+    navigation.ts, toast.ts, csp.ts, env.ts, forms.ts
+tests/unit/              Vitest + Testing Library + axe + design-token contrast tests
+e2e/                     Playwright against the real API (scripts/e2e/run.sh)
 ```
+
+Not built yet (later phases): TanStack Query, generated OpenAPI client, realtime client, i18n.
+Session handling and route protection are described in ADR 0004.
 
 ### 2.3 Rendering and data strategy
 
-| Concern | Approach |
-|---------|----------|
-| Rendering | Server Components by default; Client Components for forms, charts, chat, realtime |
+| Concern       | Approach                                                                                                                |
+| ------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| Rendering     | Server Components by default; Client Components for forms, charts, chat, realtime                                       |
 | Data fetching | Server Components call the API server-side with the user's cookie; client-side uses TanStack Query against the same API |
-| API contract | `packages/contracts/openapi.json` exported by CI → generated TS types and client; no hand-written request types |
-| State | Server state in TanStack Query; local UI state in React; no global store unless needed |
-| Realtime | One authenticated WebSocket per tab for messages, notifications and escalation alerts |
-| Caching | No caching of sensitive pages at CDN (`Cache-Control: private, no-store`); static assets and `/help` cached |
-| Forms | React Hook Form + Zod schemas mirrored from OpenAPI |
-| Errors | Error boundaries per route group; crisis help link always rendered even in error states |
+| API contract  | `packages/contracts/openapi.json` exported by CI → generated TS types and client; no hand-written request types         |
+| State         | Server state in TanStack Query; local UI state in React; no global store unless needed                                  |
+| Realtime      | One authenticated WebSocket per tab for messages, notifications and escalation alerts                                   |
+| Caching       | No caching of sensitive pages at CDN (`Cache-Control: private, no-store`); static assets and `/help` cached             |
+| Forms         | React Hook Form + Zod schemas mirrored from OpenAPI                                                                     |
+| Errors        | Error boundaries per route group; crisis help link always rendered even in error states                                 |
 
 ### 2.4 Routing and guards
 
 ```mermaid
 flowchart LR
-    R[Request] --> MW{middleware.ts: session cookie present?}
-    MW -- no --> PUB["(public) routes / login"]
-    MW -- yes --> ROLE{role claim matches route group?}
+    R[Request] --> PX{"proxy.ts: signed portal pass valid?"}
+    PX -- no --> PUB["public / guest routes; portals redirect to /login?next="]
+    PX -- yes --> ROLE{pass role matches route group?}
     ROLE -- no --> RED[redirect to own portal]
-    ROLE -- yes --> PAGE[render page]
+    ROLE -- yes --> GATE["AuthGate: restore real session via refresh cookie"]
+    GATE -- no session --> CLR[clear pass, redirect to /login]
+    GATE -- role differs --> RED
+    GATE -- ok --> PAGE[render page]
     PAGE --> API[API call: real authorization check]
 ```
 
+The pass is a signed, HttpOnly hint that records only the role the API reported at sign-in.
 Frontend guards are UX only. **The API is the single enforcement point** for authorization.
 
 ### 2.5 Safety and UX rules
@@ -321,31 +336,31 @@ sequenceDiagram
 
 ### 3.4 Cross-cutting concerns
 
-| Concern | Implementation |
-|---------|----------------|
-| Configuration | `pydantic-settings`, env vars only, validated at startup |
-| Authorization | `require_permission` dependency + resource policy in every router; CI fails if a route lacks it |
-| Transactions | Unit of Work per request; RLS session variables set at transaction start |
-| Side effects | Transactional outbox → relay → Redis queue → workers (at-least-once, idempotent handlers) |
-| Idempotency | `Idempotency-Key` header on POSTs that create escalations, appointments, messages |
-| Rate limiting | Redis sliding window per user/IP/route class |
-| Validation | Pydantic v2 models, strict mode for inputs |
-| Errors | RFC 9457 problem+json, no stack traces or data in responses |
-| Logging | structlog JSON, request id, actor id, no bodies or PII |
-| Observability | OpenTelemetry traces and metrics, health and readiness probes |
-| API versioning | `/api/v1`, additive changes only within a version |
+| Concern        | Implementation                                                                                  |
+| -------------- | ----------------------------------------------------------------------------------------------- |
+| Configuration  | `pydantic-settings`, env vars only, validated at startup                                        |
+| Authorization  | `require_permission` dependency + resource policy in every router; CI fails if a route lacks it |
+| Transactions   | Unit of Work per request; RLS session variables set at transaction start                        |
+| Side effects   | Transactional outbox → relay → Redis queue → workers (at-least-once, idempotent handlers)       |
+| Idempotency    | `Idempotency-Key` header on POSTs that create escalations, appointments, messages               |
+| Rate limiting  | Redis sliding window per user/IP/route class                                                    |
+| Validation     | Pydantic v2 models, strict mode for inputs                                                      |
+| Errors         | RFC 9457 problem+json, no stack traces or data in responses                                     |
+| Logging        | structlog JSON, request id, actor id, no bodies or PII                                          |
+| Observability  | OpenTelemetry traces and metrics, health and readiness probes                                   |
+| API versioning | `/api/v1`, additive changes only within a version                                               |
 
 ### 3.5 Background jobs
 
-| Job | Trigger | Notes |
-|-----|---------|-------|
-| `deliver_notification` | outbox event | Channel fan-out, retries with backoff |
-| `escalation_ack_timer` | escalation created | Re-escalates to backup if not acknowledged within SLA |
-| `score_checkin` | check-in created | Calls ML; stores `ml_signal`; crisis already checked synchronously |
-| `aggregate_analytics` | hourly/nightly cron | Builds k-anonymised aggregates |
-| `retention_sweep` | nightly cron | Deletes/crypto-shreds expired data |
-| `export_user_data` | student request | Builds encrypted export in S3, short-lived link |
-| `appointment_reminders` | cron | Generic reminder text only |
+| Job                     | Trigger             | Notes                                                              |
+| ----------------------- | ------------------- | ------------------------------------------------------------------ |
+| `deliver_notification`  | outbox event        | Channel fan-out, retries with backoff                              |
+| `escalation_ack_timer`  | escalation created  | Re-escalates to backup if not acknowledged within SLA              |
+| `score_checkin`         | check-in created    | Calls ML; stores `ml_signal`; crisis already checked synchronously |
+| `aggregate_analytics`   | hourly/nightly cron | Builds k-anonymised aggregates                                     |
+| `retention_sweep`       | nightly cron        | Deletes/crypto-shreds expired data                                 |
+| `export_user_data`      | student request     | Builds encrypted export in S3, short-lived link                    |
+| `appointment_reminders` | cron                | Generic reminder text only                                         |
 
 ---
 
@@ -355,29 +370,29 @@ Full detail in [DATABASE_DESIGN.md](DATABASE_DESIGN.md).
 
 ### 4.1 Stores
 
-| Store | Use |
-|-------|-----|
-| PostgreSQL 16 (RDS, Multi-AZ) | System of record; `pgvector` for resource-library embeddings |
-| Redis 7 (ElastiCache) | Rate limits, refresh-token denylist, WebSocket pub/sub, job queue, short-lived caches |
-| S3 | Attachments, data exports, ML artifacts, backups (all SSE-KMS) |
+| Store                         | Use                                                                                   |
+| ----------------------------- | ------------------------------------------------------------------------------------- |
+| PostgreSQL 16 (RDS, Multi-AZ) | System of record; `pgvector` for resource-library embeddings                          |
+| Redis 7 (ElastiCache)         | Rate limits, refresh-token denylist, WebSocket pub/sub, job queue, short-lived caches |
+| S3                            | Attachments, data exports, ML artifacts, backups (all SSE-KMS)                        |
 
 ### 4.2 Schema organisation
 
 PostgreSQL schemas map to bounded contexts and sensitivity:
 
-| Schema | Contents | Sensitivity |
-|--------|----------|-------------|
-| `iam` | users, credentials, sessions, roles, permissions, MFA | Personal / secret |
-| `org` | institutions, departments, cohorts, profiles, assignments | Personal |
-| `wellbeing` | check-ins, journal entries, companion conversations | Sensitive |
-| `care` | appointments, availability, session notes, care team | Clinical-Confidential |
-| `comm` | message threads, messages, video sessions | Sensitive |
-| `safety` | crisis signals, escalations, on-call rota, crisis resources | Sensitive / Clinical |
-| `insights` | ML signals, model versions | Sensitive |
-| `consent` | consent records, policy versions | Personal |
-| `notify` | notifications, preferences, delivery log, outbox | Internal |
-| `audit` | append-only audit events | Restricted |
-| `analytics` | aggregated, de-identified tables only | Internal |
+| Schema      | Contents                                                    | Sensitivity           |
+| ----------- | ----------------------------------------------------------- | --------------------- |
+| `iam`       | users, credentials, sessions, roles, permissions, MFA       | Personal / secret     |
+| `org`       | institutions, departments, cohorts, profiles, assignments   | Personal              |
+| `wellbeing` | check-ins, journal entries, companion conversations         | Sensitive             |
+| `care`      | appointments, availability, session notes, care team        | Clinical-Confidential |
+| `comm`      | message threads, messages, video sessions                   | Sensitive             |
+| `safety`    | crisis signals, escalations, on-call rota, crisis resources | Sensitive / Clinical  |
+| `insights`  | ML signals, model versions                                  | Sensitive             |
+| `consent`   | consent records, policy versions                            | Personal              |
+| `notify`    | notifications, preferences, delivery log, outbox            | Internal              |
+| `audit`     | append-only audit events                                    | Restricted            |
+| `analytics` | aggregated, de-identified tables only                       | Internal              |
 
 ### 4.3 Key decisions
 
@@ -399,13 +414,13 @@ Full detail in [AI_ML_ARCHITECTURE.md](AI_ML_ARCHITECTURE.md).
 
 "AI" in MindMitra means the **user-facing generative and assistive features**:
 
-| Feature | Users | Purpose |
-|---------|-------|---------|
-| Wellness companion (chat) | Student | Supportive reflection, coping techniques from a vetted library, nudges toward human help |
-| Resource recommendations (RAG) | Student | Retrieve relevant vetted self-help articles |
-| Check-in reflections | Student | Plain-language summary of own trends with disclaimers |
-| Session prep summary | Therapist | Summary of consented check-in trends since last session (never of journal/chat) |
-| Note drafting assist (later, opt-in) | Therapist | Structure therapist-typed notes; therapist edits and owns the note |
+| Feature                              | Users     | Purpose                                                                                  |
+| ------------------------------------ | --------- | ---------------------------------------------------------------------------------------- |
+| Wellness companion (chat)            | Student   | Supportive reflection, coping techniques from a vetted library, nudges toward human help |
+| Resource recommendations (RAG)       | Student   | Retrieve relevant vetted self-help articles                                              |
+| Check-in reflections                 | Student   | Plain-language summary of own trends with disclaimers                                    |
+| Session prep summary                 | Therapist | Summary of consented check-in trends since last session (never of journal/chat)          |
+| Note drafting assist (later, opt-in) | Therapist | Structure therapist-typed notes; therapist edits and owns the note                       |
 
 ### 5.1 Guardrailed AI pipeline
 
@@ -436,12 +451,12 @@ Full detail in [AI_ML_ARCHITECTURE.md](AI_ML_ARCHITECTURE.md).
 
 "ML" means **predictive and classification models** trained and served by MindMitra:
 
-| Model | Tech | Input | Output |
-|-------|------|-------|--------|
-| Crisis language classifier | Hugging Face Transformer (DistilRoBERTa-class) fine-tuned in PyTorch | Free text | `crisis_probability`, category; **always combined with deterministic rules** |
-| Sentiment / affect | scikit-learn baseline (TF-IDF + LR) → Transformer | Check-in text | sentiment score |
-| Support-need signal | scikit-learn gradient boosting (calibrated) | Check-in time series features | `low / moderate / elevated` band + top factors |
-| Engagement anomaly | scikit-learn isolation forest | Usage patterns | "sudden drop in engagement" signal for therapist (consented) |
+| Model                      | Tech                                                                 | Input                         | Output                                                                       |
+| -------------------------- | -------------------------------------------------------------------- | ----------------------------- | ---------------------------------------------------------------------------- |
+| Crisis language classifier | Hugging Face Transformer (DistilRoBERTa-class) fine-tuned in PyTorch | Free text                     | `crisis_probability`, category; **always combined with deterministic rules** |
+| Sentiment / affect         | scikit-learn baseline (TF-IDF + LR) → Transformer                    | Check-in text                 | sentiment score                                                              |
+| Support-need signal        | scikit-learn gradient boosting (calibrated)                          | Check-in time series features | `low / moderate / elevated` band + top factors                               |
+| Engagement anomaly         | scikit-learn isolation forest                                        | Usage patterns                | "sudden drop in engagement" signal for therapist (consented)                 |
 
 ### 6.1 ML service layout
 
@@ -473,17 +488,17 @@ fairness) and a human sign-off recorded in the model card.
 
 Detail in [SECURITY_ARCHITECTURE.md §3](SECURITY_ARCHITECTURE.md#3-authentication).
 
-| Aspect | Design |
-|--------|--------|
-| Identity source | MindMitra-managed accounts per institution (Phase 2); institution SSO via OIDC/SAML (Phase 9) |
-| Onboarding | Invite-only for therapists, faculty, admins; students self-register with a verified institutional email domain or via bulk invite |
-| Passwords | Argon2id, breached-password check (k-anonymity range API or local list), min length 12 |
-| MFA | TOTP required for therapists and admins; optional for students and faculty; WebAuthn later |
-| Tokens | Access JWT (EdDSA, 10 min) + opaque rotating refresh token (7 days idle, 30 days absolute) stored hashed in DB |
-| Transport | Superseded by [ADR 0003](adr/0003-access-token-transport-and-session-checks.md): access token as `Authorization: Bearer` (memory only); refresh token in an httpOnly, Secure, SameSite=Strict cookie scoped to `/api/v1/auth`, with a CSRF header on refresh. (Original design: `__Host-` cookies with double-submit CSRF.) |
-| Reuse detection | Refresh-token families: reuse of a rotated token revokes the whole family |
-| Session control | Users can view/revoke sessions; admins can force logout; password change revokes all |
-| Step-up auth | Re-authentication (password + MFA) to view session notes in bulk, export data, change roles |
+| Aspect          | Design                                                                                                                                                                                                                                                                                                                      |
+| --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Identity source | MindMitra-managed accounts per institution (Phase 2); institution SSO via OIDC/SAML (Phase 9)                                                                                                                                                                                                                               |
+| Onboarding      | Invite-only for therapists, faculty, admins; students self-register with a verified institutional email domain or via bulk invite                                                                                                                                                                                           |
+| Passwords       | Argon2id, breached-password check (k-anonymity range API or local list), min length 12                                                                                                                                                                                                                                      |
+| MFA             | TOTP required for therapists and admins; optional for students and faculty; WebAuthn later                                                                                                                                                                                                                                  |
+| Tokens          | Access JWT (EdDSA, 10 min) + opaque rotating refresh token (7 days idle, 30 days absolute) stored hashed in DB                                                                                                                                                                                                              |
+| Transport       | Superseded by [ADR 0003](adr/0003-access-token-transport-and-session-checks.md): access token as `Authorization: Bearer` (memory only); refresh token in an httpOnly, Secure, SameSite=Strict cookie scoped to `/api/v1/auth`, with a CSRF header on refresh. (Original design: `__Host-` cookies with double-submit CSRF.) |
+| Reuse detection | Refresh-token families: reuse of a rotated token revokes the whole family                                                                                                                                                                                                                                                   |
+| Session control | Users can view/revoke sessions; admins can force logout; password change revokes all                                                                                                                                                                                                                                        |
+| Step-up auth    | Re-authentication (password + MFA) to view session notes in bulk, export data, change roles                                                                                                                                                                                                                                 |
 
 ```mermaid
 sequenceDiagram
@@ -541,33 +556,33 @@ flowchart TD
 
 ### 8.1 Roles
 
-| Role | Scope |
-|------|-------|
-| `student` | Own data |
-| `therapist` | Students in active care-team assignments |
-| `clinical_supervisor` (therapist sub-role) | Therapists they supervise, per institution policy |
-| `faculty` | Own referrals, cohort aggregates for cohorts they teach |
-| `institution_admin` | Institution configuration and user management, no clinical content |
-| `platform_admin` | Cross-institution operations (support, provisioning), no clinical content, heavily audited |
+| Role                                       | Scope                                                                                      |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------ |
+| `student`                                  | Own data                                                                                   |
+| `therapist`                                | Students in active care-team assignments                                                   |
+| `clinical_supervisor` (therapist sub-role) | Therapists they supervise, per institution policy                                          |
+| `faculty`                                  | Own referrals, cohort aggregates for cohorts they teach                                    |
+| `institution_admin`                        | Institution configuration and user management, no clinical content                         |
+| `platform_admin`                           | Cross-institution operations (support, provisioning), no clinical content, heavily audited |
 
 ### 8.2 Permission matrix (summary)
 
-| Permission | Student | Therapist | Faculty | Inst. admin |
-|-----------|:------:|:---------:|:-------:|:-----------:|
-| `checkin:create` | own | – | – | – |
-| `checkin:read` | own | care team + consent | – | – |
-| `journal:read` | own | only entries student explicitly shares | – | – |
-| `companion:use` | own | – | – | – |
-| `session_note:write/read` | – | author (+ supervisor) | – | – |
-| `message:send/read` | with own care team | with own caseload | – | – |
-| `appointment:manage` | own | own | – | metadata only |
-| `referral:create` | – | yes | yes | – |
-| `referral:read` | own (policy) | triage team | own, status only | metadata |
-| `escalation:handle` | – | on-call + care team | – | metadata only |
-| `ml_signal:read` | own (explained) | care team + consent | – | – |
-| `analytics:aggregate` | – | caseload aggregates | own cohorts (k≥10) | institution (k≥10) |
-| `user:manage` | – | – | – | yes |
-| `audit:read` | own access history | – | – | yes |
+| Permission                |      Student       |               Therapist                |      Faculty       |    Inst. admin     |
+| ------------------------- | :----------------: | :------------------------------------: | :----------------: | :----------------: |
+| `checkin:create`          |        own         |                   –                    |         –          |         –          |
+| `checkin:read`            |        own         |          care team + consent           |         –          |         –          |
+| `journal:read`            |        own         | only entries student explicitly shares |         –          |         –          |
+| `companion:use`           |        own         |                   –                    |         –          |         –          |
+| `session_note:write/read` |         –          |         author (+ supervisor)          |         –          |         –          |
+| `message:send/read`       | with own care team |           with own caseload            |         –          |         –          |
+| `appointment:manage`      |        own         |                  own                   |         –          |   metadata only    |
+| `referral:create`         |         –          |                  yes                   |        yes         |         –          |
+| `referral:read`           |    own (policy)    |              triage team               |  own, status only  |      metadata      |
+| `escalation:handle`       |         –          |          on-call + care team           |         –          |   metadata only    |
+| `ml_signal:read`          |  own (explained)   |          care team + consent           |         –          |         –          |
+| `analytics:aggregate`     |         –          |          caseload aggregates           | own cohorts (k≥10) | institution (k≥10) |
+| `user:manage`             |         –          |                   –                    |         –          |        yes         |
+| `audit:read`              | own access history |                   –                    |         –          |        yes         |
 
 The full matrix is the source for the **authorization test matrix** (every endpoint × every role).
 
@@ -577,12 +592,12 @@ The full matrix is the source for the **authorization test matrix** (every endpo
 
 ### 9.1 Channels
 
-| Channel | Mode | Design |
-|---------|------|--------|
+| Channel          | Mode                          | Design                                                                                                                                     |
+| ---------------- | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
 | Secure messaging | Async, with realtime delivery | Threads between a student and their care team; E2E-in-transit TLS + field-level encryption at rest; attachments in S3 (scanned, encrypted) |
-| Appointments | Scheduling | Therapist availability slots, student booking, reschedule/cancel rules, reminders |
-| Video sessions | Realtime | Amazon Chime SDK meetings created per appointment; API issues short-lived join tokens; no recording by default |
-| In-app presence | Realtime | Limited to "therapist online/offline" for urgent chat routing; students' presence never exposed |
+| Appointments     | Scheduling                    | Therapist availability slots, student booking, reschedule/cancel rules, reminders                                                          |
+| Video sessions   | Realtime                      | Amazon Chime SDK meetings created per appointment; API issues short-lived join tokens; no recording by default                             |
+| In-app presence  | Realtime                      | Limited to "therapist online/offline" for urgent chat routing; students' presence never exposed                                            |
 
 ### 9.2 Messaging design
 
@@ -637,12 +652,12 @@ flowchart LR
     NW --> LOG[(delivery log)]
 ```
 
-| Priority | Examples | Behaviour |
-|----------|----------|-----------|
-| `critical` | Crisis escalation to on-call therapist | All channels incl. SMS, ignores quiet hours, requires acknowledgement, re-escalates on timeout |
-| `high` | Appointment in 1 hour, new message from therapist | In-app + push (+ email per preference) |
-| `normal` | Referral status change, weekly reflection ready | In-app (+ email digest) |
-| `low` | Product tips | In-app only, opt-in |
+| Priority   | Examples                                          | Behaviour                                                                                      |
+| ---------- | ------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `critical` | Crisis escalation to on-call therapist            | All channels incl. SMS, ignores quiet hours, requires acknowledgement, re-escalates on timeout |
+| `high`     | Appointment in 1 hour, new message from therapist | In-app + push (+ email per preference)                                                         |
+| `normal`   | Referral status change, weekly reflection ready   | In-app (+ email digest)                                                                        |
+| `low`      | Product tips                                      | In-app only, opt-in                                                                            |
 
 Privacy rules:
 
@@ -659,11 +674,11 @@ Privacy rules:
 
 Three distinct kinds of analytics with separate pipelines:
 
-| Kind | Audience | Data | Protection |
-|------|----------|------|-----------|
-| Personal insights | Student (own), care team (consented) | Own check-ins, ML signals | RBAC + consent; computed on demand |
-| Institutional wellbeing aggregates | Faculty (own cohorts), admins | Aggregated check-in metrics, escalation counts, service usage | k-anonymity (k ≥ 10), small-cell suppression, optional differential-privacy noise, no drill-down to individuals |
-| Operational / product metrics | Admins, platform team | Response times, usage, errors | No content, pseudonymous IDs, no third-party trackers on authenticated pages |
+| Kind                               | Audience                             | Data                                                          | Protection                                                                                                      |
+| ---------------------------------- | ------------------------------------ | ------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| Personal insights                  | Student (own), care team (consented) | Own check-ins, ML signals                                     | RBAC + consent; computed on demand                                                                              |
+| Institutional wellbeing aggregates | Faculty (own cohorts), admins        | Aggregated check-in metrics, escalation counts, service usage | k-anonymity (k ≥ 10), small-cell suppression, optional differential-privacy noise, no drill-down to individuals |
+| Operational / product metrics      | Admins, platform team                | Response times, usage, errors                                 | No content, pseudonymous IDs, no third-party trackers on authenticated pages                                    |
 
 ```mermaid
 flowchart LR
@@ -741,21 +756,21 @@ flowchart TB
     WRK --> NAT --> SES[SES / SNS]
 ```
 
-| Component | AWS service | Notes |
-|-----------|-------------|-------|
-| DNS / CDN / edge security | Route 53, CloudFront, WAF, Shield Standard | Managed rules + rate rules; geo restrictions optional |
-| Containers | ECS on Fargate | Separate services and task roles per unit; autoscaling on CPU/queue depth |
-| Images | ECR | Scan on push, immutable tags |
-| Database | RDS PostgreSQL 16, Multi-AZ | Encrypted with CMK, automated backups (35 days), PITR, IAM auth for migrations |
-| Cache/queue | ElastiCache Redis | TLS + AUTH, encryption at rest |
-| Object storage | S3 | Block public access, SSE-KMS, versioning, lifecycle rules |
-| Keys / secrets | KMS (per-environment CMKs), Secrets Manager | Automatic rotation where supported |
-| LLM | Amazon Bedrock | Via VPC endpoint; model invocation logging disabled for content |
-| Email / SMS | SES, SNS (or regional SMS provider) | Content-free templates |
-| Video | Amazon Chime SDK | Meetings created on demand |
-| Observability | CloudWatch Logs/Metrics, X-Ray via OpenTelemetry, Sentry (scrubbed) | Alarms to on-call |
-| IaC | Terraform with remote state in S3 + DynamoDB lock | Per-environment workspaces |
-| CI/CD | GitHub Actions with OIDC to AWS (no static keys) | Prod deploy needs manual approval |
+| Component                 | AWS service                                                         | Notes                                                                          |
+| ------------------------- | ------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| DNS / CDN / edge security | Route 53, CloudFront, WAF, Shield Standard                          | Managed rules + rate rules; geo restrictions optional                          |
+| Containers                | ECS on Fargate                                                      | Separate services and task roles per unit; autoscaling on CPU/queue depth      |
+| Images                    | ECR                                                                 | Scan on push, immutable tags                                                   |
+| Database                  | RDS PostgreSQL 16, Multi-AZ                                         | Encrypted with CMK, automated backups (35 days), PITR, IAM auth for migrations |
+| Cache/queue               | ElastiCache Redis                                                   | TLS + AUTH, encryption at rest                                                 |
+| Object storage            | S3                                                                  | Block public access, SSE-KMS, versioning, lifecycle rules                      |
+| Keys / secrets            | KMS (per-environment CMKs), Secrets Manager                         | Automatic rotation where supported                                             |
+| LLM                       | Amazon Bedrock                                                      | Via VPC endpoint; model invocation logging disabled for content                |
+| Email / SMS               | SES, SNS (or regional SMS provider)                                 | Content-free templates                                                         |
+| Video                     | Amazon Chime SDK                                                    | Meetings created on demand                                                     |
+| Observability             | CloudWatch Logs/Metrics, X-Ray via OpenTelemetry, Sentry (scrubbed) | Alarms to on-call                                                              |
+| IaC                       | Terraform with remote state in S3 + DynamoDB lock                   | Per-environment workspaces                                                     |
+| CI/CD                     | GitHub Actions with OIDC to AWS (no static keys)                    | Prod deploy needs manual approval                                              |
 
 Environments: `local` (docker-compose), `dev`, `staging`, `prod`, each in its own AWS account
 (AWS Organizations) to limit blast radius. Only `prod` can hold real data.
@@ -922,15 +937,15 @@ erDiagram
     }
 ```
 
-| Scope | Default | Effect |
-|-------|---------|--------|
-| `terms_and_privacy` | required | Account use |
-| `share_checkins_with_care_team` | off, asked at first appointment | Therapist sees check-in metrics and trends |
-| `share_ml_signals_with_care_team` | off | Therapist sees support-need signals |
-| `journal_safety_scanning` | off | Journal entries run through crisis detection |
-| `companion_history_retention` | 30 days | How long companion chats are kept (0, 30, 90 days) |
-| `anonymous_aggregate_research` | off | De-identified data may be used for model improvement |
-| `notification_channels` | in-app only | Email/SMS/push opt-in |
+| Scope                             | Default                         | Effect                                               |
+| --------------------------------- | ------------------------------- | ---------------------------------------------------- |
+| `terms_and_privacy`               | required                        | Account use                                          |
+| `share_checkins_with_care_team`   | off, asked at first appointment | Therapist sees check-in metrics and trends           |
+| `share_ml_signals_with_care_team` | off                             | Therapist sees support-need signals                  |
+| `journal_safety_scanning`         | off                             | Journal entries run through crisis detection         |
+| `companion_history_retention`     | 30 days                         | How long companion chats are kept (0, 30, 90 days)   |
+| `anonymous_aggregate_research`    | off                             | De-identified data may be used for model improvement |
+| `notification_channels`           | in-app only                     | Email/SMS/push opt-in                                |
 
 - Consent is **granular, explicit, revocable, versioned and recorded** (who, what, when, under
   which policy version). Revocation takes effect immediately in the policy layer.
@@ -940,26 +955,26 @@ erDiagram
 
 ### 16.3 Data subject rights
 
-| Right | Mechanism |
-|-------|-----------|
-| Access / portability | Self-service export (JSON + PDF) via async job, encrypted, 24 h link |
-| Rectification | Edit profile and own entries |
-| Erasure | Self-service deletion request: personal and wellbeing data crypto-shredded; clinical records retained only as legally required, then deleted |
-| Transparency | "Who accessed my data" view from the audit log (role-level, e.g. "your therapist viewed your check-ins") |
-| Withdraw consent | Privacy centre toggles, effective immediately |
+| Right                | Mechanism                                                                                                                                    |
+| -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| Access / portability | Self-service export (JSON + PDF) via async job, encrypted, 24 h link                                                                         |
+| Rectification        | Edit profile and own entries                                                                                                                 |
+| Erasure              | Self-service deletion request: personal and wellbeing data crypto-shredded; clinical records retained only as legally required, then deleted |
+| Transparency         | "Who accessed my data" view from the audit log (role-level, e.g. "your therapist viewed your check-ins")                                     |
+| Withdraw consent     | Privacy centre toggles, effective immediately                                                                                                |
 
 ### 16.4 Retention (defaults, institution-configurable within legal limits)
 
-| Data | Default retention |
-|------|-------------------|
-| Companion chats | 30 days (student-selectable 0/30/90) |
-| Check-ins | While enrolled + 1 year |
-| Journal | Until student deletes or account closes |
-| Messages | 3 years or per clinical records policy |
-| Session notes | Per jurisdiction's clinical record rules (e.g. 7 years) |
-| Escalations | Per clinical records policy |
-| Audit logs | 7 years, immutable |
-| Raw product events | 90 days; aggregates indefinitely |
+| Data               | Default retention                                       |
+| ------------------ | ------------------------------------------------------- |
+| Companion chats    | 30 days (student-selectable 0/30/90)                    |
+| Check-ins          | While enrolled + 1 year                                 |
+| Journal            | Until student deletes or account closes                 |
+| Messages           | 3 years or per clinical records policy                  |
+| Session notes      | Per jurisdiction's clinical record rules (e.g. 7 years) |
+| Escalations        | Per clinical records policy                             |
+| Audit logs         | 7 years, immutable                                      |
+| Raw product events | 90 days; aggregates indefinitely                        |
 
 ### 16.5 Synthetic data
 
@@ -970,37 +985,37 @@ Production snapshots are never restored into lower environments.
 
 ## 17. Architectural risks and mitigations
 
-| # | Risk | Impact | Likelihood | Mitigation |
-|---|------|--------|-----------|------------|
-| R1 | **Crisis false negatives** (classifier misses risk) | Critical | Medium | Rules always run; recall-first thresholds; explicit "Get help" path everywhere; human review of misses; recall floor gate on model promotion; therapists never rely on ML alone |
-| R2 | **Crisis alert not acted on** (no therapist available, off-hours) | Critical | Medium | On-call rota required before institution go-live; SLA timers with multi-level re-escalation; SMS critical channel; off-hours auto-response with helplines; alarms on unacknowledged escalations |
-| R3 | **Teacher or admin sees clinical data** through a bug | Critical | Low–Med | Single policy layer; RLS defence in depth; analytics on separate schema/DB role; authorization matrix tests in CI; field encryption so raw DB access is not enough |
-| R4 | **Re-identification from aggregates** (small cohorts, differencing) | High | Medium | k ≥ 10, small-cell suppression, coarse time windows, optional DP noise, no ad-hoc queries |
-| R5 | **LLM harmful or diagnostic output** | High | Medium | Templated crisis responses; output guard; constrained prompts; red-team suite in CI; disclaimers; easy report button; kill switch per institution |
-| R6 | **Prompt injection / data exfiltration via companion** | High | Medium | Companion has no tools or DB access; context limited to the student's own session and vetted resources; input guard; output PII scrub |
-| R7 | **Over-reliance on AI** by students or therapists | High | Medium | UX nudges to human support; signals shown as bands with factors, never diagnoses; therapist training material; model cards visible |
-| R8 | **Model bias** across gender, language, region, culture | High | Medium | Subgroup evaluation gates; multilingual and culturally diverse synthetic and consented data; Indian-English and Hinglish test sets; periodic audits |
-| R9 | **Lack of real training data** (synthetic-only dev) | Medium | High | Start with rules + conservative baselines; partner with institutions for consented, de-identified datasets under ethics approval; public research datasets with compatible licences |
-| R10 | **Key management failure** (lost KMS key = lost data; leaked key = breach) | Critical | Low | KMS CMKs with deletion protection and waiting period; per-institution data keys; key rotation; least-privilege key policies; backup and restore drills |
-| R11 | **Regulatory mismatch** (DPDP/GDPR/FERPA/clinical record laws) | High | Medium | Region-pinned deployments; configurable retention; DPIA before launch; legal review; data processing agreements with LLM/SMS vendors |
-| R12 | **Scope creep / big-bang build** | Medium | High | Phase-gated roadmap; modular monolith; ADRs for changes; strict definition of done |
-| R13 | **Third-party LLM dependency** (outage, cost, policy change) | Medium | Medium | Provider abstraction; graceful degradation (companion disabled, resources still available); budget alerts and per-user rate limits |
-| R14 | **Notification leakage** (sensitive content on lock screens / shared email) | High | Medium | Content-free external notifications; generic sender name option |
-| R15 | **WebSocket scale and reliability** | Medium | Medium | Redis pub/sub fan-out; stateless API tasks; clients fall back to polling; critical alerts never rely on WS alone |
-| R16 | **Insider misuse** by staff with legitimate access | High | Low–Med | Relationship-scoped access; access reasons for break-glass; anomaly detection on access volume; student-visible access history |
-| R17 | **Modular monolith becomes tangled** | Medium | Medium | Context boundaries enforced with import-linter rules in CI; each context owns its tables |
-| R18 | **Crisis page unavailable during outage** | High | Low | Static `/help` page on CloudFront/S3 independent of app tier; helplines also in app shell and emails |
+| #   | Risk                                                                        | Impact   | Likelihood | Mitigation                                                                                                                                                                                      |
+| --- | --------------------------------------------------------------------------- | -------- | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| R1  | **Crisis false negatives** (classifier misses risk)                         | Critical | Medium     | Rules always run; recall-first thresholds; explicit "Get help" path everywhere; human review of misses; recall floor gate on model promotion; therapists never rely on ML alone                 |
+| R2  | **Crisis alert not acted on** (no therapist available, off-hours)           | Critical | Medium     | On-call rota required before institution go-live; SLA timers with multi-level re-escalation; SMS critical channel; off-hours auto-response with helplines; alarms on unacknowledged escalations |
+| R3  | **Teacher or admin sees clinical data** through a bug                       | Critical | Low–Med    | Single policy layer; RLS defence in depth; analytics on separate schema/DB role; authorization matrix tests in CI; field encryption so raw DB access is not enough                              |
+| R4  | **Re-identification from aggregates** (small cohorts, differencing)         | High     | Medium     | k ≥ 10, small-cell suppression, coarse time windows, optional DP noise, no ad-hoc queries                                                                                                       |
+| R5  | **LLM harmful or diagnostic output**                                        | High     | Medium     | Templated crisis responses; output guard; constrained prompts; red-team suite in CI; disclaimers; easy report button; kill switch per institution                                               |
+| R6  | **Prompt injection / data exfiltration via companion**                      | High     | Medium     | Companion has no tools or DB access; context limited to the student's own session and vetted resources; input guard; output PII scrub                                                           |
+| R7  | **Over-reliance on AI** by students or therapists                           | High     | Medium     | UX nudges to human support; signals shown as bands with factors, never diagnoses; therapist training material; model cards visible                                                              |
+| R8  | **Model bias** across gender, language, region, culture                     | High     | Medium     | Subgroup evaluation gates; multilingual and culturally diverse synthetic and consented data; Indian-English and Hinglish test sets; periodic audits                                             |
+| R9  | **Lack of real training data** (synthetic-only dev)                         | Medium   | High       | Start with rules + conservative baselines; partner with institutions for consented, de-identified datasets under ethics approval; public research datasets with compatible licences             |
+| R10 | **Key management failure** (lost KMS key = lost data; leaked key = breach)  | Critical | Low        | KMS CMKs with deletion protection and waiting period; per-institution data keys; key rotation; least-privilege key policies; backup and restore drills                                          |
+| R11 | **Regulatory mismatch** (DPDP/GDPR/FERPA/clinical record laws)              | High     | Medium     | Region-pinned deployments; configurable retention; DPIA before launch; legal review; data processing agreements with LLM/SMS vendors                                                            |
+| R12 | **Scope creep / big-bang build**                                            | Medium   | High       | Phase-gated roadmap; modular monolith; ADRs for changes; strict definition of done                                                                                                              |
+| R13 | **Third-party LLM dependency** (outage, cost, policy change)                | Medium   | Medium     | Provider abstraction; graceful degradation (companion disabled, resources still available); budget alerts and per-user rate limits                                                              |
+| R14 | **Notification leakage** (sensitive content on lock screens / shared email) | High     | Medium     | Content-free external notifications; generic sender name option                                                                                                                                 |
+| R15 | **WebSocket scale and reliability**                                         | Medium   | Medium     | Redis pub/sub fan-out; stateless API tasks; clients fall back to polling; critical alerts never rely on WS alone                                                                                |
+| R16 | **Insider misuse** by staff with legitimate access                          | High     | Low–Med    | Relationship-scoped access; access reasons for break-glass; anomaly detection on access volume; student-visible access history                                                                  |
+| R17 | **Modular monolith becomes tangled**                                        | Medium   | Medium     | Context boundaries enforced with import-linter rules in CI; each context owns its tables                                                                                                        |
+| R18 | **Crisis page unavailable during outage**                                   | High     | Low        | Static `/help` page on CloudFront/S3 independent of app tier; helplines also in app shell and emails                                                                                            |
 
 ---
 
 ## 18. Open decisions
 
-| # | Decision | Proposed default | Decide by |
-|---|----------|------------------|-----------|
-| D1 | Background job library | ARQ (async-native, Redis) | Phase 4 |
-| D2 | LLM provider | Amazon Bedrock (Claude or Llama family), via provider abstraction | Phase 6 |
-| D3 | Session-note visibility to students | Not visible by default; institution-configurable | Phase 3 |
-| D4 | Video provider | Amazon Chime SDK | Phase 3 |
-| D5 | SSO protocols | OIDC first, SAML second | Phase 9 |
-| D6 | Target compliance regime and region | DPDP Act, `ap-south-1` | Before production |
-| D7 | Differential-privacy noise on aggregates | Off initially, k-anonymity only | Phase 7 |
+| #   | Decision                                 | Proposed default                                                  | Decide by         |
+| --- | ---------------------------------------- | ----------------------------------------------------------------- | ----------------- |
+| D1  | Background job library                   | ARQ (async-native, Redis)                                         | Phase 4           |
+| D2  | LLM provider                             | Amazon Bedrock (Claude or Llama family), via provider abstraction | Phase 6           |
+| D3  | Session-note visibility to students      | Not visible by default; institution-configurable                  | Phase 3           |
+| D4  | Video provider                           | Amazon Chime SDK                                                  | Phase 3           |
+| D5  | SSO protocols                            | OIDC first, SAML second                                           | Phase 9           |
+| D6  | Target compliance regime and region      | DPDP Act, `ap-south-1`                                            | Before production |
+| D7  | Differential-privacy noise on aggregates | Off initially, k-anonymity only                                   | Phase 7           |

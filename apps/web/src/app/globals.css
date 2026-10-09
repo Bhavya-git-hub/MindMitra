@@ -1,0 +1,216 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "@fontsource-variable/plus-jakarta-sans";
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * MindMitra design tokens.
+ *
+ * Language: calm, warm and quiet. Soft off-white surfaces, a deep teal primary, lavender and
+ * sage accents, and no alarm reds (destructive is a muted terracotta). Every foreground and
+ * background pair below is checked against WCAG 2.1 AA by tests/unit/design-tokens.test.ts, so
+ * change a value there and in the test together. Edit tokens here, never hard-code colours in
+ * components.
+ */
+:root {
+  color-scheme: light;
+  --radius: 0.75rem;
+
+  --background: #f7f6f2;
+  --foreground: #1f2a33;
+  --card: #ffffff;
+  --card-foreground: #1f2a33;
+  --popover: #ffffff;
+  --popover-foreground: #1f2a33;
+
+  --primary: #2b6b70;
+  --primary-foreground: #ffffff;
+  --secondary: #e6eeee;
+  --secondary-foreground: #1f4448;
+  --muted: #eeece5;
+  --muted-foreground: #58636d;
+  --accent: #e8e3f4;
+  --accent-foreground: #3b3262;
+  --destructive: #a2422f;
+  --destructive-foreground: #ffffff;
+
+  --border: #d9d5ca;
+  --input: #858d95;
+  --ring: #3a8a90;
+
+  --success: #2f6f4c;
+  --success-soft: #e3f0e8;
+  --warning: #7a5410;
+  --warning-soft: #faefd6;
+  --info: #2a5f8f;
+  --info-soft: #e2edf7;
+
+  --chart-1: #2b6b70;
+  --chart-2: #7a68b0;
+  --chart-3: #a67a2e;
+  --chart-4: #4e86b4;
+  --chart-5: #5e9a74;
+
+  --sidebar: #eef2f0;
+  --sidebar-foreground: #1f2a33;
+  --sidebar-accent: #dce8e7;
+  --sidebar-accent-foreground: #1f4448;
+  --sidebar-border: #d3dcd9;
+}
+
+.dark {
+  color-scheme: dark;
+
+  --background: #12181d;
+  --foreground: #e6ebee;
+  --card: #1a2127;
+  --card-foreground: #e6ebee;
+  --popover: #1a2127;
+  --popover-foreground: #e6ebee;
+
+  --primary: #7cc1c5;
+  --primary-foreground: #0e2a2d;
+  --secondary: #25313a;
+  --secondary-foreground: #d5e4e5;
+  --muted: #222b32;
+  --muted-foreground: #a3aeb7;
+  --accent: #2e2a47;
+  --accent-foreground: #ddd7f2;
+  --destructive: #e39a8a;
+  --destructive-foreground: #2a0f0a;
+
+  --border: #2e3943;
+  --input: #7e8a94;
+  --ring: #7cc1c5;
+
+  --success: #8fd0a9;
+  --success-soft: #1b3226;
+  --warning: #e8c27a;
+  --warning-soft: #3a2d12;
+  --info: #8dbce8;
+  --info-soft: #17293a;
+
+  --chart-1: #7cc1c5;
+  --chart-2: #b0a3e0;
+  --chart-3: #e0b867;
+  --chart-4: #7fb0db;
+  --chart-5: #8fd0a9;
+
+  --sidebar: #161d22;
+  --sidebar-foreground: #e6ebee;
+  --sidebar-accent: #25313a;
+  --sidebar-accent-foreground: #d5e4e5;
+  --sidebar-border: #27323a;
+}
+
+@theme inline {
+  --font-sans:
+    "Plus Jakarta Sans Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+
+  --shadow-soft: 0 1px 2px rgb(31 42 51 / 0.04), 0 4px 16px rgb(31 42 51 / 0.06);
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    font-feature-settings: "cv11", "ss01";
+  }
+
+  /* One clear, solid focus indicator everywhere (WCAG 2.4.7 / 1.4.11). */
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+
+  h1,
+  h2,
+  h3 {
+    @apply text-balance tracking-tight;
+  }
+}
+
+@layer utilities {
+  /* Soft atmosphere for the sign-in screens: two gentle washes, no imagery. */
+  .bg-calm {
+    background-color: var(--background);
+    background-image:
+      radial-gradient(
+        60rem 40rem at 0% 0%,
+        color-mix(in srgb, var(--primary) 12%, transparent),
+        transparent 60%
+      ),
+      radial-gradient(
+        50rem 36rem at 100% 100%,
+        color-mix(in srgb, var(--accent) 80%, transparent),
+        transparent 60%
+      );
+  }
+
+  .shadow-soft {
+    box-shadow: var(--shadow-soft);
+  }
+}
+
+/* Respect the user's motion preference everywhere. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
