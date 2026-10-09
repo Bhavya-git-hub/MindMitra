@@ -1,9 +1,60 @@
 # MindMitra API Design
 
-- Status: **Proposed** (design only, no code yet)
+- Status: **Partially implemented.** Authentication, account administration and the first
+  protected read endpoints exist in `services/api`; section 0 lists them and where they differ
+  from this design. Where they disagree, **section 0 is authoritative**.
 - Style: REST over HTTPS + one WebSocket gateway; OpenAPI 3.1 is the contract
   (exported to `packages/contracts/openapi.json`)
 - Related: [ARCHITECTURE.md §3](ARCHITECTURE.md#3-backend-architecture), [SECURITY_ARCHITECTURE.md](SECURITY_ARCHITECTURE.md)
+
+## 0. Implemented endpoints (as built)
+
+All under `/api/v1`. "Guard" is the route-level check; resource policies then decide per record
+(see [SECURITY_ARCHITECTURE.md §0.2](SECURITY_ARCHITECTURE.md#02-roles-permissions-and-policies)).
+Interactive docs at `/docs` in development and test only.
+
+| Method & path | Guard | Purpose |
+|---------------|-------|---------|
+| `GET /health/live` **PUBLIC** | none | Liveness probe |
+| `POST /auth/register` **PUBLIC** | rate limit | Student self-registration (institutional e-mail, `accept_terms: true`); always `202` |
+| `POST /auth/verify-email` **PUBLIC** (token) | rate limit | Activates a registered account |
+| `POST /auth/login` **PUBLIC** | rate limit | Returns `{access_token, token_type, expires_in, csrf_token, user}` and sets the refresh cookie |
+| `POST /auth/refresh` **PUBLIC** (refresh cookie + `X-CSRF-Token`) | rate limit | Rotates the refresh token, returns a new token pair |
+| `POST /auth/logout` | `authenticated` | Revokes this session, clears the cookie; `204` |
+| `POST /auth/password/forgot` **PUBLIC** | rate limit | Always `202` |
+| `POST /auth/password/reset` **PUBLIC** (token) | rate limit | Completes a reset or first-time account setup; signs out every session |
+| `GET /me` | `profile:read:own` | Own profile, role and permission list |
+| `GET /me/wellness/mood-entries` | `wellness:read:own` | Own mood entries (with own private note) |
+| `GET /me/appointments` | `appointment:read:own` | Own appointments |
+| `GET /me/ai-conversations` | `ai_conversation:read:own` | Own companion conversations (metadata only) |
+| `GET /students` | `student:read:assigned` | Therapist's current care-team students |
+| `GET /students/{id}/mood-entries` | `wellness:read:assigned` | Consented mood entries of an assigned student, without the private note; audited |
+| `GET /students/{id}/therapy-notes` | `therapy_note:read` | Notes this therapist wrote about an assigned student; audited |
+| `GET /therapist/appointments` | `appointment:manage` | Therapist's own appointments |
+| `PATCH /appointments/{id}` | `appointment:manage` | `{status: confirmed, cancelled, completed, no_show}`; valid transitions only (`409` otherwise) |
+| `GET /insights/mood-summary?department_id=` | `insights:read:aggregate` | 30-day department cohort size and average mood; suppressed under 10 students |
+| `GET /admin/users`, `POST /admin/users` | `user:manage` | List / create (invited, any role) users of the admin's institution |
+| `PATCH /admin/users/{id}` | `user:manage` | `{status: active, suspended, deactivated}`; non-active revokes sessions |
+| `GET /admin/config`, `PATCH /admin/config` | `config:manage` | Institution name and e-mail domains |
+| `GET /admin/audit?action=&before_seq=&limit=` | `audit:read` | Audit metadata for the institution, newest first |
+
+Status codes as built: `401` missing, invalid, expired or revoked token (with
+`WWW-Authenticate: Bearer`) and every failed login; `403` the role lacks the permission, or a
+policy denies a record the caller may know exists (for example a therapist without consent);
+`404` the record is missing, belongs to another institution, or the caller has no relationship to
+it; `409` invalid transition or duplicate; `422` validation, weak password, unknown e-mail domain;
+`429` rate limited.
+
+| Area | Design said | Implemented |
+|------|-------------|-------------|
+| Auth transport | Session cookies, CSRF header on all unsafe methods | Bearer access token; refresh cookie and CSRF header on `/auth/refresh` only ([ADR 0003](adr/0003-access-token-transport-and-session-checks.md)) |
+| Locked account | `423` | `401`, identical to other login failures |
+| Invitations | `POST /users/invitations`, `POST /auth/invitations/accept` | `POST /admin/users` sends an account-setup link; the user completes it with `POST /auth/password/reset` |
+| User admin paths | `/users`, `/users/{id}/deactivate` | `/admin/users`, `PATCH /admin/users/{id}` with a status |
+| Institution settings | `/admin/institution` | `/admin/config` |
+| Therapist views | Nested under `/checkins`, `/session-notes` | `/students/{id}/mood-entries`, `/students/{id}/therapy-notes` (read only for now) |
+| Pagination | Cursor | `limit` (max 200); audit uses `before_seq` as its cursor |
+| Not built yet | MFA, step-up, `/auth/sessions`, `/health/ready`, idempotency keys, ETags, everything outside the table above | Later phases |
 
 ## 1. Conventions
 

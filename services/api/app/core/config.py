@@ -25,6 +25,27 @@ class Settings(BaseSettings):
     # Base64-encoded 32-byte key for field-level encryption (AES-256-GCM).
     field_encryption_key: SecretStr
 
+    # --- authentication (SECURITY_ARCHITECTURE.md section 3) -----------------------------
+    # Ed25519 private key that signs access JWTs: PEM, or base64 of the PEM.
+    jwt_private_key: SecretStr
+    jwt_issuer: str = "mindmitra-api"
+    jwt_audience: str = "mindmitra"
+    access_token_ttl_seconds: int = Field(default=600, ge=60, le=3600)
+    # Refresh tokens rotate on every use; an unused one expires after this idle period.
+    refresh_token_ttl_seconds: int = Field(default=7 * 24 * 3600, ge=300)
+    # Absolute session lifetime, whatever the activity (students vs staff).
+    student_session_max_seconds: int = Field(default=30 * 24 * 3600, ge=3600)
+    staff_session_max_seconds: int = Field(default=12 * 3600, ge=3600)
+    password_reset_ttl_seconds: int = Field(default=30 * 60, ge=300, le=24 * 3600)
+    account_setup_ttl_seconds: int = Field(default=72 * 3600, ge=3600)
+    email_verification_ttl_seconds: int = Field(default=24 * 3600, ge=3600)
+    login_lockout_threshold: int = Field(default=5, ge=3, le=20)
+    # Per client IP, per minute, across the public auth endpoints (in-process limiter).
+    auth_rate_limit_per_minute: int = Field(default=20, ge=1)
+    # Comma-separated browser origins allowed by CORS (no wildcard).
+    cors_origins: str = ""
+    terms_policy_version: str = "2026-10-01"
+
     @field_validator("database_url")
     @classmethod
     def _require_asyncpg(cls, v: SecretStr) -> SecretStr:
@@ -43,6 +64,21 @@ class Settings(BaseSettings):
             raise ValueError("FIELD_ENCRYPTION_KEY must be base64 of exactly 32 bytes") from exc
         return v
 
+    @field_validator("jwt_private_key")
+    @classmethod
+    def _valid_jwt_key(cls, v: SecretStr) -> SecretStr:
+        from app.core.access_tokens import load_private_key
+
+        load_private_key(v.get_secret_value())  # raises ValueError with a clear message
+        return v
+
+    @field_validator("cors_origins")
+    @classmethod
+    def _no_wildcard_origin(cls, v: str) -> str:
+        if "*" in v:
+            raise ValueError("CORS_ORIGINS must list explicit origins (no wildcard)")
+        return v
+
     @model_validator(mode="after")
     def _require_tls_outside_dev(self) -> Self:
         if self.app_env in ("staging", "production"):
@@ -54,6 +90,10 @@ class Settings(BaseSettings):
                     "staging or production"
                 )
         return self
+
+    @property
+    def cors_origin_list(self) -> list[str]:
+        return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
 
     @property
     def allows_seeding(self) -> bool:

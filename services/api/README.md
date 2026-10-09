@@ -2,19 +2,26 @@
 
 FastAPI + Pydantic v2 + SQLAlchemy 2 (async) + Alembic + PostgreSQL + Redis.
 
-**Current state:** the database layer only (models, migration, seed, tests). There are no HTTP
-endpoints and no authentication yet; those arrive in later phases.
+**Current state:** the database layer plus authentication and role-based authorization:
+registration, login, logout, refresh-token rotation, password reset, account setup, role and
+permission guards, resource policies, and the first protected endpoints for each role. See
+[`docs/SECURITY_ARCHITECTURE.md`](../../docs/SECURITY_ARCHITECTURE.md) section 0 and
+[`docs/API_DESIGN.md`](../../docs/API_DESIGN.md) section 0 for exactly what is built.
 
 ## Layout
 
 ```
 app/
-  core/             settings (env vars only), field encryption, password hashing
+  api/              FastAPI app factory (main.py), routes/, guards and auth dependencies (deps.py),
+                    problem responses, rate limiter
+  application/      use cases: auth/ (login, refresh, reset ...), care, insights, admin
+  domain/auth/      roles and permissions, resource policies, password policy (no framework code)
+  core/             settings (env vars only), JWT signing, field encryption, password hashing
   infrastructure/
     db/             models/, session management, UUIDv7 ids, audit hash chain, seed/
-  api/ application/ domain/    reserved for later phases (clean architecture layers)
-alembic/            migrations (0001_initial_schema, 0002_tenant_safe_foreign_keys)
-tests/              migration, constraint, cascade, security and seed tests against real PostgreSQL
+alembic/            migrations (0001_initial_schema, 0002_tenant_safe_foreign_keys, 0003_auth_sessions)
+tests/              database tests, plus auth and cross-role authorization tests through the API,
+                    all against real PostgreSQL
 ```
 
 ## Database quick start
@@ -29,8 +36,23 @@ alembic upgrade head              # create schemas, tables, constraints, audit t
 python -m app.infrastructure.db.seed   # synthetic data (development only)
 ```
 
-Generate a field-encryption key with:
-`python -c "from app.core.crypto import generate_key; print(generate_key())"`.
+Generate the two keys (put them in `.env`, never commit them):
+
+```bash
+python -c "from app.core.crypto import generate_key; print(generate_key())"   # FIELD_ENCRYPTION_KEY
+python -c "from app.core.access_tokens import generate_private_key_pem as g; import base64; print(base64.b64encode(g().encode()).decode())"   # JWT_PRIVATE_KEY
+```
+
+## Running the API
+
+```bash
+uvicorn app.api.main:create_app --factory --reload   # http://localhost:8000/docs (development only)
+```
+
+Sign in with `POST /api/v1/auth/login` using a seeded e-mail and the seed password. The response
+carries a short-lived access token (send it as `Authorization: Bearer ...`) and sets the refresh
+cookie. In development, e-mailed links (verification, reset, account setup) go to an in-memory
+outbox; the app refuses to start in staging or production until a real sender is configured.
 
 The seed creates one fictional institution (about 15,000 rows for 120 students). All users share
 one password: set `SEED_USER_PASSWORD`, or a random one is generated and printed once. The seed

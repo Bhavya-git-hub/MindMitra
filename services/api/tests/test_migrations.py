@@ -11,7 +11,7 @@ from app.infrastructure.db.base import SCHEMAS, Base
 from tests.conftest import alembic_config
 
 EXPECTED_TABLES = {
-    "iam": {"users", "credentials"},
+    "iam": {"users", "credentials", "auth_sessions", "refresh_tokens", "one_time_tokens"},
     "org": {
         "institutions",
         "departments",

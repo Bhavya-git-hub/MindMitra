@@ -17,6 +17,19 @@ class UserStatus(enum.StrEnum):
     DEACTIVATED = "deactivated"
 
 
+class SessionRevokeReason(enum.StrEnum):
+    LOGOUT = "logout"
+    REFRESH_REUSE = "refresh_reuse"  # a rotated refresh token was replayed: family revoked
+    PASSWORD_CHANGED = "password_changed"  # noqa: S105 - an enum label
+    ACCOUNT_DISABLED = "account_disabled"
+
+
+class OneTimeTokenPurpose(enum.StrEnum):
+    PASSWORD_RESET = "password_reset"  # noqa: S105 - an enum label
+    ACCOUNT_SETUP = "account_setup"  # admin-created account: user sets the first password
+    EMAIL_VERIFICATION = "email_verification"  # student self-registration
+
+
 class AdminLevel(enum.StrEnum):
     INSTITUTION_ADMIN = "institution_admin"
     PLATFORM_ADMIN = "platform_admin"

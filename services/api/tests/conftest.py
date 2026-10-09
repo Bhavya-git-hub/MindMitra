@@ -14,9 +14,11 @@ import uuid
 from collections.abc import AsyncIterator, Callable, Iterator
 from pathlib import Path
 
+import httpx
 import pytest
 import pytest_asyncio
 from alembic.config import Config
+from fastapi import FastAPI
 from sqlalchemy import text
 from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, create_async_engine
@@ -35,14 +37,23 @@ os.environ["APP_ENV"] = "test"
 from app.core.crypto import generate_key  # noqa: E402
 
 os.environ.setdefault("FIELD_ENCRYPTION_KEY", generate_key())  # fresh random key per run
+from app.core.access_tokens import generate_private_key_pem  # noqa: E402
+
+os.environ.setdefault("JWT_PRIVATE_KEY", generate_private_key_pem())  # fresh signing key per run
 os.environ["DATABASE_URL"] = _ADMIN_URL  # replaced per-run below
 
+from app.api.main import create_app  # noqa: E402
+from app.api.rate_limit import SlidingWindowRateLimiter  # noqa: E402
+from app.application.auth.delivery import InMemoryTokenOutbox  # noqa: E402
 from app.core.config import get_settings  # noqa: E402
 from app.infrastructure.db.column_types import reset_cipher  # noqa: E402
 from app.infrastructure.db.seed import SeedConfig, SeedResult, seed_database  # noqa: E402
+from app.infrastructure.db.session import create_session_factory  # noqa: E402
+from tests.api_world import World, build_world  # noqa: E402
 
 API_ROOT = Path(__file__).resolve().parent.parent
 SEED_PASSWORD = secrets.token_urlsafe(18)  # random per run; only protects throwaway test data
+API_PASSWORD = "Synthetic-" + secrets.token_urlsafe(12)  # the API test cast's password
 
 
 def alembic_config(url: str) -> Config:
@@ -126,3 +137,57 @@ def _fresh_settings() -> Iterator[None]:
     get_settings.cache_clear()
     yield
     get_settings.cache_clear()
+
+
+# ---- API fixtures: a second database with the seed plus the authorization test cast -------
+
+
+@pytest_asyncio.fixture(scope="session")
+async def api_engine(
+    make_database: Callable[[], "asyncio.Future[str]"],
+) -> AsyncIterator[AsyncEngine]:
+    eng = create_async_engine(await make_database())
+    yield eng
+    await eng.dispose()
+
+
+@pytest_asyncio.fixture(scope="session")
+async def world(api_engine: AsyncEngine) -> World:
+    get_settings.cache_clear()
+    reset_cipher()
+    async with AsyncSession(api_engine, expire_on_commit=False) as s:
+        await seed_database(
+            s, SeedConfig(students=30, teachers=3, therapists=3, password=SEED_PASSWORD)
+        )
+    async with AsyncSession(api_engine, expire_on_commit=False) as s:
+        return await build_world(s, API_PASSWORD)
+
+
+@pytest_asyncio.fixture(scope="session")
+async def outbox() -> InMemoryTokenOutbox:
+    return InMemoryTokenOutbox()
+
+
+@pytest_asyncio.fixture(scope="session")
+async def api_app(api_engine: AsyncEngine, world: World, outbox: InMemoryTokenOutbox) -> FastAPI:
+    get_settings.cache_clear()
+    return create_app(
+        get_settings(),
+        session_factory=create_session_factory(api_engine),
+        delivery=outbox,
+        limiter=SlidingWindowRateLimiter(1_000_000),  # rate limiting has its own test app
+    )
+
+
+@pytest_asyncio.fixture
+async def client(api_app: FastAPI) -> AsyncIterator[httpx.AsyncClient]:
+    transport = httpx.ASGITransport(app=api_app, client=("203.0.113.10", 50000))
+    async with httpx.AsyncClient(transport=transport, base_url="https://testserver") as c:
+        yield c
+
+
+@pytest_asyncio.fixture
+async def api_db(api_engine: AsyncEngine) -> AsyncIterator[AsyncSession]:
+    """A plain session on the API database, for arranging and checking state."""
+    async with AsyncSession(api_engine, expire_on_commit=False) as s:
+        yield s

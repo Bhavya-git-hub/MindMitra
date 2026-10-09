@@ -1,8 +1,86 @@
 # MindMitra Security Architecture
 
-- Status: **Proposed** (design only)
+- Status: **Partially implemented.** Authentication and authorization (sections 3-4) are built in
+  `services/api`; section 0 states exactly what exists and where it differs from this design.
+  Where they disagree, **section 0 is authoritative**.
 - Baseline: OWASP ASVS Level 2 overall, Level 3 controls for Clinical-Confidential data
 - Related: [ARCHITECTURE.md](ARCHITECTURE.md), [DATABASE_DESIGN.md §5-6](DATABASE_DESIGN.md#5-encryption-design), [API_DESIGN.md](API_DESIGN.md)
+
+## 0. Implementation status (authentication and authorization, as built)
+
+Code: `services/api/app/domain/auth/` (roles, permissions, resource policies, password policy),
+`app/application/auth/` (auth use cases), `app/application/{care,insights,admin,access}.py`
+(protected use cases), `app/api/` (routes, guards, error mapping), `app/core/access_tokens.py`
+(JWT signing), migration `0003_auth_sessions`. Verified against PostgreSQL 16 with 246 tests,
+`ruff`, `mypy --strict` and `pip-audit`. Thirteen deliberate authorization bugs (dropping a
+tenant filter, the consent check, the CSRF check, the role re-check and so on) were each
+injected in turn, and the suite failed for every one.
+
+### 0.1 What exists
+
+| Area | Implementation |
+|------|----------------|
+| Password hashing | Argon2id (argon2-cffi defaults, RFC 9106 low-memory profile); hashes upgraded on login when parameters change; plaintext never stored, logged or echoed in errors |
+| Password policy | 12-128 characters, no composition rules, small deny-list of common passwords, at least 4 distinct characters, must not contain the e-mail's local part |
+| Access token | EdDSA (Ed25519) JWT, 10 min, claims `iss`, `aud`, `sub`, `inst`, `role`, `sid`, `typ=access`, `jti`, `iat`, `nbf`, `exp`, header `kid`. Only `EdDSA` is accepted (no `none`, no HMAC confusion). Key from `JWT_PRIVATE_KEY` |
+| Refresh token | Opaque 256-bit, stored as SHA-256 in `iam.refresh_tokens`, single use, rotated on every refresh; replay of a rotated token revokes the whole session (`refresh_reuse`). Expires after 7 days unused and never after the session's absolute lifetime |
+| Sessions | `iam.auth_sessions`: absolute lifetime 30 days for students, 12 h for staff; revoked on logout, password reset, suspension/deactivation, or refresh reuse. Client IP stored only as a keyed hash |
+| Per-request check | Every authenticated request re-reads the session and user: session live, user `active` and not deleted, user's current role equal to the token's role. Logout, password change, suspension and role changes therefore apply on the next request ([ADR 0003](adr/0003-access-token-transport-and-session-checks.md)) |
+| CSRF | Only `/auth/refresh` uses a cookie; it requires `X-CSRF-Token`, bound server-side to that refresh token, checked before reuse detection |
+| Lockout | After 5 failures (configurable) the account locks for 1, 2, 4, 8 minutes, capped at 15; never permanent. The correct password is refused during the lock with the same answer |
+| Enumeration resistance | Login answers `401 Invalid email or password.` for unknown e-mail, wrong password, locked and non-active accounts alike, and unknown e-mails still pay for one Argon2 verification. Register and forgot-password always answer `202` |
+| One-time tokens | `iam.one_time_tokens` (hashed, single use, purpose-bound): e-mail verification 24 h, password reset 30 min, account setup 72 h. A new link supersedes older unused ones. A rejected new password does not burn the token |
+| Registration | Students only, with an e-mail on one of the institution's `email_domains` (or a subdomain); account starts `invited`, becomes `active` after verifying the e-mail; records the terms consent. The role can never be chosen by the caller |
+| Admin-created accounts | Institution admins create `invited` users of any role in their own institution; the person sets their own password via an account-setup link (admins never handle passwords) |
+| Token delivery | `TokenDelivery` interface; an in-memory outbox is used in development and tests. The app refuses to start in staging/production until a real e-mail sender is configured |
+| Rate limiting | 20 requests per minute per client IP across the public auth endpoints, `429` with `Retry-After` (in-process sliding window) |
+| Errors and headers | RFC 9457 problem responses with `request_id`; validation errors never echo input; `X-Request-ID`, `nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`, `Cache-Control: no-store`, CSP `default-src 'none'`, HSTS; CORS only for configured origins |
+| Audit | Login success/failure (with reason), logout, registration, verification, reset, user and config changes, every denied authorization (in its own transaction, so it survives the request's rollback) and every therapist read of wellness data or therapy notes. Metadata only |
+
+### 0.2 Roles, permissions and policies
+
+Layers 2-4 and 7 of §4.1 are built: `get_principal` (token plus database session check), a route
+guard on every non-public route (`require_permission`, or `authenticated()` for logout), resource
+policies in `app/domain/auth/policies.py`, and audit of allow and deny. A test fails the build if
+any route has no guard and is not in `PUBLIC_ROUTES`.
+
+| Role (`user_role`) | Permissions |
+|--------------------|-------------|
+| `student` | own profile, own wellness records, own appointments, own AI conversations |
+| `therapist` | own profile, assigned students, assigned students' wellness (with consent), therapy notes, manage own appointments |
+| `teacher` | own profile, aggregated insights for their own department |
+| `administrator` | own profile, aggregated insights, manage users, manage institution configuration, read audit metadata |
+
+| Resource policy | Rule |
+|-----------------|------|
+| Student wellness | The student; or a therapist with an active care-team link **and** an active `share_mood_with_care_team` consent (the private note is never returned to the therapist). Nobody else |
+| Therapy notes | Only the therapist who wrote the note, while on the student's care team. Not teachers, not admins, not other therapists |
+| AI conversations | Only the owning student (INV-8). Not therapists, teachers or admins |
+| Appointments | The appointment's therapist may confirm, cancel, complete or mark no-show (valid transitions only); students read their own |
+| Users and configuration | Admins of the same institution; an admin cannot change their own status |
+| Insights | Teachers: own department only. Admins: any department of their institution. Cohorts under 10 students are suppressed (INV-4) |
+| Tenancy | A record from another institution is indistinguishable from a missing one (`404`) |
+
+Invariant coverage: INV-1, INV-2 (no admin route reaches content; the audit view is metadata),
+INV-3 (without break-glass), INV-4, INV-5 (application layer), INV-7 (therapy notes and wellness
+reads) and INV-8 are enforced and tested in `tests/test_rbac_api.py` and
+`tests/test_authz_rules.py`.
+
+### 0.3 Differences from this design
+
+| Area | Design said | Implemented | Reason / next step |
+|------|-------------|-------------|--------------------|
+| Access token transport | `__Host-access` httpOnly cookie + double-submit CSRF | Returned in the body, sent as `Authorization: Bearer`, kept in memory | [ADR 0003](adr/0003-access-token-transport-and-session-checks.md) |
+| Refresh cookie name | `__Host-refresh` | `__Secure-mm_refresh`, `Path=/api/v1/auth` | `__Host-` requires `Path=/`; the narrow path keeps the token off every other request |
+| Revocation | Redis denylist keyed by `sid` | Database session check on every request | Redis not wired yet; ADR 0003 |
+| Locked account | `423` | Same `401` as any failed login | Avoids revealing that the account exists |
+| JWT `roles`, `amr` claims | List of roles, auth method | Single `role` (one role per user in the data model); `amr` added with MFA | Data model has one role per user |
+| Idle timeout | 15 min (staff clinical area) / 60 min (students) | Not yet; absolute lifetime and 7-day refresh idle only | Needs the frontend session bootstrap |
+| Permission names | `checkin:read` style | `wellness:read:own`, `therapy_note:read`, ... (see `permissions.py`) | Named after the implemented entities |
+| Rate limiting | Redis, per account and IP | In-process, per IP, auth endpoints only | Moves to Redis with the worker phase; interface unchanged |
+| Pepper, breached-password check, reuse of last 5 | Required | Not yet | Need Secrets Manager and an offline breach corpus |
+| MFA, step-up, WebAuthn, SSO, break-glass, device list | Designed | Not built | Later phases |
+| Row-level security (layer 5) | PostgreSQL RLS policies | Not yet; tenant scoping is enforced in every query and by composite foreign keys | Planned next for defence in depth |
 
 ## 1. Security objectives
 

@@ -4,7 +4,13 @@ from app.infrastructure.db.models.ai import AIConversation, AIMessage, Recommend
 from app.infrastructure.db.models.audit import AuditLog
 from app.infrastructure.db.models.comm import Message
 from app.infrastructure.db.models.consent import Consent
-from app.infrastructure.db.models.iam import Credential, User
+from app.infrastructure.db.models.iam import (
+    AuthSession,
+    Credential,
+    OneTimeToken,
+    RefreshToken,
+    User,
+)
 from app.infrastructure.db.models.notify import Notification
 from app.infrastructure.db.models.org import (
     Administrator,
@@ -42,6 +48,7 @@ __all__ = [
     "Administrator",
     "Appointment",
     "AuditLog",
+    "AuthSession",
     "CareTeamMember",
     "Consent",
     "Course",
@@ -55,7 +62,9 @@ __all__ = [
     "Message",
     "MoodEntry",
     "Notification",
+    "OneTimeToken",
     "Recommendation",
+    "RefreshToken",
     "Resource",
     "RiskAlert",
     "SleepEntry",

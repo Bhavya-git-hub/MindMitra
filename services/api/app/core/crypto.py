@@ -53,3 +53,16 @@ class FieldCipher:
         except InvalidTag as exc:
             raise DecryptionError("authentication failed") from exc
         return pt.decode("utf-8")
+
+
+def keyed_hash(b64_key: str, purpose: str, value: str) -> str:
+    """HMAC-SHA256 of ``value`` under a key derived from the field key for ``purpose``.
+
+    Used to store values that must be comparable but not readable (for example a client IP
+    in audit and session rows). A different ``purpose`` yields an unrelated digest.
+    """
+    import hashlib
+    import hmac
+
+    subkey = hmac.new(_load_key(b64_key), purpose.encode("utf-8"), hashlib.sha256).digest()
+    return hmac.new(subkey, value.encode("utf-8"), hashlib.sha256).hexdigest()
