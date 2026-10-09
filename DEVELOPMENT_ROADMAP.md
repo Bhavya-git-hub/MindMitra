@@ -26,6 +26,7 @@ says otherwise. Each phase ends with tests run and passing (rule 20).
 **Goal:** every module builds, lints, type-checks and runs a trivial test locally and in CI.
 
 - Next.js app scaffold (TypeScript strict, Tailwind, shadcn/ui init, ESLint, Prettier, Vitest)
+  (**done**: also the design system, app shell, toasts, modals, forms, charts, Playwright e2e)
 - FastAPI app scaffold with clean-architecture folders, typed settings, structured logging,
   `/health` (explicitly public), Ruff, mypy, pytest
 - ML service scaffold (FastAPI, internal token auth, `/health`), pytest
@@ -50,7 +51,8 @@ says otherwise. Each phase ends with tests run and passing (rule 20).
 - Central policy layer (`domain/auth/policies.py`) and `require_permission` dependency (**done**)
 - Audit logging for Sensitive/Clinical access and every denial (**done**)
 - Rate limiting on auth endpoints (**done** in-process; Redis-backed later)
-- Frontend: auth pages, role-based route groups and layouts, session handling (to do)
+- Frontend: auth pages, role-based route groups and layouts, session handling (**done**: see
+  `apps/web/README.md` and ADR 0004; the dashboards themselves come in later phases)
 - Admin: basic user & role management UI (API **done**; UI to do)
 - **Authorization matrix test suite** (every endpoint × every role) (**done**; see
   `services/api/tests/test_rbac_api.py`)

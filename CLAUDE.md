@@ -92,7 +92,7 @@ medical device, and **not** a replacement for licensed mental-health professiona
 - Next.js App Router, TypeScript strict, Tailwind CSS, shadcn/ui.
 - Server Components by default; Client Components only when interactivity requires.
 - API calls go through a single typed API client (generated from OpenAPI where possible).
-- Route groups per role: `(student)`, `(therapist)`, `(faculty)`, `(admin)`.
+- Route groups per role: `(student)`, `(therapist)`, `(teacher)`, `(admin)`.
 - Accessible by default (WCAG 2.1 AA), calm and non-alarming visual language.
 
 ### Backend (`services/api`)
