@@ -161,6 +161,12 @@ class AlertStatus(enum.StrEnum):
     DISMISSED = "dismissed"
 
 
+class CrisisContactKind(enum.StrEnum):
+    EMERGENCY = "emergency"
+    HELPLINE = "helpline"
+    CAMPUS = "campus"
+
+
 class ConsentScope(enum.StrEnum):
     TERMS_AND_PRIVACY = "terms_and_privacy"
     SHARE_MOOD_WITH_CARE_TEAM = "share_mood_with_care_team"

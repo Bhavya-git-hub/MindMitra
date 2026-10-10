@@ -24,7 +24,7 @@ from app.infrastructure.db.models.org import (
     Teacher,
     Therapist,
 )
-from app.infrastructure.db.models.safety import RiskAlert
+from app.infrastructure.db.models.safety import CrisisContact, RiskAlert
 from app.infrastructure.db.models.therapy import (
     Appointment,
     TherapistAvailability,
@@ -52,6 +52,7 @@ __all__ = [
     "CareTeamMember",
     "Consent",
     "Course",
+    "CrisisContact",
     "CourseEnrollment",
     "CourseTeacher",
     "Credential",

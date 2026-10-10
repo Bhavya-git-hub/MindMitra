@@ -33,6 +33,7 @@ from app.infrastructure.db.enums import (
     AuditOutcome,
     CareRole,
     ConsentScope,
+    CrisisContactKind,
     GoalCategory,
     GoalStatus,
     NotificationChannel,
@@ -355,6 +356,24 @@ async def seed_database(session: AsyncSession, cfg: SeedConfig | None = None) ->
     session.add_all(resources)
     await session.flush()
     bump("resources", len(resources))
+    contacts = [
+        m.CrisisContact(
+            institution_id=None,
+            sort_order=order,
+            **{**fields, "kind": CrisisContactKind(fields["kind"])},
+        )
+        for order, fields in enumerate(c.NATIONAL_CRISIS_CONTACTS, start=10)
+    ] + [
+        m.CrisisContact(
+            institution_id=iid,
+            sort_order=order,
+            **{**fields, "kind": CrisisContactKind(fields["kind"])},
+        )
+        for order, fields in enumerate(c.CAMPUS_CRISIS_CONTACTS, start=50)
+    ]
+    session.add_all(contacts)
+    await session.flush()
+    bump("crisis_contacts", len(contacts))
     published_resources = [r for r in resources if r.is_published]
 
     # -- per-student wellness data ----------------------------------------------------------

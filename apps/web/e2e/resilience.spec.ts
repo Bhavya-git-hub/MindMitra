@@ -1,4 +1,4 @@
-import { expect, signInAndWait, test } from "./fixtures";
+import { expect, HEADING, signInAndWait, test } from "./fixtures";
 
 test.describe("security headers and caching", () => {
   test("pages are never cached, static assets are, and the CSP is strict", async ({
@@ -53,6 +53,6 @@ test.describe("when the API is unreachable", () => {
 
     down = false;
     await page.getByRole("button", { name: "Try again" }).click();
-    await expect(page.getByRole("heading", { level: 1 })).toContainText("Welcome");
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText(HEADING.student);
   });
 });

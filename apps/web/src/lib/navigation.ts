@@ -4,17 +4,24 @@
  * structure only; the API decides what each role may actually do.
  */
 import {
+  Activity,
   BookOpen,
   CalendarDays,
   ClipboardList,
   HeartHandshake,
   LayoutDashboard,
+  LifeBuoy,
   LineChart,
+  Lock,
+  MessageCircle,
   MessageCircleHeart,
   NotebookPen,
   ScrollText,
   Settings2,
   ShieldCheck,
+  Sparkles,
+  Stethoscope,
+  Target,
   UserRound,
   Users,
   type LucideIcon,
@@ -28,6 +35,8 @@ export interface NavItem {
   icon: LucideIcon;
   /** Not built yet: shown disabled with a "Soon" badge and never linked. */
   soon?: boolean;
+  /** Other paths that belong under this item, so it stays highlighted on them. */
+  also?: string[];
 }
 
 const overview = (role: Role): NavItem => ({
@@ -45,10 +54,28 @@ const account = (role: Role): NavItem => ({
 export const NAVIGATION: Record<Role, NavItem[]> = {
   student: [
     overview("student"),
-    { label: "Daily check-in", href: "/student/check-in", icon: NotebookPen, soon: true },
-    { label: "Companion chat", href: "/student/companion", icon: MessageCircleHeart, soon: true },
-    { label: "Appointments", href: "/student/appointments", icon: CalendarDays, soon: true },
-    { label: "Resources", href: "/student/resources", icon: BookOpen, soon: true },
+    { label: "Daily check-in", href: "/student/check-in", icon: NotebookPen },
+    {
+      label: "Wellness",
+      href: "/student/wellness",
+      icon: Activity,
+      also: [
+        "/student/mood",
+        "/student/stress",
+        "/student/sleep",
+        "/student/assessment",
+        "/student/trends",
+      ],
+    },
+    { label: "Goals", href: "/student/goals", icon: Target },
+    { label: "Suggestions", href: "/student/recommendations", icon: Sparkles },
+    { label: "Companion", href: "/student/assistant", icon: MessageCircleHeart },
+    { label: "Therapists", href: "/student/therapists", icon: Stethoscope },
+    { label: "Appointments", href: "/student/appointments", icon: CalendarDays },
+    { label: "Messages", href: "/student/messages", icon: MessageCircle },
+    { label: "Resources", href: "/student/resources", icon: BookOpen },
+    { label: "Privacy", href: "/student/privacy", icon: Lock },
+    { label: "Urgent support", href: "/student/emergency", icon: LifeBuoy },
     account("student"),
   ],
   therapist: [
@@ -77,10 +104,16 @@ export const NAVIGATION: Record<Role, NavItem[]> = {
 /** The nav item whose href is the longest prefix of `pathname` (so /student/account wins). */
 export function activeHref(items: NavItem[], pathname: string): string | null {
   let best: string | null = null;
-  for (const { href, soon } of items) {
+  let bestLength = 0;
+  for (const { href, soon, also } of items) {
     if (soon) continue;
-    const matches = pathname === href || pathname.startsWith(`${href}/`);
-    if (matches && (!best || href.length > best.length)) best = href;
+    for (const prefix of [href, ...(also ?? [])]) {
+      const matches = pathname === prefix || pathname.startsWith(`${prefix}/`);
+      if (matches && prefix.length > bestLength) {
+        best = href;
+        bestLength = prefix.length;
+      }
+    }
   }
   return best;
 }

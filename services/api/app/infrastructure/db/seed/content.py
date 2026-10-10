@@ -243,3 +243,34 @@ AI_ASSISTANT_REPLIES = [
 CRISIS_FIXTURE_EXCERPT = (
     "[SYNTHETIC FIXTURE] Test text standing in for a distress signal. Not real student content."
 )
+
+
+# Crisis contacts. Demo seed data: the national lines below are real public services so the
+# emergency page is realistic in development, but they must be reviewed by the institution
+# before any real deployment. The campus entry is fictional (it has no phone number).
+NATIONAL_CRISIS_CONTACTS = [
+    {
+        "label": "National emergency number",
+        "kind": "emergency",
+        "phone": "112",
+        "description": "Police, ambulance and fire. Call if you or someone near you is in danger.",
+        "hours": "24 hours",
+    },
+    {
+        "label": "Tele-MANAS mental health helpline",
+        "kind": "helpline",
+        "phone": "14416",
+        "description": "Free, confidential support from trained counsellors, in many languages.",
+        "hours": "24 hours",
+    },
+]
+
+CAMPUS_CRISIS_CONTACTS = [
+    {
+        "label": "Synthetic Institute counselling centre",
+        "kind": "campus",
+        "description": "Demo entry. An institution lists its own counselling centre and "
+        "out-of-hours contact here.",
+        "hours": "Weekdays, 9am to 5pm",
+    },
+]

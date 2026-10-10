@@ -1,4 +1,4 @@
-import { expect, PORTAL, ROLES, signIn, signInAndWait, test, type Role } from "./fixtures";
+import { expect, PORTAL, HEADING, ROLES, signIn, signInAndWait, test, type Role } from "./fixtures";
 
 test.describe("protected routes (signed out)", () => {
   for (const role of ROLES) {
@@ -92,7 +92,7 @@ test.describe("role-based redirects (signed in)", () => {
         await signInAndWait(page, role);
         await page.goto(`${PORTAL[other]}/account`);
         await expect(page).toHaveURL(new RegExp(`${PORTAL[role]}$`));
-        await expect(page.getByRole("heading", { level: 1 })).toContainText("Welcome");
+        await expect(page.getByRole("heading", { level: 1 })).toHaveText(HEADING[role]);
         // None of the other portal's content was rendered.
         await expect(
           page.getByRole("navigation", { name: new RegExp(`^${labelFor(other)}`) }),

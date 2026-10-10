@@ -11,7 +11,7 @@ export const PORTAL: Record<Role, string> = {
   administrator: "/admin",
 };
 export const HEADING: Record<Role, RegExp> = {
-  student: /Welcome, /,
+  student: /Hello, /,
   therapist: /Welcome, /,
   teacher: /Welcome, /,
   administrator: /Welcome, /,
@@ -35,7 +35,7 @@ export async function signIn(page: Page, role: Role, next?: string) {
 export async function signInAndWait(page: Page, role: Role) {
   await signIn(page, role);
   await page.waitForURL(`**${PORTAL[role]}`);
-  await expect(page.getByRole("heading", { level: 1 })).toContainText("Welcome");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText(HEADING[role]);
 }
 
 /** Fails the test on uncaught exceptions and on Content-Security-Policy violations. */

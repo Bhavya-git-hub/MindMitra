@@ -10,3 +10,10 @@ export const newPasswordSchema = z
   .string()
   .min(12, "Use at least 12 characters")
   .max(128, "Use at most 128 characters");
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Route params go into API paths, so only well-formed ids are let through. */
+export function isUuid(value: string): boolean {
+  return UUID.test(value);
+}

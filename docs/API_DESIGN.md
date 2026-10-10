@@ -25,7 +25,25 @@ Interactive docs at `/docs` in development and test only.
 | `POST /auth/password/reset` **PUBLIC** (token) | rate limit | Completes a reset or first-time account setup; signs out every session |
 | `GET /me` | `profile:read:own` | Own profile, role and permission list |
 | `GET /me/wellness/mood-entries` | `wellness:read:own` | Own mood entries (with own private note) |
-| `GET /me/appointments` | `appointment:read:own` | Own appointments |
+| `GET /me/appointments?upcoming=` | `appointment:read:own` | Own appointments (`upcoming=true`: live and in the future; `false`: already started) |
+| `POST /me/check-ins?tz=` | `wellness:write:own` | One-step daily check-in: mood (required) plus optional energy, emotions, private note, daily stress and last night's sleep. Returns the saved entries and `support` (an information-only message, never an alert) when the mood is low |
+| `POST /me/wellness/mood-entries` | `wellness:write:own` | A mood entry on its own |
+| `GET`, `POST /me/wellness/stress-entries` | `wellness:read:own` / `wellness:write:own` | Own stress entries (scale `daily_stress_check`) |
+| `GET`, `PUT /me/wellness/sleep-entries` | `wellness:read:own` / `wellness:write:own` | Own sleep entries; `PUT` upserts one entry per wake date |
+| `GET /me/wellness/summary?tz=` | `wellness:read:own` | Today's mood, stress and sleep with plain-language indicators and week-on-week direction; check-in streak |
+| `GET /me/wellness/trends?days=&tz=` | `wellness:read:own` | Daily points for 7 to 90 days (days with nothing logged are `null`) |
+| `GET /me/dashboard?tz=` | `wellness:read:own` | Summary + next appointment + last 7 days + current recommendations in one call |
+| `GET /me/wellness/assessment`, `GET`, `POST /me/wellness/assessments` | `wellness:read:own` / `wellness:write:own` | The WHO-5 well-being instrument, own results, and submitting answers (scored on the server; wording is "Doing well / Mixed / Lower lately", never diagnostic) |
+| `GET`, `POST /me/goals`, `PATCH /me/goals/{id}` | `goal:manage:own` | Own wellness goals: progress, pause, complete, let go |
+| `GET /me/recommendations`, `POST /me/recommendations/refresh`, `PATCH /me/recommendations/{id}` | `recommendation:manage:own` | Rule-based suggestions with a stated reason; mark viewed, done or dismissed |
+| `GET /resources`, `GET /resources/{id}` | `resource:read` | Published resources of the institution |
+| `GET /therapists`, `GET /therapists/{id}`, `GET /therapists/{id}/slots` | `therapist_directory:read` | Therapist directory (name, focus areas, languages, bio, next opening) and bookable slots; no clinical data |
+| `POST /me/appointments`, `PATCH /me/appointments/{id}` | `appointment:book:own` | Request a slot (`requested`, max 3 upcoming, at least 2 hours ahead, reason is encrypted); cancel up to 2 hours before |
+| `GET /me/conversations`, `GET`, `POST /me/conversations/{therapist_id}/messages`, `POST /me/conversations/{therapist_id}/read` | `message:participate:own` | One-to-one messages with a care-team therapist; `client_msg_id` makes retries idempotent |
+| `GET /me/consents`, `PUT /me/consents/{scope}` | `consent:manage:own` | Consent state per scope, in plain language; the required scope cannot be withdrawn; takes effect immediately |
+| `GET /me/privacy/access-history`, `GET /me/privacy/export` | `privacy:read:own` | Role-level list of others' successful reads of the student's data; full data export (excludes therapy notes) |
+| `POST /me/support-requests` | `support_request:create` | "Please have a person reach out": creates a human-handled alert, rate limited to one open request |
+| `GET /me/safety/resources` | `privacy:read:own` | Crisis contacts (national and campus) for the student's institution |
 | `GET /me/ai-conversations` | `ai_conversation:read:own` | Own companion conversations (metadata only) |
 | `GET /students` | `student:read:assigned` | Therapist's current care-team students |
 | `GET /students/{id}/mood-entries` | `wellness:read:assigned` | Consented mood entries of an assigned student, without the private note; audited |
@@ -53,6 +71,7 @@ it; `409` invalid transition or duplicate; `422` validation, weak password, unkn
 | User admin paths | `/users`, `/users/{id}/deactivate` | `/admin/users`, `PATCH /admin/users/{id}` with a status |
 | Institution settings | `/admin/institution` | `/admin/config` |
 | Therapist views | Nested under `/checkins`, `/session-notes` | `/students/{id}/mood-entries`, `/students/{id}/therapy-notes` (read only for now) |
+| Student portal | `/checkins`, `/journal`, `/threads`, `/consent`, `/privacy`, `/safety` | Everything a student does is under `/me/...` with no student id in the path, so the caller can only ever address their own data (`403/404` tests cover other students' ids on the staff routes). Check-in is `POST /me/check-ins`; messages are keyed by the other person; consent is `/me/consents`. Time zone comes from `?tz=` (IANA) per request |
 | Pagination | Cursor | `limit` (max 200); audit uses `before_seq` as its cursor |
 | Not built yet | MFA, step-up, `/auth/sessions`, `/health/ready`, idempotency keys, ETags, everything outside the table above | Later phases |
 

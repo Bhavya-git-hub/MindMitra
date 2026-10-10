@@ -25,6 +25,17 @@ class Permission(enum.StrEnum):
     WELLNESS_READ_OWN = "wellness:read:own"
     APPOINTMENT_READ_OWN = "appointment:read:own"
     AI_CONVERSATION_READ_OWN = "ai_conversation:read:own"
+    WELLNESS_WRITE_OWN = "wellness:write:own"
+    GOAL_MANAGE_OWN = "goal:manage:own"
+    RECOMMENDATION_MANAGE_OWN = "recommendation:manage:own"
+    APPOINTMENT_BOOK_OWN = "appointment:book:own"
+    MESSAGE_PARTICIPATE_OWN = "message:participate:own"
+    CONSENT_MANAGE_OWN = "consent:manage:own"
+    PRIVACY_READ_OWN = "privacy:read:own"
+    SUPPORT_REQUEST_CREATE = "support_request:create"
+    # students and therapists: vetted content and the (public-profile) therapist directory
+    RESOURCE_READ = "resource:read"
+    THERAPIST_DIRECTORY_READ = "therapist_directory:read"
     # therapist: students on their care team (plus consent / authorship, see policies)
     STUDENT_READ_ASSIGNED = "student:read:assigned"
     WELLNESS_READ_ASSIGNED = "wellness:read:assigned"
@@ -47,6 +58,16 @@ ROLE_PERMISSIONS: Mapping[Role, frozenset[Permission]] = {
             P.WELLNESS_READ_OWN,
             P.APPOINTMENT_READ_OWN,
             P.AI_CONVERSATION_READ_OWN,
+            P.WELLNESS_WRITE_OWN,
+            P.GOAL_MANAGE_OWN,
+            P.RECOMMENDATION_MANAGE_OWN,
+            P.APPOINTMENT_BOOK_OWN,
+            P.MESSAGE_PARTICIPATE_OWN,
+            P.CONSENT_MANAGE_OWN,
+            P.PRIVACY_READ_OWN,
+            P.SUPPORT_REQUEST_CREATE,
+            P.RESOURCE_READ,
+            P.THERAPIST_DIRECTORY_READ,
         }
     ),
     Role.THERAPIST: frozenset(
@@ -56,6 +77,7 @@ ROLE_PERMISSIONS: Mapping[Role, frozenset[Permission]] = {
             P.WELLNESS_READ_ASSIGNED,
             P.THERAPY_NOTE_READ,
             P.APPOINTMENT_MANAGE,
+            P.RESOURCE_READ,
         }
     ),
     Role.TEACHER: frozenset({P.PROFILE_READ_OWN, P.INSIGHTS_READ_AGGREGATE}),
@@ -79,6 +101,12 @@ CONTENT_PERMISSIONS: frozenset[Permission] = frozenset(
         P.THERAPY_NOTE_READ,
         P.AI_CONVERSATION_READ_OWN,
         P.STUDENT_READ_ASSIGNED,
+        P.WELLNESS_WRITE_OWN,
+        P.GOAL_MANAGE_OWN,
+        P.RECOMMENDATION_MANAGE_OWN,
+        P.MESSAGE_PARTICIPATE_OWN,
+        P.PRIVACY_READ_OWN,
+        P.SUPPORT_REQUEST_CREATE,
     }
 )
 

@@ -14,12 +14,15 @@ permission guards, resource policies, and the first protected endpoints for each
 app/
   api/              FastAPI app factory (main.py), routes/, guards and auth dependencies (deps.py),
                     problem responses, rate limiter
-  application/      use cases: auth/ (login, refresh, reset ...), care, insights, admin
+  application/      use cases: auth/ (login, refresh, reset ...), care, insights, admin, and the
+                    student portal: student_wellness, goals, recommendations, directory, booking,
+                    messaging, privacy, safety
   domain/auth/      roles and permissions, resource policies, password policy (no framework code)
+  domain/wellness/  pure rules: WHO-5 scoring, indicators, recommendation rules, support prompt
   core/             settings (env vars only), JWT signing, field encryption, password hashing
   infrastructure/
     db/             models/, session management, UUIDv7 ids, audit hash chain, seed/
-alembic/            migrations (0001_initial_schema, 0002_tenant_safe_foreign_keys, 0003_auth_sessions)
+alembic/            migrations (0001_initial_schema, 0002_tenant_safe_foreign_keys, 0003_auth_sessions, 0004_crisis_contacts)
 tests/              database tests, plus auth and cross-role authorization tests through the API,
                     all against real PostgreSQL
 ```
