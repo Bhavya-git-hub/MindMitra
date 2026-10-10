@@ -283,6 +283,15 @@ privacy officer, and auto-expires.
     the AI service is down.
   - Limits: 8 messages a minute per student (in process), a daily allowance from institution
     settings, an institution switch and the deployment-wide `COMPANION_ENABLED`.
+- Wellness indicators ([ADR 0011](adr/0011-wellness-indicator-models.md)):
+  - A therapist sees a student's indicators only with a live care link and the student's
+    `share_ai_signals_with_care_team` consent; every read is audited with counts only.
+    Teachers and administrators have no route to them. The therapist's view never reads or
+    sends the student's notes.
+  - Indicators never raise alerts or notifications; crisis detection stays rule-based.
+  - Model files are joblib pickles. The AI service loads only files listed in
+    `models/manifest.json`, inside the model directory, with matching SHA-256 hashes and
+    library versions, and answers 503 otherwise.
 
 ### 6.4 Supply chain
 

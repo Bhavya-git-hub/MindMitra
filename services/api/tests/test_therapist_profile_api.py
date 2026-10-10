@@ -250,8 +250,12 @@ async def test_unverified_therapists_are_hidden_from_students_and_cannot_be_book
 ) -> None:
     s = await new_student(client, api_db, world)
     t, slots = await new_therapist(client, api_db, world, verified=False)
-    # The directory returns at most 50 names by default; ask for more so a long list can't hide t.
-    listed = {x["id"] for x in (await s.get("/therapists?limit=100")).json()}
+    # The shared test institution has over 100 therapists by now, more than one directory page.
+    # A language only t speaks narrows the list so a long list can't hide t.
+    language = f"lang-{t.id.hex[-8:]}"
+    assert (await t.patch("/therapist/profile", {"languages": [language]})).status_code == 200
+    directory = f"/therapists?limit=100&language={language}"
+    listed = {x["id"] for x in (await s.get(directory)).json()}
     assert str(t.id) not in listed
     assert (await s.get(f"/therapists/{t.id}")).status_code == 404
     assert (await s.get(f"/therapists/{t.id}/slots")).status_code == 404
@@ -259,8 +263,8 @@ async def test_unverified_therapists_are_hidden_from_students_and_cannot_be_book
 
     admin = await fresh_admin(client, api_db, world)
     await admin.patch(f"/admin/therapists/{t.id}/verification", {"status": "verified"})
-    listed = (await s.get("/therapists?limit=100")).json()
-    assert str(t.id) in {x["id"] for x in listed}
+    listed = (await s.get(directory)).json()
+    assert [x["id"] for x in listed] == [str(t.id)]
     assert (await s.post("/me/appointments", {"availability_id": str(slots[0])})).status_code == 201
 
 

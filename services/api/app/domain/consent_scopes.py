@@ -37,11 +37,14 @@ SCOPES: tuple[ScopeInfo, ...] = (
     ),
     ScopeInfo(
         ConsentScope.SHARE_AI_SIGNALS_WITH_CARE_TEAM,
-        "Share AI companion signals with my therapist",
-        "If you use the AI companion, allows high-level signals (never your conversation) to "
-        "reach your care team. The companion doesn't share any signals yet. Whatever you "
-        "choose, if a message suggests you may not be safe, your counselling team is asked to "
-        "reach out, without seeing what you wrote.",
+        "Share AI wellness indicators with my therapist",
+        "Lets a verified therapist on your care team see the wellness indicators MindMitra "
+        "estimates from your last 28 days of check-ins: stress level, burnout risk, social "
+        "isolation, sleep and lifestyle, and career worry. They are estimates, not a "
+        "diagnosis, and they never raise an alert on their own. Your notes, journal and "
+        "companion conversations are never shared, and the tone of your notes is left out. "
+        "Whatever you choose, if a message suggests you may not be safe, your counselling team "
+        "is asked to reach out, without seeing what you wrote.",
     ),
     ScopeInfo(
         ConsentScope.JOURNAL_SAFETY_SCANNING,

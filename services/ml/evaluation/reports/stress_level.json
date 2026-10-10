@@ -1,0 +1,186 @@
+{
+  "baseline": {
+    "majority_class": "moderate",
+    "majority_class_accuracy": 0.4357,
+    "random_roc_auc": 0.5
+  },
+  "candidates": {
+    "logistic_regression": {
+      "accuracy": {
+        "mean": 0.838,
+        "sd": 0.0157
+      },
+      "f1": {
+        "mean": 0.8411,
+        "sd": 0.0146
+      },
+      "precision": {
+        "mean": 0.8485,
+        "sd": 0.0149
+      },
+      "recall": {
+        "mean": 0.8354,
+        "sd": 0.0149
+      },
+      "roc_auc": {
+        "mean": 0.9428,
+        "sd": 0.0061
+      }
+    },
+    "random_forest": {
+      "accuracy": {
+        "mean": 0.8373,
+        "sd": 0.0189
+      },
+      "f1": {
+        "mean": 0.8404,
+        "sd": 0.0179
+      },
+      "precision": {
+        "mean": 0.8472,
+        "sd": 0.0194
+      },
+      "recall": {
+        "mean": 0.8354,
+        "sd": 0.0179
+      },
+      "roc_auc": {
+        "mean": 0.9418,
+        "sd": 0.006
+      }
+    },
+    "xgboost": {
+      "accuracy": {
+        "mean": 0.8384,
+        "sd": 0.0248
+      },
+      "f1": {
+        "mean": 0.8417,
+        "sd": 0.0237
+      },
+      "precision": {
+        "mean": 0.8481,
+        "sd": 0.0227
+      },
+      "recall": {
+        "mean": 0.837,
+        "sd": 0.0251
+      },
+      "roc_auc": {
+        "mean": 0.9406,
+        "sd": 0.0074
+      }
+    }
+  },
+  "classes": [
+    "low",
+    "moderate",
+    "high"
+  ],
+  "cv_folds": 5,
+  "indicator": "stress_level",
+  "kind": "multiclass",
+  "n_test": 723,
+  "n_train": 2889,
+  "run": {
+    "corpus": "synthetic-notes-2026.10.1",
+    "excluded_low_data": 388,
+    "generator": "synthetic-cohort-2026.10.1",
+    "libraries": {
+      "numpy": "2.5.3",
+      "scikit-learn": "1.9.1",
+      "xgboost": "3.4.1"
+    },
+    "min_checkin_days": 7,
+    "quick": false,
+    "seed": 20261010,
+    "students": 4000,
+    "trained_at": "2026-10-10T17:02:10+00:00"
+  },
+  "selected": "xgboost",
+  "selection_metric": "cv_f1",
+  "test": {
+    "accuracy": 0.8382,
+    "confusion_matrix": [
+      [
+        186,
+        30,
+        0
+      ],
+      [
+        28,
+        257,
+        30
+      ],
+      [
+        1,
+        28,
+        163
+      ]
+    ],
+    "confusion_matrix_labels": [
+      "low",
+      "moderate",
+      "high"
+    ],
+    "f1": 0.8419,
+    "n": 723,
+    "per_class": {
+      "high": {
+        "f1": 0.8468,
+        "precision": 0.8446,
+        "recall": 0.849
+      },
+      "low": {
+        "f1": 0.8631,
+        "precision": 0.8651,
+        "recall": 0.8611
+      },
+      "moderate": {
+        "f1": 0.8159,
+        "precision": 0.8159,
+        "recall": 0.8159
+      }
+    },
+    "precision": 0.8418,
+    "recall": 0.842,
+    "roc_auc": 0.9441
+  },
+  "thresholds": {},
+  "title": "Stress level",
+  "top_features": [
+    {
+      "feature": "stress_mean",
+      "importance": 0.3625
+    },
+    {
+      "feature": "mood_mean",
+      "importance": 0.0113
+    },
+    {
+      "feature": "emotion_overwhelmed_share",
+      "importance": 0.0032
+    },
+    {
+      "feature": "stressor_exams_share",
+      "importance": 0.0026
+    },
+    {
+      "feature": "stressor_deadlines_share",
+      "importance": 0.0016
+    },
+    {
+      "feature": "sleep_hours_mean",
+      "importance": 0.0009
+    },
+    {
+      "feature": "mood_sd",
+      "importance": 0.0006
+    },
+    {
+      "feature": "stressor_workload_share",
+      "importance": 0.0002
+    }
+  ],
+  "version": "stress_level-xgboost-20261010-4bfda67d"
+}

@@ -10,12 +10,13 @@ import datetime as dt
 import uuid
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, Query, Response
+from fastapi import APIRouter, Depends, Query, Request, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_db, require_permission
+from app.api.deps import app_state, get_db, require_permission
 from app.api.schemas import teacher as ts
 from app.api.schemas import therapist as s
+from app.api.schemas.indicators import IndicatorsOut, indicators_out
 from app.api.zone import Zone
 from app.application import (
     follow_ups,
@@ -209,6 +210,17 @@ async def student_trends(
 ) -> s.TrendsOut:
     series = await therapist_students.trends(db, principal, student_id, days, zone)
     return s.trends_out(days, series)
+
+
+@router.get("/students/{student_id}/indicators")
+async def student_indicators(
+    student_id: uuid.UUID, request: Request, db: Db, principal: Wellbeing, zone: Zone
+) -> IndicatorsOut:
+    """Needs the care link and the student's ``share_ai_signals_with_care_team`` consent."""
+    client = app_state(request).indicators
+    return indicators_out(
+        await therapist_students.indicators(db, principal, student_id, zone, client)
+    )
 
 
 @router.get("/students/{student_id}/assessments")

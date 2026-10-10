@@ -1,7 +1,7 @@
 [project]
 name = "mindmitra-ml"
 version = "0.1.0"
-description = "MindMitra internal AI service: the wellness companion behind its safety layer"
+description = "MindMitra internal AI service: the wellness companion and wellness indicator models"
 requires-python = ">=3.12"
 dependencies = [
   "fastapi>=0.115",
@@ -9,6 +9,9 @@ dependencies = [
   "pydantic-settings>=2.6",
   "httpx>=0.27",
   "pyjwt>=2.9",
+  "numpy>=2.1",
+  "scikit-learn>=1.6",
+  "xgboost-cpu>=2.1",
 ]
 
 [dependency-groups]
@@ -19,6 +22,9 @@ dev = [
   "ruff>=0.8",
   "pyyaml>=6",
   "types-pyyaml>=6",
+]
+nlp = [
+    "torch>=2.5",
 ]
 
 [tool.pytest.ini_options]
@@ -42,8 +48,13 @@ ignore = ["S101"]
 [tool.mypy]
 python_version = "3.12"
 strict = true
-files = ["app", "safety", "tests"]
+files = ["app", "safety", "data", "preprocessing", "training", "inference", "evaluation", "tests"]
 
 [[tool.mypy.overrides]]
 module = ["tests.*"]
 disallow_untyped_calls = false
+
+# scikit-learn and joblib ship no type information.
+[[tool.mypy.overrides]]
+module = ["sklearn.*", "joblib.*"]
+ignore_missing_imports = true

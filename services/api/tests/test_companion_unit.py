@@ -20,8 +20,10 @@ from app.infrastructure.ml_client import (
     ISSUER,
     CircuitBreaker,
     CompanionUnavailable,
+    DayRecord,
     HistoryTurn,
     HttpCompanionClient,
+    IndicatorsUnavailable,
 )
 
 API_COPY = Path(crisis_rules.__file__).parent
@@ -235,3 +237,76 @@ def test_the_token_lifetime_is_five_minutes() -> None:
         options={"verify_exp": False},
     )
     assert claims["exp"] - claims["iat"] == 300
+
+
+# ---- wellness indicators through the same client ---------------------------------------------
+
+INDICATORS_BODY = {
+    "indicators": [
+        {
+            "indicator": "stress_level",
+            "title": "Stress level",
+            "meaning": "How much pressure your check-ins suggest.",
+            "status": "ok",
+            "band": "moderate",
+            "level": "moderate",
+            "probabilities": {"low": 0.2, "moderate": 0.5, "high": 0.3},
+            "model_version": "stress_level-xgboost-20261010-abcd1234",
+        }
+    ],
+    "checkin_days": 9,
+    "notes_considered": 1,
+    "disclaimer": "Not a diagnosis.",
+}
+
+
+async def test_indicators_send_days_and_notes_and_parse_the_report() -> None:
+    seen: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        return httpx.Response(200, json=INDICATORS_BODY)
+
+    client = HttpCompanionClient("http://ml", SECRET, transport=httpx.MockTransport(handler))
+    day = DayRecord(dt.date(2026, 10, 1), mood=2, bedtime_hour=23.5, emotions=("tired",))
+    report = await client.indicators(dt.date(2026, 10, 10), [day], ["a note"])
+    assert seen[0].url.path == "/internal/v1/indicators"
+    assert seen[0].headers["Authorization"].startswith("Bearer ")
+    assert json.loads(seen[0].content) == {
+        "window_end": "2026-10-10",
+        "days": [
+            {
+                "day": "2026-10-01",
+                "mood": 2,
+                "energy": None,
+                "stress": None,
+                "sleep_minutes": None,
+                "sleep_quality": None,
+                "bedtime_hour": 23.5,
+                "emotions": ["tired"],
+                "stressors": [],
+            }
+        ],
+        "notes": ["a note"],
+    }
+    assert report.checkin_days == 9 and report.indicators[0].band == "moderate"
+    await client.aclose()
+
+
+async def test_missing_indicator_models_never_open_the_companion_circuit(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    caplog.set_level(logging.DEBUG)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/internal/v1/indicators":
+            return httpx.Response(503, json={"detail": "indicator models unavailable"})
+        return httpx.Response(200, json=OK_BODY)
+
+    client = HttpCompanionClient("http://ml", SECRET, transport=httpx.MockTransport(handler))
+    for _ in range(5):
+        with pytest.raises(IndicatorsUnavailable):
+            await client.indicators(dt.date(2026, 10, 10), [], ["PRIVATE-NOTE"])
+    assert (await client.respond("hi", [])).kind == "reply"
+    assert "PRIVATE" not in caplog.text
+    await client.aclose()
