@@ -33,6 +33,7 @@ EXPECTED_TABLES = {
         "journal_shares",
         "wellness_goals",
         "resources",
+        "group_snapshots",
     },
     "therapy": {
         "therapist_availability",

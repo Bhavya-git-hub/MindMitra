@@ -12,6 +12,7 @@ from sqlalchemy import or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.application import cohort_stats
 from app.application.access import has_active_care_link
 from app.application.auth.errors import Conflict
 from app.application.errors import InvalidInput
@@ -119,6 +120,8 @@ async def set_consent(
         current.revoked_at = max(now, current.granted_at)
         changed = True
     if changed:
+        # Stored group figures may include this student; they are rebuilt from live consent.
+        await cohort_stats.invalidate_for_student(db, actor.institution_id, actor.user_id)
         await append_audit_event(
             db,
             institution_id=actor.institution_id,

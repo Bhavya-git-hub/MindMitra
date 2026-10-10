@@ -13,16 +13,17 @@ import dataclasses
 import datetime as dt
 import uuid
 from collections import defaultdict
-from collections.abc import Sequence
+from collections.abc import Awaitable, Callable, Sequence
 from typing import Any
 
-from sqlalchemy import Date, Select, cast, exists, func, select
+from sqlalchemy import Date, Select, and_, cast, delete, exists, func, or_, select
 from sqlalchemy.dialects.postgresql import distinct_on
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.application.timeutil import now_utc
 from app.domain.wellness import cohort, instruments
-from app.domain.wellness.cohort import Analytics, Share, StudentWeek
+from app.domain.wellness.cohort import Action, Analytics, Share, StudentWeek, WeekCell
 from app.infrastructure.db import models as m
 from app.infrastructure.db.enums import ConsentScope, UserStatus
 
@@ -191,3 +192,187 @@ async def figures(
         return GroupFigures(cohort.analyse([], count, starts), [], starts)
     analytics = cohort.analyse(await _rows(db, people, starts), count, starts)
     return GroupFigures(analytics, await _wellbeing(db, people, starts), starts)
+
+
+# ---- frozen windows --------------------------------------------------------------------------
+
+SNAPSHOT_CONSTRAINT = "uq_group_snapshots_window"
+
+
+def last_closed_week() -> dt.date:
+    """The Monday of the most recent completed week. Every window ends here, never later."""
+    return cohort.week_starts(now_utc().date(), 1)[0]
+
+
+async def _stored(
+    db: AsyncSession, institution_id: uuid.UUID, view: str, kind: str, group: uuid.UUID, weeks: int
+) -> dict[str, Any] | None:
+    return await db.scalar(
+        select(m.GroupSnapshot.payload).where(
+            m.GroupSnapshot.institution_id == institution_id,
+            m.GroupSnapshot.view == view,
+            m.GroupSnapshot.group_kind == kind,
+            m.GroupSnapshot.group_id == group,
+            m.GroupSnapshot.last_week == last_closed_week(),
+            m.GroupSnapshot.weeks == weeks,
+        )
+    )
+
+
+async def frozen[T](
+    db: AsyncSession,
+    institution_id: uuid.UUID,
+    *,
+    view: str,
+    kind: str,
+    group: uuid.UUID,
+    weeks: int,
+    compute: Callable[[], Awaitable[T]],
+    encode: Callable[[T], dict[str, Any]],
+    decode: Callable[[dict[str, Any]], T],
+) -> T:
+    """Return the stored result for this closed window, computing and storing it on first read.
+
+    The first read after a window closes decides what that window shows from then on. Concurrent
+    first reads race on the unique key, and the row that was stored first wins.
+    """
+    stored = await _stored(db, institution_id, view, kind, group, weeks)
+    if stored is None:
+        value = await compute()
+        await db.execute(
+            pg_insert(m.GroupSnapshot)
+            .values(
+                institution_id=institution_id,
+                view=view,
+                group_kind=kind,
+                group_id=group,
+                last_week=last_closed_week(),
+                weeks=weeks,
+                payload=encode(value),
+            )
+            .on_conflict_do_nothing(constraint=SNAPSHOT_CONSTRAINT)
+        )
+        stored = await _stored(db, institution_id, view, kind, group, weeks)
+        if stored is None:  # invalidated again in the meantime: answer from this computation
+            return value
+    return decode(stored)
+
+
+async def invalidate_for_student(
+    db: AsyncSession, institution_id: uuid.UUID, student_id: uuid.UUID
+) -> None:
+    """Forget stored windows that may include this student, after a consent or status change.
+
+    Deletes the institution-wide figures too, because any student could be in them.
+    """
+    department = select(m.Student.department_id).where(m.Student.user_id == student_id)
+    courses = select(m.CourseEnrollment.course_id).where(
+        m.CourseEnrollment.student_id == student_id
+    )
+    await db.execute(
+        delete(m.GroupSnapshot).where(
+            m.GroupSnapshot.institution_id == institution_id,
+            or_(
+                m.GroupSnapshot.group_kind == "institution",
+                and_(
+                    m.GroupSnapshot.group_kind == "department",
+                    m.GroupSnapshot.group_id == department.scalar_subquery(),
+                ),
+                and_(
+                    m.GroupSnapshot.group_kind == "class",
+                    m.GroupSnapshot.group_id.in_(courses),
+                ),
+            ),
+        )
+    )
+
+
+def _share_out(s: Share) -> dict[str, Any]:
+    return {"state": s.state, "percent": s.percent}
+
+
+def _share_in(d: dict[str, Any]) -> Share:
+    return Share(d["state"], d["percent"])
+
+
+def encode_figures(f: GroupFigures) -> dict[str, Any]:
+    a = f.analytics
+    return {
+        "state": a.state,
+        "contributors_band": a.contributors_band,
+        "weeks": [
+            {
+                "week_start": w.week_start.isoformat(),
+                "reporting_band": w.reporting_band,
+                "mood": w.mood,
+                "energy": w.energy,
+                "stress": w.stress,
+                "sleep_hours": w.sleep_hours,
+                "sleep_quality": w.sleep_quality,
+                "check_in": _share_out(w.check_in),
+                "academic_stress": _share_out(w.academic_stress),
+                "strain": _share_out(w.strain),
+            }
+            for w in a.weeks
+        ],
+        "stressors": [[name, _share_out(s)] for name, s in a.stressors],
+        "actions": [{"key": x.key, "title": x.title, "message": x.message} for x in a.actions],
+        "wellbeing": [
+            {"key": b.key, "label": b.label, "share": _share_out(b.share)} for b in f.wellbeing
+        ],
+        "starts": [d.isoformat() for d in f.starts],
+    }
+
+
+def decode_figures(d: dict[str, Any]) -> GroupFigures:
+    weeks = [
+        WeekCell(
+            week_start=dt.date.fromisoformat(w["week_start"]),
+            reporting_band=w["reporting_band"],
+            mood=w["mood"],
+            energy=w["energy"],
+            stress=w["stress"],
+            sleep_hours=w["sleep_hours"],
+            sleep_quality=w["sleep_quality"],
+            check_in=_share_in(w["check_in"]),
+            academic_stress=_share_in(w["academic_stress"]),
+            strain=_share_in(w["strain"]),
+        )
+        for w in d["weeks"]
+    ]
+    analytics = Analytics(
+        state=d["state"],
+        contributors_band=d["contributors_band"],
+        weeks=weeks,
+        stressors=[(name, _share_in(s)) for name, s in d["stressors"]],
+        actions=[Action(x["key"], x["title"], x["message"]) for x in d["actions"]],
+    )
+    wellbeing = [WellbeingBand(b["key"], b["label"], _share_in(b["share"])) for b in d["wellbeing"]]
+    return GroupFigures(
+        analytics=analytics,
+        wellbeing=wellbeing,
+        starts=[dt.date.fromisoformat(s) for s in d["starts"]],
+    )
+
+
+async def frozen_figures(
+    db: AsyncSession,
+    institution_id: uuid.UUID,
+    *,
+    kind: str,
+    group: uuid.UUID,
+    members: Select[Any],
+    weeks: int,
+) -> GroupFigures:
+    """``figures`` for a closed window, stored once it closes (see ``frozen``)."""
+    return await frozen(
+        db,
+        institution_id,
+        view="figures",
+        kind=kind,
+        group=group,
+        weeks=weeks,
+        compute=lambda: figures(db, institution_id, members, weeks),
+        encode=encode_figures,
+        decode=decode_figures,
+    )

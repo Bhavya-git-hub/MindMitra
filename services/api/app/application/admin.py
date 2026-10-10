@@ -11,6 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.application import cohort_stats
 from app.application.access import NotFound, enforce
 from app.application.auth.delivery import TokenDelivery
 from app.application.auth.errors import Conflict, RegistrationRejected
@@ -195,6 +196,8 @@ async def set_user_status(
     )
     old = user.status
     user.status = status
+    if old is not status:  # group figures count only active students
+        await cohort_stats.invalidate_for_student(db, user.institution_id, user.id)
     if status is not UserStatus.ACTIVE:
         await auth.revoke_user_sessions(user.id, SessionRevokeReason.ACCOUNT_DISABLED)
     await _audit(

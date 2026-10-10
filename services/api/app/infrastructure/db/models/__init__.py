@@ -38,6 +38,7 @@ from app.infrastructure.db.models.therapy import (
     TherapySession,
 )
 from app.infrastructure.db.models.wellness import (
+    GroupSnapshot,
     JournalEntry,
     JournalShare,
     MoodEntry,
@@ -66,6 +67,7 @@ __all__ = [
     "FollowUp",
     "Institution",
     "JournalEntry",
+    "GroupSnapshot",
     "JournalShare",
     "Message",
     "MoodEntry",

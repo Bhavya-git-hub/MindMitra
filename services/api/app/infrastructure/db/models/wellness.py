@@ -8,6 +8,7 @@ right to erasure works for self-tracked data.
 import datetime as dt
 import uuid
 from decimal import Decimal
+from typing import Any
 
 from sqlalchemy import (
     Boolean,
@@ -266,3 +267,42 @@ class Resource(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         "iam.users.id", ondelete="SET NULL", nullable=True
     )
     reviewed_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class GroupSnapshot(UUIDPrimaryKeyMixin, TenantMixin, TimestampMixin, Base):
+    """A group's figures for one closed window, stored the first time anyone reads them after the
+    window closes, so later edits to those weeks cannot move them.
+
+    Holds only what the API already returns (the output of the privacy rules), never individual
+    rows. ``group_id`` points at a class, a department or the institution, so it has no foreign
+    key; rows are deleted when a member's consent or account status changes, which means a
+    withdrawal still takes effect at once.
+    """
+
+    __tablename__ = "group_snapshots"
+    __table_args__ = (
+        # Leads with group_id, which is what every lookup filters on. Leading with institution_id
+        # would make the tenant index a redundant prefix of this one.
+        UniqueConstraint(
+            "group_id",
+            "institution_id",
+            "view",
+            "group_kind",
+            "last_week",
+            "weeks",
+            name="uq_group_snapshots_window",
+        ),
+        CheckConstraint("view IN ('figures', 'mood_summary')", name="view_known"),
+        CheckConstraint(
+            "group_kind IN ('class', 'department', 'institution')", name="group_kind_known"
+        ),
+        CheckConstraint("weeks > 0", name="weeks_positive"),
+        {"schema": "wellness"},
+    )
+
+    view: Mapped[str] = mapped_column(String(30), nullable=False)
+    group_kind: Mapped[str] = mapped_column(String(20), nullable=False)
+    group_id: Mapped[uuid.UUID] = uuid_col()
+    last_week: Mapped[dt.date] = mapped_column(Date, nullable=False)
+    weeks: Mapped[int] = mapped_column(SmallInteger, nullable=False)
+    payload: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
