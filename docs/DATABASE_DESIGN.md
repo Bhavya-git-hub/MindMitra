@@ -1,6 +1,6 @@
 # MindMitra Database Design
 
-- Status: **Partially implemented.** The database layer (models, migrations `0001`-`0004`, seed) exists in
+- Status: **Partially implemented.** The database layer (models, migrations `0001`-`0005`, seed) exists in
   `services/api`; section 0 below states exactly what was built and where it differs from the
   original design in sections 1-10. Where they disagree, **section 0 is authoritative**.
 - Engine: PostgreSQL 16 (AWS RDS Multi-AZ). Implemented extension: `btree_gist`. Designed but not
@@ -11,14 +11,14 @@
 
 Code: `services/api/app/infrastructure/db/` (models, session, audit helper, seed),
 `services/api/alembic/versions/` (`0001_initial_schema.py`, `0002_tenant_safe_foreign_keys.py`,
-`0003_auth_sessions.py`, `0004_crisis_contacts.py`), tests in `services/api/tests/`. Migration `0003` (authentication phase)
+`0003_auth_sessions.py`, `0004_crisis_contacts.py`, `0005_therapist_portal.py`), tests in `services/api/tests/`. Migration `0003` (authentication phase)
 adds the three `iam` session and token tables; see [SECURITY_ARCHITECTURE.md §0](SECURITY_ARCHITECTURE.md#0-implementation-status-authentication-and-authorization-as-built).
 Verified against PostgreSQL 16: migration up/down/up, `alembic check` (models == migration),
 107 tests, `ruff`, `mypy --strict`, `pip-audit`. Migration `0002` was also checked against a seeded database (backfill) and downgraded/upgraded again; schemas from `0001 -> 0002`, from scratch, and `0002 -> 0001` are identical to the expected ones. See 0.6 for the review that produced `0002`.
 
 ### 0.1 What exists
 
-35 tables in 10 PostgreSQL schemas. Confidential therapy data lives in its own `therapy` schema
+36 tables in 10 PostgreSQL schemas. Confidential therapy data lives in its own `therapy` schema
 (plus `comm` and `safety`), apart from general wellness data in `wellness`, so grants, backups and
 row-level security can be applied per schema. A test proves a role with access to `wellness` only
 gets `permission denied` on `therapy`, `comm` and `safety`.
@@ -28,7 +28,7 @@ gets `permission denied` on `therapy`, `comm` and `safety`.
 | `iam` | `users`, `credentials`, `auth_sessions`, `refresh_tokens`, `one_time_tokens` |
 | `org` | `institutions`, `departments`, `courses`, `students`, `teachers`, `therapists`, `administrators`, `course_enrollments`, `course_teachers`, `care_team_members` |
 | `wellness` | `mood_entries`, `wellness_assessments`, `stress_assessments`, `sleep_entries`, `journal_entries`, `journal_shares`, `wellness_goals`, `resources` |
-| `therapy` (confidential) | `therapist_availability`, `appointments`, `therapy_sessions`, `therapy_notes` |
+| `therapy` (confidential) | `therapist_availability`, `appointments`, `therapy_sessions`, `therapy_notes`, `follow_ups` |
 | `comm` | `messages` |
 | `ai` | `ai_conversations`, `ai_messages`, `recommendations` |
 | `safety` | `risk_alerts`, `crisis_contacts` |
@@ -70,6 +70,20 @@ erDiagram
     USER ||--o{ CONSENT : grants
     USER ||--o{ NOTIFICATION : receives
 ```
+
+### 0.1a Therapist portal additions (migration `0005`)
+
+- `org.therapists`: `verification_status` (`pending` default, `verified`, `rejected`), `verified_at`,
+  `verified_by`, `licence_body`, `licence_expires_on`, `verification_note`. A CHECK ties
+  `verified_at` to the `verified` status. "Expired" is **derived** (`licence_expires_on` in the
+  past) rather than stored, so it cannot go stale. Only verified therapists can reach student data.
+- `therapy.follow_ups`: a therapist's private reminder about one care-team student (`kind`, `status`
+  `open`/`done`/`cancelled`, `due_on`, encrypted `note`). `session_id` is a composite foreign key
+  `(session_id, therapist_id, institution_id)`, so a follow-up can only point at its own therapist's
+  session in its own tenant.
+- `ai.recommendations.authored_by`: set when a therapist made the suggestion (`source = therapist`).
+- Seed data: every therapist is verified except the last one (when there are three or more), who
+  is left waiting for verification so the unverified experience can be seen and tested.
 
 ### 0.2 Requirements checklist
 

@@ -80,6 +80,6 @@ describe("navigation", () => {
   });
 
   it("never highlights an unbuilt item", () => {
-    expect(activeHref(NAVIGATION.therapist, "/therapist/students")).toBe("/therapist");
+    expect(activeHref(NAVIGATION.teacher, "/teacher/insights")).toBe("/teacher");
   });
 });

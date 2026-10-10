@@ -5,8 +5,8 @@ react-hook-form + zod · Recharts · Vitest + Testing Library + axe · Playwrigh
 
 **Current state:** the frontend foundation. Design system, application shell, authentication
 (connected to the real API), the four role portals with protected routes and role-based
-redirects, and the shared building blocks. The portal pages are placeholders (overview and
-account); the real dashboards come in later phases.
+redirects, and the shared building blocks. The student and therapist portals are built; the
+teacher and administrator portals are still placeholders (overview and account).
 
 ## Quick start
 
@@ -59,7 +59,7 @@ src/
     (public)/help  crisis and help page (server-rendered, no login needed)
     (student)/student     (therapist)/therapist     (teacher)/teacher     (admin)/admin
                    each: layout (AuthGate + AppShell), page, account/, loading.tsx, error.tsx
-                   the student portal has 20 screens (see "Student portal" below)
+                   the student portal has 20 screens and the therapist portal 12 (see below)
     api/session    sets/clears the signed portal-pass cookie (the only route handler)
     design-system  living style guide
   proxy.ts         role redirects from the portal pass + per-request CSP nonce
@@ -116,6 +116,23 @@ next; scores are never shown without their label; the support prompt is informat
 detection; links and phone numbers from the API are only rendered when they are `http(s)` or
 dialable. Data loading uses the small `useQuery` hook in `src/lib/hooks`.
 
+## Therapist portal
+
+| Area | Pages (under `/therapist`) | Data |
+|------|----------------------------|------|
+| Dashboard | `/` | `GET /therapist/dashboard`: status, caseload, today, waiting requests, alerts, follow-ups, unread messages |
+| Profile and status | `/profile` | profile, licence details and verification status; submit for verification |
+| Schedule | `/availability`, `/appointments` | bookable times; confirm, decline, cancel, mark no-show, start a session |
+| Students | `/students`, `/students/[id]` | caseload and the authorized profile: trends and wellbeing checks (only what the student shares), recommendations, follow-ups |
+| Sessions and notes | `/sessions`, `/sessions/[id]` | start and close sessions; private, versioned notes only the author can read |
+| Safety and follow-through | `/alerts`, `/follow-ups` | acknowledge, start, resolve alerts with a fixed outcome; private reminders |
+| Messages | `/messages`, `/messages/[id]` | the same conversations API as students, under the therapist routes |
+
+Every page that touches students is wrapped in `RequireVerified`, which shows why it is closed
+instead of the data. That is a courtesy: the API answers `403` or `404` for the same requests
+whatever the interface shows. Note text is only ever held in component state and sent in the
+body of one `PUT`; it is never put in a URL, `localStorage` or a log.
+
 ## Adding a page to a portal
 
 1. Add the page under `src/app/(role)/role/…`; it inherits the guard and shell from the layout.
@@ -133,5 +150,6 @@ dialable. Data loading uses the small `useQuery` hook in `src/lib/hooks`.
   their institution's contacts at `/student/emergency`; the seeded contacts are demo data and
   must be replaced and verified before go-live.
 - The AI companion has no conversation screen yet (Phase 6).
-- Therapist, teacher and administrator portals are still the placeholder overview.
+- Teacher and administrator portals are still the placeholder overview. There is no screen for
+  administrators to verify therapists yet; the API exists (`/admin/therapists`).
 - No i18n, TanStack Query or generated OpenAPI client yet (see `docs/ARCHITECTURE.md` section 2).

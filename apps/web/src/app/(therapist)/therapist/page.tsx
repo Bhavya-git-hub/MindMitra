@@ -1,17 +1,9 @@
-import { PortalOverview } from "@/components/portal/portal-overview";
+import type { Metadata } from "next";
 
-const PLANNED = [
-  { title: "My students", description: "Students who've chosen to share with you." },
-  { title: "Schedule", description: "Your appointments in one place." },
-  { title: "Session notes", description: "Private notes only you can read." },
-];
+import { DashboardView } from "@/components/therapist/dashboard-view";
 
-export default function TherapistOverviewPage() {
-  return (
-    <PortalOverview
-      role="therapist"
-      description="Your caseload, schedule and notes will live here."
-      planned={PLANNED}
-    />
-  );
+export const metadata: Metadata = { title: "Overview" };
+
+export default function Page() {
+  return <DashboardView />;
 }

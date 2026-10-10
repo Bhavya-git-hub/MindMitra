@@ -274,7 +274,7 @@ function BookingDialog({
               aria-describedby="booking-reason-hint"
             />
             <p id="booking-reason-hint" className="text-sm text-muted-foreground">
-              Only your therapist will see this, once the appointment is confirmed.
+              Only the therapist you&apos;re booking with will see this.
             </p>
           </div>
           {error && <InlineAlert tone="destructive">{error}</InlineAlert>}

@@ -3,6 +3,9 @@
 Run from services/api (`uv run python ../../scripts/e2e/prepare_backend.py <out.json>`) with
 DATABASE_URL pointing at an EMPTY throwaway database and SEED_USER_PASSWORD set. It migrates the
 schema, loads the synthetic seed, and writes one active user per role (email only) to <out.json>.
+For the therapist portal it also writes a verified therapist who has a student on their care team
+(with a confirmed appointment that is due to start, so a session can be run), and a therapist who
+is still waiting for verification.
 The password is never written to disk: the e2e run passes it through the environment.
 
 Refuses to run unless APP_ENV is development or test.
@@ -36,6 +39,7 @@ def main() -> int:
     subprocess.run([sys.executable, "-m", "app.infrastructure.db.seed"], check=True)
 
     users = asyncio.run(_pick_users())
+    users.update(asyncio.run(_prepare_therapist_portal()))
     out = Path(sys.argv[1])
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(users, indent=2) + "\n")
@@ -62,6 +66,74 @@ async def _pick_users() -> dict[str, str]:
     if missing:
         raise SystemExit(f"seed produced no active user for: {missing}")
     return {r: users[r] for r in ROLES}
+
+
+async def _prepare_therapist_portal() -> dict[str, str]:
+    """A verified therapist with a care-team student and a session that can start now, plus an
+    unverified therapist. Synthetic data only; nothing here is a secret."""
+    engine = create_async_engine(os.environ["DATABASE_URL"])
+    try:
+        async with engine.begin() as conn:
+            pair = (
+                await conn.execute(
+                    text(
+                        "select t.user_id, tu.email, t.institution_id, c.student_id, su.full_name "
+                        "from org.therapists t "
+                        "join iam.users tu on tu.id = t.user_id "
+                        "join org.care_team_members c on c.therapist_id = t.user_id "
+                        "  and c.ends_at is null "
+                        "join iam.users su on su.id = c.student_id "
+                        "where t.verification_status = 'verified' and tu.status = 'active' "
+                        "  and tu.deleted_at is null and su.status = 'active' "
+                        # Not the student the student-portal tests use (it has a booking cap).
+                        "  and su.id <> (select id from iam.users where role = 'student' "
+                        "    and status = 'active' and deleted_at is null "
+                        "    order by email limit 1) "
+                        "order by tu.email, su.email limit 1"
+                    )
+                )
+            ).first()
+            if pair is None:
+                raise SystemExit("seed has no verified therapist with a care-team student")
+            therapist_id, therapist_email, institution_id, student_id, student_name = pair
+            # Free the next hour for this pair, then add a confirmed appointment about to begin.
+            await conn.execute(
+                text(
+                    "update therapy.appointments set status = 'cancelled', cancelled_at = now() "
+                    "where status in ('requested', 'confirmed') "
+                    "and (therapist_id = :t or student_id = :s) "
+                    "and tstzrange(starts_at, ends_at) && "
+                    "tstzrange(now() - interval '1 hour', now() + interval '2 hours')"
+                ),
+                {"t": therapist_id, "s": student_id},
+            )
+            await conn.execute(
+                text(
+                    "insert into therapy.appointments "
+                    "(id, institution_id, student_id, therapist_id, starts_at, ends_at, mode, status) "
+                    "values (gen_random_uuid(), :i, :s, :t, now() + interval '2 minutes', "
+                    "now() + interval '52 minutes', 'video', 'confirmed')"
+                ),
+                {"i": institution_id, "s": student_id, "t": therapist_id},
+            )
+            pending = (
+                await conn.execute(
+                    text(
+                        "select u.email from org.therapists t join iam.users u on u.id = t.user_id "
+                        "where t.verification_status = 'pending' and u.status = 'active' "
+                        "order by u.email limit 1"
+                    )
+                )
+            ).scalar_one_or_none()
+            if pending is None:
+                raise SystemExit("seed has no therapist waiting for verification")
+    finally:
+        await engine.dispose()
+    return {
+        "therapist": therapist_email,
+        "care_student_name": student_name,
+        "pending_therapist": pending,
+    }
 
 
 if __name__ == "__main__":

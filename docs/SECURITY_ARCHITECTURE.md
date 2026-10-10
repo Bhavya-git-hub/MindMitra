@@ -47,14 +47,15 @@ any route has no guard and is not in `PUBLIC_ROUTES`.
 | Role (`user_role`) | Permissions |
 |--------------------|-------------|
 | `student` | own profile, own wellness records, own appointments, own AI conversations |
-| `therapist` | own profile, assigned students, assigned students' wellness (with consent), therapy notes, manage own appointments |
+| `therapist` | own profile and availability, assigned students (verified therapists only), assigned students' wellness (with consent), own therapy notes, manage own appointments and sessions, alerts, follow-ups and recommendations for assigned students |
 | `teacher` | own profile, aggregated insights for their own department |
 | `administrator` | own profile, aggregated insights, manage users, manage institution configuration, read audit metadata |
 
 | Resource policy | Rule |
 |-----------------|------|
 | Student wellness | The student; or a therapist with an active care-team link **and** an active `share_mood_with_care_team` consent (the private note is never returned to the therapist). Nobody else |
-| Therapy notes | Only the therapist who wrote the note, while on the student's care team. Not teachers, not admins, not other therapists |
+| Therapy notes | Only the therapist who wrote the note, while verified and on the student's care team. Not the student, teachers, admins, other therapists (including colleagues on the same care team) or other institutions. Versioned; responses are `no-store`; the audit log records the action and version, never content ([ADR 0006](adr/0006-therapist-portal-access-verification-and-note-confidentiality.md)) |
+| Therapist verification | Only an administrator of the same institution, never for themself. Unverified, rejected and expired therapists get `403` on every student-data route and are hidden from the student directory |
 | AI conversations | Only the owning student (INV-8). Not therapists, teachers or admins |
 | Appointments | The appointment's therapist may confirm, cancel, complete or mark no-show (valid transitions only); students read their own |
 | Users and configuration | Admins of the same institution; an admin cannot change their own status |

@@ -38,6 +38,17 @@ LATE_START = dt.timedelta(hours=24)
 MAX_NOTE_LENGTH = 20_000
 
 
+def can_start(appt: m.Appointment, has_session: bool, now: dt.datetime | None = None) -> bool:
+    """A confirmed appointment with no session yet, from 15 minutes before it begins until a
+    day after it ends."""
+    at = now or now_utc()
+    return (
+        appt.status is AppointmentStatus.CONFIRMED
+        and not has_session
+        and appt.starts_at - EARLY_START <= at <= appt.ends_at + LATE_START
+    )
+
+
 @dataclasses.dataclass
 class SessionView:
     session: m.TherapySession

@@ -35,10 +35,14 @@ async def test_a_session_is_started_completed_and_closes_the_appointment(
 ) -> None:
     pair = await care_pair(client, api_db, world)
     appt = await due_appointment(api_db, pair)
+    before = (await pair.therapist.get("/therapist/appointments?scope=upcoming")).json()
+    assert {a["id"]: a["can_start"] for a in before}[str(appt)] is True
     r = await pair.therapist.post(f"/therapist/appointments/{appt}/session")
     assert r.status_code == 201, r.text
     session = r.json()
     assert session["status"] == "in_progress" and session["has_note"] is False
+    started = (await pair.therapist.get("/therapist/appointments?scope=upcoming")).json()
+    assert {a["id"]: a["can_start"] for a in started}[str(appt)] is False
     assert session["student_id"] == str(pair.student.id)
 
     again = await pair.therapist.post(f"/therapist/appointments/{appt}/session")

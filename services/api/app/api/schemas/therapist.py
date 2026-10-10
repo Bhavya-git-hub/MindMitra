@@ -11,6 +11,7 @@ from typing import Annotated, Literal
 
 from pydantic import AwareDatetime, BaseModel, Field, StringConstraints
 
+from app.api.schemas.student import TrendPointOut, trend_out
 from app.application import (
     follow_ups,
     risk_alerts,
@@ -189,6 +190,7 @@ class TherapistAppointmentOut(BaseModel):
     status: str
     reason: str | None
     session_id: uuid.UUID | None
+    can_start: bool
 
 
 def appointment_row_out(r: therapist_appointments.AppointmentRow) -> TherapistAppointmentOut:
@@ -204,6 +206,7 @@ def appointment_row_out(r: therapist_appointments.AppointmentRow) -> TherapistAp
         status=a.status.value,
         reason=a.reason,
         session_id=r.session_id,
+        can_start=therapy_sessions.can_start(a, r.session_id is not None),
     )
 
 
@@ -377,6 +380,7 @@ def student_profile_out(p: therapist_students.StudentProfile) -> StudentProfileO
                 status=a.status.value,
                 reason=a.reason,
                 session_id=None,
+                can_start=therapy_sessions.can_start(a, False),
             )
             for a in p.upcoming
         ],
@@ -405,16 +409,9 @@ def student_profile_out(p: therapist_students.StudentProfile) -> StudentProfileO
     )
 
 
-class TrendPointOut(BaseModel):
-    day: dt.date
-    mood: float | None
-    energy: float | None
-    stress: float | None
-    sleep_hours: float | None
-    sleep_quality: int | None
-
-
 class TrendsOut(BaseModel):
+    """Same point shape as the student's own trends, so the same charts draw both."""
+
     days: int
     points: list[TrendPointOut]
     disclaimer: str = (
@@ -423,20 +420,7 @@ class TrendsOut(BaseModel):
 
 
 def trends_out(days: int, series: list[DailyPoint]) -> TrendsOut:
-    return TrendsOut(
-        days=days,
-        points=[
-            TrendPointOut(
-                day=p.day,
-                mood=p.mood,
-                energy=p.energy,
-                stress=p.stress,
-                sleep_hours=round(p.sleep_minutes / 60, 1) if p.sleep_minutes is not None else None,
-                sleep_quality=p.sleep_quality,
-            )
-            for p in series
-        ],
-    )
+    return TrendsOut(days=days, points=[trend_out(p) for p in series])
 
 
 class AssessmentOut(BaseModel):
