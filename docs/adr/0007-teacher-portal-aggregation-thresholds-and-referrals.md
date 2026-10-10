@@ -26,11 +26,15 @@ from three students is nearly a personal record.
      struggling. Percentages are rounded to the nearest 5, averages to one decimal.
    - Group sizes are bands ("10 to 19", "20 to 49", "50 to 99", "100 or more"), not counts.
    - WHO-5 bands are hidden when fewer than 10 students have a check in the window.
-3. **Fixed, completed windows.** Only 4, 8 or 12 *completed* calendar weeks (UTC Mondays) can be
+3. **Stored, completed windows.** Only 4, 8 or 12 *completed* calendar weeks (UTC Mondays) can be
    requested; anything else is `422`. The week in progress is never included: its averages move
    with every check-in, so a teacher who looked twice could work out one student's answer from the
    change. Arbitrary date ranges would let a caller subtract two overlapping windows to isolate a
    week or a student. The legacy `/insights/mood-summary` follows the same rule.
+   Once a window closes, its figures are stored (`wellness.group_snapshots`) by the first read
+   after the close. Later edits to its weeks cannot move it. Stored figures hold only what the
+   API returns, and they are dropped when a member's consent or account status changes (see
+   the residual risks below).
 4. **"Strain" is a pattern, not burnout or a diagnosis.** It counts students whose two-week
    average shows at least two of low energy (≤ 2.0), high stress (≥ 4.0) and short sleep
    (< 6 h). The interface and reports say so. Supportive suggestions are rule-based, describe
@@ -82,10 +86,13 @@ from three students is nearly a personal record.
   students they will not treat.
 - The default window is 8 completed weeks and seed history is about 6 weeks, so the oldest weeks
   of a default view are empty in the demo.
-- **Residual risk: changes to completed weeks.** A late edit to a past sleep entry, or a student
-  granting or withdrawing consent, changes a completed week's figures. A teacher who polls can
-  see the change, though not choose it. Freezing each week when it closes would remove this, at
-  the cost of a delayed, batch-computed report. Not done yet; flagged for a decision.
+- **Residual risk: consent and status changes move closed windows.** A window is stored the first
+  time anyone reads it after its last week closes (`wellness.group_snapshots`), so late edits
+  to its weeks cannot move it. A student who grants or withdraws consent, or whose account is
+  suspended, does change it: the stored window is dropped so the withdrawal takes effect at
+  once, and the next read is computed from live data. A teacher who sees the figure change
+  can infer that a member joined or left the count, though not what they reported. Keeping
+  the window frozen would mean ignoring a withdrawal, which this design does not do.
 - Consent coverage affects usefulness: with 80% opt-in in the seed data most classes pass the
   threshold; in real use many may not, and the interface says "not enough students yet" rather
   than guessing.

@@ -104,6 +104,17 @@ erDiagram
 - Seed data: about 80% of students hold an `anonymous_aggregate_research` consent (deterministic),
   faculty-tagged resources, three demo referrals and two demo support requests (marked synthetic).
 
+### 0.1c Stored group windows (migration `0007`)
+
+- `wellness.group_snapshots`: a class, department or institution figure for one closed window,
+  stored by the first read after its last week closes. Columns: `view` (`figures` or
+  `mood_summary`), `group_kind`, `group_id` (not a foreign key, since it points at a course,
+  department or institution), `last_week`, `weeks` and a JSON `payload` that holds only what the
+  API returns. A unique key on `(group_id, institution_id, view, group_kind, last_week, weeks)`
+  makes concurrent first reads store one row. Rows are deleted when a student's consent or
+  account status changes, and cascade is not needed because nothing references them.
+- `set_updated_at` trigger; a `CHECK` on `view`, `group_kind` and `weeks > 0`.
+
 ### 0.2 Requirements checklist
 
 | Requirement | How it is met |

@@ -266,7 +266,14 @@ async def class_view(
 ) -> tuple[ClassInfo, GroupView]:
     chosen = check_weeks(weeks)
     info = await _own_class(db, actor, course_id, "class_analytics.read")
-    figures = await cohort_stats.figures(db, actor.institution_id, _enrolled_ids(course_id), chosen)
+    figures = await cohort_stats.frozen_figures(
+        db,
+        actor.institution_id,
+        kind="class",
+        group=course_id,
+        members=_enrolled_ids(course_id),
+        weeks=chosen,
+    )
     await audit(
         db,
         actor,
@@ -304,7 +311,14 @@ async def department_view(
         m.Student.department_id == department_id,
         m.Student.institution_id == actor.institution_id,
     )
-    figures = await cohort_stats.figures(db, actor.institution_id, members, chosen)
+    figures = await cohort_stats.frozen_figures(
+        db,
+        actor.institution_id,
+        kind="department",
+        group=department_id,
+        members=members,
+        weeks=chosen,
+    )
     await audit(
         db,
         actor,

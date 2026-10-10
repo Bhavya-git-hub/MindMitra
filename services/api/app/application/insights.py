@@ -63,16 +63,45 @@ async def mood_summary(
         if dept is None or dept.institution_id != actor.institution_id:
             raise NotFound
 
-    # Fixed completed calendar weeks, as in the teacher portal: a rolling window that includes
-    # the week in progress would let a teacher see one check-in move the average.
+    # The last WEEKS completed calendar weeks, stored once they close. The week in progress is
+    # never included: a rolling window would let a teacher see one check-in move the average.
+    kind, group = (
+        ("department", department_id) if department_id else ("institution", actor.institution_id)
+    )
+    stored = await cohort_stats.frozen(
+        db,
+        actor.institution_id,
+        view="mood_summary",
+        kind=kind,
+        group=group,
+        weeks=WEEKS,
+        compute=lambda: _mood_counts(db, actor.institution_id, department_id),
+        encode=lambda c: {"students": c.students, "average": c.average},
+        decode=lambda d: _Counts(d["students"], d["average"]),
+    )
+    await db.commit()  # keep the stored window even though this request only reads
+    if stored.students < MIN_COHORT_SIZE:
+        return MoodSummary(department_id, WEEKS * 7, None, None, True)
+    return MoodSummary(department_id, WEEKS * 7, stored.students, stored.average, False)
+
+
+@dataclasses.dataclass(frozen=True)
+class _Counts:
+    students: int
+    average: float | None  # rounded; None when no entries
+
+
+async def _mood_counts(
+    db: AsyncSession, institution_id: uuid.UUID, department_id: uuid.UUID | None
+) -> _Counts:
     starts = cohort.week_starts(now_utc().date(), WEEKS)
     since = dt.datetime.combine(starts[0], dt.time.min, tzinfo=dt.UTC)
     until = dt.datetime.combine(starts[-1] + dt.timedelta(weeks=1), dt.time.min, tzinfo=dt.UTC)
-    members = select(m.Student.user_id).where(m.Student.institution_id == actor.institution_id)
+    members = select(m.Student.user_id).where(m.Student.institution_id == institution_id)
     if department_id is not None:
         members = members.where(m.Student.department_id == department_id)
     # Only students who opted in to anonymous aggregates are counted, whoever asks.
-    people = cohort_stats.contributors(actor.institution_id, members)
+    people = cohort_stats.contributors(institution_id, members)
     stmt = select(
         func.count(func.distinct(m.MoodEntry.student_id)), func.avg(m.MoodEntry.mood_score)
     ).where(
@@ -81,6 +110,4 @@ async def mood_summary(
         m.MoodEntry.logged_at < until,
     )
     students, avg = (await db.execute(stmt)).one()
-    if students < MIN_COHORT_SIZE:
-        return MoodSummary(department_id, WEEKS * 7, None, None, True)
-    return MoodSummary(department_id, WEEKS * 7, int(students), round(float(avg), 1), False)
+    return _Counts(int(students), round(float(avg), 1) if avg is not None else None)

@@ -26,7 +26,7 @@ app/
   core/             settings (env vars only), JWT signing, field encryption, password hashing
   infrastructure/
     db/             models/, session management, UUIDv7 ids, audit hash chain, seed/
-alembic/            migrations (0001_initial_schema, 0002_tenant_safe_foreign_keys, 0003_auth_sessions, 0004_crisis_contacts, 0005_therapist_portal, 0006_teacher_portal)
+alembic/            migrations (0001_initial_schema, 0002_tenant_safe_foreign_keys, 0003_auth_sessions, 0004_crisis_contacts, 0005_therapist_portal, 0006_teacher_portal, 0007_group_snapshots)
 tests/              database tests, plus auth and cross-role authorization tests through the API,
                     all against real PostgreSQL
 ```

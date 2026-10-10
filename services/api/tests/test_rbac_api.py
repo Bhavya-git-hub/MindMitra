@@ -15,6 +15,7 @@ from app.infrastructure.db import models as m
 from app.infrastructure.db.enums import AuditOutcome, UserRole
 from tests.api_helpers import call, token_for
 from tests.api_world import Actor, Builder, World
+from tests.student_helpers import sign_in
 
 pytestmark = pytest.mark.asyncio
 
@@ -333,6 +334,14 @@ async def test_small_cohorts_are_suppressed_and_large_ones_aggregated(
 
     await b.mood_entry(world.inst_a, students[9], 5, days_ago=9)
     await api_db.commit()
+    # The window closed at the first read, so a late entry in it does not change the stored answer.
+    r = (await call(client, "GET", "/insights/mood-summary", token=tok)).json()
+    assert r["suppressed"] is True
+    # A consent change drops the stored window; the next read is computed from live data.
+    leaver = await sign_in(client, students[9], world.password)
+    for granted in (False, True):
+        r = await leaver.put("/me/consents/anonymous_aggregate_research", {"granted": granted})
+        assert r.status_code == 200, r.text
     r = (await call(client, "GET", "/insights/mood-summary", token=tok)).json()
     assert r["suppressed"] is False and r["cohort_size"] == 10
     assert r["average_mood"] == pytest.approx(3.2)
