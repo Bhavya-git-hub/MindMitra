@@ -5,8 +5,8 @@ react-hook-form + zod · Recharts · Vitest + Testing Library + axe · Playwrigh
 
 **Current state:** the frontend foundation. Design system, application shell, authentication
 (connected to the real API), the four role portals with protected routes and role-based
-redirects, and the shared building blocks. The student and therapist portals are built; the
-teacher and administrator portals are still placeholders (overview and account).
+redirects, and the shared building blocks. The student, therapist and teacher portals are built; the
+administrator portal is still a placeholder (overview and account).
 
 ## Quick start
 
@@ -150,6 +150,6 @@ body of one `PUT`; it is never put in a URL, `localStorage` or a log.
   their institution's contacts at `/student/emergency`; the seeded contacts are demo data and
   must be replaced and verified before go-live.
 - The AI companion has no conversation screen yet (Phase 6).
-- Teacher and administrator portals are still the placeholder overview. There is no screen for
+- The administrator portal is still the placeholder overview. There is no screen for
   administrators to verify therapists yet; the API exists (`/admin/therapists`).
 - No i18n, TanStack Query or generated OpenAPI client yet (see `docs/ARCHITECTURE.md` section 2).

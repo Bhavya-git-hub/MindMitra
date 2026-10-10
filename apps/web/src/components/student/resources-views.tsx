@@ -13,22 +13,29 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import type { Resource, ResourceDetail as ResourceDetailData } from "@/lib/api/student-schemas";
 import { useQuery } from "@/lib/hooks/use-query";
 import { useStudentApi } from "@/lib/hooks/use-student-api";
 import { RESOURCE_TYPE_LABELS } from "@/lib/student-options";
 
-export function ResourcesView() {
-  const api = useStudentApi();
-  const all = useQuery("resources", () => api.resources());
+/** Where a resource library gets its items and where each item's page lives. */
+export interface ResourceSource {
+  cacheKey: string;
+  basePath: string;
+  title: string;
+  description: string;
+  list: () => Promise<Resource[]>;
+  get: (id: string) => Promise<ResourceDetailData>;
+}
+
+export function ResourceLibrary({ source }: { source: ResourceSource }) {
+  const all = useQuery(source.cacheKey, () => source.list());
   const [text, setText] = React.useState("");
   const [type, setType] = React.useState("");
 
   return (
     <>
-      <PageHeader
-        title="Resources"
-        description="Articles, exercises and campus services chosen to help you feel well."
-      />
+      <PageHeader title={source.title} description={source.description} />
       <DataView query={all}>
         {(items) => {
           const needle = text.trim().toLowerCase();
@@ -90,7 +97,7 @@ export function ResourcesView() {
                       </Badge>
                       <h3 className="font-medium">
                         <Link
-                          href={`/student/resources/${r.id}`}
+                          href={`${source.basePath}/${r.id}`}
                           className="underline-offset-4 hover:underline"
                         >
                           {r.title}
@@ -109,9 +116,8 @@ export function ResourcesView() {
   );
 }
 
-export function ResourceDetailView({ id }: { id: string }) {
-  const api = useStudentApi();
-  const resource = useQuery(`resource-${id}`, () => api.resource(id));
+export function ResourceDetail({ id, source }: { id: string; source: ResourceSource }) {
+  const resource = useQuery(`${source.cacheKey}-${id}`, () => source.get(id));
   return (
     <DataView query={resource}>
       {(r) => (
@@ -121,7 +127,7 @@ export function ResourceDetailView({ id }: { id: string }) {
             description={r.summary}
             actions={
               <Button asChild variant="ghost">
-                <Link href="/student/resources">All resources</Link>
+                <Link href={source.basePath}>All resources</Link>
               </Button>
             }
           />
@@ -155,4 +161,27 @@ export function ResourceDetailView({ id }: { id: string }) {
       )}
     </DataView>
   );
+}
+
+function useStudentResourceSource(): ResourceSource {
+  const api = useStudentApi();
+  return React.useMemo(
+    () => ({
+      cacheKey: "resources",
+      basePath: "/student/resources",
+      title: "Resources",
+      description: "Articles, exercises and campus services chosen to help you feel well.",
+      list: () => api.resources(),
+      get: (id: string) => api.resource(id),
+    }),
+    [api],
+  );
+}
+
+export function ResourcesView() {
+  return <ResourceLibrary source={useStudentResourceSource()} />;
+}
+
+export function ResourceDetailView({ id }: { id: string }) {
+  return <ResourceDetail id={id} source={useStudentResourceSource()} />;
 }

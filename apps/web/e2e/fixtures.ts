@@ -21,12 +21,23 @@ const users: Record<Role, string> & {
   /** Set by scripts/e2e/prepare_backend.py for the therapist portal. */
   care_student_name: string;
   pending_therapist: string;
+  /** Set for the teacher portal: a class the teacher teaches and a student enrolled in it. */
+  teacher_course_code: string;
+  teacher_course_title: string;
+  teacher_student_name: string;
+  teacher_full_name: string;
 } = JSON.parse(readFileSync(path.resolve(import.meta.dirname, ".auth/users.json"), "utf8"));
 const password = process.env.E2E_PASSWORD ?? "";
 
 export const credentials = (role: Role) => ({ email: users[role], password });
 export const careStudentName = users.care_student_name;
 export const pendingTherapistEmail = users.pending_therapist;
+export const teacherCourse = {
+  code: users.teacher_course_code,
+  title: users.teacher_course_title,
+  studentName: users.teacher_student_name,
+  teacherName: users.teacher_full_name,
+};
 
 export async function signIn(page: Page, role: Role, next?: string, email?: string) {
   const { email: roleEmail, password } = credentials(role);

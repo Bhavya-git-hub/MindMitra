@@ -28,6 +28,8 @@ export interface RequestOptions<T> {
   body?: unknown;
   /** Validates the response body. Omit for responses without a body (204). */
   schema?: z.ZodType<T>;
+  /** `text` returns the body as a string (a CSV download) and skips schema validation. */
+  responseType?: "json" | "text";
   /** Attach the Bearer token and refresh-and-retry on 401. Defaults to true. */
   auth?: boolean;
   headers?: Record<string, string>;
@@ -80,7 +82,10 @@ export function createApiClient({
   fetchImpl,
 }: ClientConfig): ApiClient {
   async function send(path: string, options: RequestOptions<unknown>, token: string | null) {
-    const headers: Record<string, string> = { Accept: "application/json", ...options.headers };
+    const headers: Record<string, string> = {
+      Accept: options.responseType === "text" ? "text/csv" : "application/json",
+      ...options.headers,
+    };
     if (options.body !== undefined) headers["Content-Type"] = "application/json";
     if (token) headers.Authorization = `Bearer ${token}`;
 
@@ -112,6 +117,7 @@ export function createApiClient({
     }
 
     if (!response.ok) throw await parseProblem(response);
+    if (options.responseType === "text") return (await response.text()) as T;
     if (response.status === 204 || !options.schema) return undefined as T;
 
     const body: unknown = await response.json();
