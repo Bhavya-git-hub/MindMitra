@@ -7,17 +7,20 @@ import pytest
 from app.domain.wellness import cohort, cohort_report
 from app.domain.wellness.cohort import StudentWeek, analyse, share
 
-MON = dt.date(2026, 9, 28)  # a Monday
-STARTS = cohort.week_starts(MON, 4)
+MON = dt.date(2026, 9, 28)  # a Monday: the last completed week that these tests report on
+STARTS = cohort.week_starts(MON + dt.timedelta(weeks=1), 4)  # "today" is the week after
 
 
 def rows(n: int, **kw: object) -> list[StudentWeek]:
     return [StudentWeek(key=i, week_start=MON, checked_in=True, **kw) for i in range(n)]  # type: ignore[arg-type]
 
 
-def test_week_starts_are_mondays_ending_this_week() -> None:
+def test_week_starts_are_mondays_ending_last_week() -> None:
+    # The week in progress (the one after MON) is never part of a figure.
     assert STARTS[-1] == MON and len(STARTS) == 4
+    assert MON + dt.timedelta(weeks=1) not in STARTS
     assert all(d.weekday() == 0 for d in cohort.week_starts(dt.date(2026, 10, 10), 12))
+    assert cohort.week_starts(dt.date(2026, 10, 10), 1) == [dt.date(2026, 9, 28)]
 
 
 @pytest.mark.parametrize("n", [0, 1, 5, 9])

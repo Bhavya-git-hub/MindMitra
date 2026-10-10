@@ -359,6 +359,7 @@ Legal and clinical review is required before production use.
 
 ## 12. Residual risks (see also [ARCHITECTURE.md §17](ARCHITECTURE.md#17-architectural-risks-and-mitigations))
 
+- Figures cover completed weeks only, so the week in progress cannot be watched change. A completed week can still change through late edits or consent changes, which a teacher can observe but not cause ([ADR 0007](adr/0007-teacher-portal-aggregation-thresholds-and-referrals.md)).
 - Overlapping groups (a class and its department, or two classes sharing students) can in principle be compared to infer something about the difference. Fixed windows, rounding, size bands and the 10/5 thresholds make this impractical for small differences but do not remove it ([ADR 0007](adr/0007-teacher-portal-aggregation-thresholds-and-referrals.md)).
 - Insider misuse with legitimate access can be deterred and detected but not fully prevented.
 - Shared or monitored personal devices can expose students; mitigations: quick-exit button,

@@ -14,13 +14,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.application import cohort_stats
 from app.application.access import NotFound, enforce
+from app.application.timeutil import now_utc
 from app.domain.auth.permissions import Role
 from app.domain.auth.policies import Principal, allow, deny
 from app.domain.wellness import cohort
 from app.infrastructure.db import models as m
 
 MIN_COHORT_SIZE = cohort.MIN_COHORT
-WINDOW = dt.timedelta(days=30)
+WEEKS = 4
 
 
 @dataclasses.dataclass(frozen=True)
@@ -62,7 +63,11 @@ async def mood_summary(
         if dept is None or dept.institution_id != actor.institution_id:
             raise NotFound
 
-    since = dt.datetime.now(dt.UTC) - WINDOW
+    # Fixed completed calendar weeks, as in the teacher portal: a rolling window that includes
+    # the week in progress would let a teacher see one check-in move the average.
+    starts = cohort.week_starts(now_utc().date(), WEEKS)
+    since = dt.datetime.combine(starts[0], dt.time.min, tzinfo=dt.UTC)
+    until = dt.datetime.combine(starts[-1] + dt.timedelta(weeks=1), dt.time.min, tzinfo=dt.UTC)
     members = select(m.Student.user_id).where(m.Student.institution_id == actor.institution_id)
     if department_id is not None:
         members = members.where(m.Student.department_id == department_id)
@@ -73,8 +78,9 @@ async def mood_summary(
     ).where(
         m.MoodEntry.student_id.in_(people.scalar_subquery()),
         m.MoodEntry.logged_at >= since,
+        m.MoodEntry.logged_at < until,
     )
     students, avg = (await db.execute(stmt)).one()
     if students < MIN_COHORT_SIZE:
-        return MoodSummary(department_id, WINDOW.days, None, None, True)
-    return MoodSummary(department_id, WINDOW.days, int(students), round(float(avg), 2), False)
+        return MoodSummary(department_id, WEEKS * 7, None, None, True)
+    return MoodSummary(department_id, WEEKS * 7, int(students), round(float(avg), 1), False)

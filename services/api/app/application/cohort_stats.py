@@ -133,10 +133,7 @@ async def _rows(
     levels: dict[tuple[uuid.UUID, dt.date], list[int]] = defaultdict(list)
     named: dict[tuple[uuid.UUID, dt.date], set[str]] = defaultdict(set)
     for sid, at, level, stressors in stresses:
-        key = (
-            sid,
-            at.astimezone(dt.UTC).date() - dt.timedelta(days=at.astimezone(dt.UTC).weekday()),
-        )
+        key = (sid, cohort.monday_of(at.astimezone(dt.UTC).date()))
         levels[key].append(level)
         named[key].update(s.lower() for s in stressors)
     for key, values in levels.items():
@@ -155,6 +152,7 @@ async def _wellbeing(
 ) -> list[WellbeingBand]:
     """Where students' latest wellbeing check in the window falls, as shares of the group."""
     since = _utc_start(starts[0])
+    until = _utc_start(starts[-1] + dt.timedelta(weeks=1))
     rows = await db.execute(
         select(m.WellnessAssessment.student_id, m.WellnessAssessment.score)
         .ext(distinct_on(m.WellnessAssessment.student_id))
@@ -162,6 +160,7 @@ async def _wellbeing(
             m.WellnessAssessment.student_id.in_(people.scalar_subquery()),
             m.WellnessAssessment.instrument == instruments.INSTRUMENT_ID,
             m.WellnessAssessment.completed_at >= since,
+            m.WellnessAssessment.completed_at < until,
         )
         .order_by(m.WellnessAssessment.student_id, m.WellnessAssessment.completed_at.desc())
     )

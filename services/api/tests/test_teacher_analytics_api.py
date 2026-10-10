@@ -1,6 +1,7 @@
 """Group figures for a teacher: only for their own class and department, only from students who
 agreed to be counted, and never for a group small enough to point at a person."""
 
+import datetime as dt
 import json
 import uuid
 
@@ -23,6 +24,10 @@ def figures_text(body: object) -> str:
     return json.dumps(body)
 
 
+def _without_timestamp(body: dict[str, object]) -> dict[str, object]:
+    return {k: v for k, v in body.items() if k != "generated_at"}
+
+
 async def analytics(s: School, weeks: int | None = None) -> httpx.Response:
     q = f"?weeks={weeks}" if weeks else ""
     return await s.teacher.get(f"/teacher/classes/{s.course_id}/analytics{q}")
@@ -37,7 +42,7 @@ async def test_a_class_of_enough_consenting_students_gets_figures(
     a = r.json()["analytics"]
     assert a["state"] == "ok" and a["students_contributing"] == "10 to 19"
     assert a["min_group_size"] == 10 and a["window_weeks"] == 8 and len(a["weeks"]) == 8
-    last_week = a["weeks"][-2]  # last week; the current week has no data yet
+    last_week = a["weeks"][-1]  # the last completed week; the week in progress is never shown
     assert last_week["mood"] is not None and 1 <= last_week["mood"] <= 5
     assert a["weeks"][0]["mood"] is None  # no data that far back, so nothing is invented
     assert "diagnos" in a["disclaimer"]
@@ -97,6 +102,25 @@ async def test_students_who_did_not_agree_change_nothing(
     after = (await analytics(s)).json()["analytics"]
     before.pop("generated_at"), after.pop("generated_at")
     assert before == after
+
+
+async def test_the_week_in_progress_does_not_move_the_figures(
+    client: httpx.AsyncClient, api_db: AsyncSession, world: World
+) -> None:
+    s = await school(client, api_db, world, students=10)
+    before = _without_timestamp((await analytics(s)).json()["analytics"])
+    api_db.add(
+        m.MoodEntry(
+            institution_id=world.inst_a,
+            student_id=s.students[0].user_id,
+            mood_score=1,
+            emotions=["sad"],
+            note="private synthetic note",
+            logged_at=dt.datetime.now(dt.UTC),
+        )
+    )
+    await api_db.commit()
+    assert _without_timestamp((await analytics(s)).json()["analytics"]) == before
 
 
 async def test_withdrawing_consent_removes_the_student_from_the_next_request(

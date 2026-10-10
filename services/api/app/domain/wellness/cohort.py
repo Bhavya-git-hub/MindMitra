@@ -150,10 +150,18 @@ class Analytics:
     actions: list[Action]
 
 
+def monday_of(day: dt.date) -> dt.date:
+    return day - dt.timedelta(days=day.weekday())
+
+
 def week_starts(today: dt.date, weeks: int) -> list[dt.date]:
-    """The Mondays of the last ``weeks`` calendar weeks, oldest first, ending this week."""
-    this_monday = today - dt.timedelta(days=today.weekday())
-    return [this_monday - dt.timedelta(weeks=n) for n in range(weeks - 1, -1, -1)]
+    """The Mondays of the last ``weeks`` *completed* calendar weeks, oldest first.
+
+    The week in progress is left out. Its figures move with every check-in, so someone who
+    looked twice could work out one student's answer from how the average changed.
+    """
+    last_complete = monday_of(today) - dt.timedelta(weeks=1)
+    return [last_complete - dt.timedelta(weeks=n) for n in range(weeks - 1, -1, -1)]
 
 
 def _avg(values: Iterable[float | None]) -> float | None:
