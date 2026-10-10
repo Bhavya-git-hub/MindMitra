@@ -49,7 +49,7 @@ any route has no guard and is not in `PUBLIC_ROUTES`.
 | `student` | own profile, own wellness records, own appointments, own AI conversations |
 | `therapist` | own profile and availability, assigned students (verified therapists only), assigned students' wellness (with consent), own therapy notes, manage own appointments and sessions, alerts, follow-ups and recommendations for assigned students |
 | `teacher` | own profile, aggregated insights for their own classes and department (consenting students only, small groups suppressed), referrals and student support requests for students they teach, faculty-tagged resources. Never: check-ins of an individual, journals, AI conversations, messages, therapy notes, diagnoses |
-| `administrator` | own profile, aggregated insights, manage users, manage institution configuration, read audit metadata |
+| `administrator` | own profile, aggregated insights, manage accounts, therapist verification, student/teacher/therapist records, departments, courses, resources, appointment counts, platform analytics, notification and safety settings, institution configuration, read audit metadata. **No** content permission ([ADR 0008](adr/0008-administrator-portal-scope-and-confidentiality.md)) |
 
 | Resource policy | Rule |
 |-----------------|------|
@@ -58,7 +58,8 @@ any route has no guard and is not in `PUBLIC_ROUTES`.
 | Therapist verification | Only an administrator of the same institution, never for themself. Unverified, rejected and expired therapists get `403` on every student-data route and are hidden from the student directory |
 | AI conversations | Only the owning student (INV-8). Not therapists, teachers or admins |
 | Appointments | The appointment's therapist may confirm, cancel, complete or mark no-show (valid transitions only); students read their own |
-| Users and configuration | Admins of the same institution; an admin cannot change their own status |
+| Users and configuration | Admins of the same institution; an admin cannot change their own status. Admin records carry administrative fields only (no consent, care-team, wellbeing or appointment participants) |
+| Resources and crisis contacts | Admins edit their institution's own; items shipped with the product are read only; the last active emergency contact cannot be removed ([ADR 0008](adr/0008-administrator-portal-scope-and-confidentiality.md)) |
 | Insights | Teachers: own classes and own department only. Admins: any department of their institution. Only students with an active `anonymous_aggregate_research` consent count. Groups under 10 students are suppressed (INV-4); shares need 5 students on each side; windows are fixed ([ADR 0007](adr/0007-teacher-portal-aggregation-thresholds-and-referrals.md)) |
 | Teacher referrals | A teacher can refer only a student enrolled in a class they teach; sees back only category, urgency, their own note and status. Verified therapists triage; `safety_concern` raises an alert for humans |
 | Tenancy | A record from another institution is indistinguishable from a missing one (`404`) |
@@ -361,6 +362,8 @@ Legal and clinical review is required before production use.
 
 - Figures cover completed weeks only, and each closed window is stored at its first read, so late edits cannot move it. Consent or status changes still drop the stored window, which a teacher can observe but not cause ([ADR 0007](adr/0007-teacher-portal-aggregation-thresholds-and-referrals.md)).
 - Overlapping groups (a class and its department, or two classes sharing students) can in principle be compared to infer something about the difference. Fixed windows, rounding, size bands and the 10/5 thresholds make this impractical for small differences but do not remove it ([ADR 0007](adr/0007-teacher-portal-aggregation-thresholds-and-referrals.md)).
+- A compromised administrator account can suspend people, change structure and settings, and read audit metadata, but not content. Weekly activity counts of 1 to 4 are hidden, while safety-alert counts on the dashboard are exact, so "one alert is waiting" is visible to administrators ([ADR 0008](adr/0008-administrator-portal-scope-and-confidentiality.md)).
+- Reminder, goal-reminder and email settings are stored but nothing sends them yet (no scheduler or email delivery); the interface says so.
 - Insider misuse with legitimate access can be deterred and detected but not fully prevented.
 - Shared or monitored personal devices can expose students; mitigations: quick-exit button,
   content-free notifications, session timeouts, discreet app naming option.

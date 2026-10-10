@@ -344,3 +344,27 @@ def can_view_department_analytics(
     if department_id != teacher_department_id:
         return deny("other_department")
     return allow("own_department")
+
+
+def can_administer(actor: Principal, *, institution_id: uuid.UUID) -> Decision:
+    """Administrators change structure and settings in their own institution only.
+
+    A record from another institution is indistinguishable from a missing one. Who the record
+    is *about* never matters here: this decides who may change it, not what may be read from it.
+    """
+    if actor.role is not Role.ADMIN:
+        return deny("role_not_permitted")
+    if not same_tenant(actor, institution_id):
+        return deny("other_tenant", hide=True)
+    return allow("institution_admin")
+
+
+def can_edit_resource(actor: Principal, *, resource_institution_id: uuid.UUID | None) -> Decision:
+    """Global resources (no institution) can be read by everyone but edited by no administrator."""
+    if actor.role is not Role.ADMIN:
+        return deny("role_not_permitted")
+    if resource_institution_id is None:
+        return deny("global_resource_read_only")
+    if not same_tenant(actor, resource_institution_id):
+        return deny("other_tenant", hide=True)
+    return allow("institution_admin")

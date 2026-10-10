@@ -58,11 +58,23 @@ class Permission(enum.StrEnum):
     # therapist: triage referrals from teachers; student: ask one of their own teachers for help
     REFERRAL_TRIAGE = "referral:triage"
     TEACHER_SUPPORT_REQUEST = "teacher_support:request"
-    # admin: accounts, configuration and audit metadata, never clinical content
+    # admin: accounts, structure, configuration and audit metadata, never clinical content.
+    # Each area has its own permission so a narrower admin role can be added without touching
+    # the routes.
     USER_MANAGE = "user:manage"
     THERAPIST_VERIFY = "therapist:verify"
     CONFIG_MANAGE = "config:manage"
     AUDIT_READ = "audit:read"
+    STUDENT_RECORD_MANAGE = "student_record:manage"  # department and year, no wellbeing data
+    TEACHER_RECORD_MANAGE = "teacher_record:manage"
+    THERAPIST_RECORD_MANAGE = "therapist_record:manage"  # intake switch and caseload cap only
+    DEPARTMENT_MANAGE = "department:manage"
+    COURSE_MANAGE = "course:manage"
+    APPOINTMENT_OVERSIGHT = "appointment:oversee"  # counts and waiting times, never who or why
+    RESOURCE_MANAGE = "resource:manage"
+    PLATFORM_ANALYTICS_READ = "platform_analytics:read"
+    NOTIFICATION_CONFIG_MANAGE = "notification_config:manage"
+    SAFETY_CONFIG_MANAGE = "safety_config:manage"
 
 
 P = Permission
@@ -124,9 +136,39 @@ ROLE_PERMISSIONS: Mapping[Role, frozenset[Permission]] = {
             P.THERAPIST_VERIFY,
             P.CONFIG_MANAGE,
             P.AUDIT_READ,
+            P.STUDENT_RECORD_MANAGE,
+            P.TEACHER_RECORD_MANAGE,
+            P.THERAPIST_RECORD_MANAGE,
+            P.DEPARTMENT_MANAGE,
+            P.COURSE_MANAGE,
+            P.APPOINTMENT_OVERSIGHT,
+            P.RESOURCE_MANAGE,
+            P.PLATFORM_ANALYTICS_READ,
+            P.NOTIFICATION_CONFIG_MANAGE,
+            P.SAFETY_CONFIG_MANAGE,
         }
     ),
 }
+
+# Everything an administrator may do beyond reading their own profile and aggregates.
+ADMIN_ONLY_PERMISSIONS: frozenset[Permission] = frozenset(
+    {
+        P.USER_MANAGE,
+        P.THERAPIST_VERIFY,
+        P.CONFIG_MANAGE,
+        P.AUDIT_READ,
+        P.STUDENT_RECORD_MANAGE,
+        P.TEACHER_RECORD_MANAGE,
+        P.THERAPIST_RECORD_MANAGE,
+        P.DEPARTMENT_MANAGE,
+        P.COURSE_MANAGE,
+        P.APPOINTMENT_OVERSIGHT,
+        P.RESOURCE_MANAGE,
+        P.PLATFORM_ANALYTICS_READ,
+        P.NOTIFICATION_CONFIG_MANAGE,
+        P.SAFETY_CONFIG_MANAGE,
+    }
+)
 
 # Permissions that expose individual clinical, wellness or AI-companion content. Teachers and
 # admins must never hold any of them (CLAUDE.md rules 3-4; SECURITY_ARCHITECTURE.md INV-1/2/8).

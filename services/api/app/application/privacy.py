@@ -12,7 +12,7 @@ from sqlalchemy import or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.application import cohort_stats
+from app.application import cohort_stats, institution_settings
 from app.application.access import has_active_care_link
 from app.application.auth.errors import Conflict
 from app.application.errors import InvalidInput
@@ -37,7 +37,6 @@ from app.infrastructure.db.enums import (
 )
 from app.infrastructure.db.ids import uuid7
 
-HELP_REQUEST_ACK_MINUTES = 15
 HELP_REQUEST_COOLDOWN = dt.timedelta(minutes=10)
 MAX_HELP_MESSAGE = 1000
 
@@ -397,6 +396,7 @@ async def request_support(
         db, therapist_id=assigned, student_id=actor.user_id, now=now
     ):
         assigned = None
+    safety = (await institution_settings.load(db, actor.institution_id)).safety
     alert = m.RiskAlert(
         id=uuid7(),
         institution_id=actor.institution_id,
@@ -409,7 +409,7 @@ async def request_support(
         status=AlertStatus.OPEN,
         requires_human=True,
         excerpt=text,
-        sla_ack_due_at=now + dt.timedelta(minutes=HELP_REQUEST_ACK_MINUTES),
+        sla_ack_due_at=now + dt.timedelta(minutes=safety.alert_ack_minutes),
     )
     db.add(alert)
     await db.flush()

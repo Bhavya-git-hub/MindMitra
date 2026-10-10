@@ -465,10 +465,13 @@ async def test_other_tenant_admin_sees_only_own_institution(
     client: httpx.AsyncClient, world: World
 ) -> None:
     tok = await _tok(client, world, "b_admin")
-    users = (await call(client, "GET", "/admin/users?limit=200", token=tok)).json()
-    assert users and {u["id"] for u in users} <= {
+    users = (await call(client, "GET", "/admin/users?limit=200", token=tok)).json()["items"]
+    seen = {u["id"] for u in users}
+    ours = {
         str(a.user_id) for a in (world.b_student, world.b_therapist, world.b_teacher, world.b_admin)
     }
+    theirs = {str(a.user_id) for a in (world.student, world.therapist, world.teacher, world.admin)}
+    assert ours <= seen and not seen & theirs
     cfg = (await call(client, "GET", "/admin/config", token=tok)).json()
     assert cfg["id"] == str(world.inst_b)
     events = (await call(client, "GET", "/admin/audit?limit=200", token=tok)).json()

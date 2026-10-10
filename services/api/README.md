@@ -19,14 +19,15 @@ app/
                     messaging, privacy, safety; therapist portal: therapist_access,
                     therapist_profile, therapist_students, therapist_appointments, therapy_sessions
                     (notes), risk_alerts, follow_ups, therapist_recommendations, therapist_dashboard; teacher portal: teacher_portal, cohort_stats,
-                    referrals, teacher_support
+                    referrals, teacher_support; administrator portal: admin, admin_directory,
+                    admin_resources, admin_insights, admin_audit, institution_settings
   domain/auth/      roles and permissions, resource policies, password policy (no framework code)
   domain/wellness/  pure rules: WHO-5 scoring, indicators, recommendation rules, support prompt,
                     cohort (group-privacy thresholds) and cohort_report
   core/             settings (env vars only), JWT signing, field encryption, password hashing
   infrastructure/
     db/             models/, session management, UUIDv7 ids, audit hash chain, seed/
-alembic/            migrations (0001_initial_schema, 0002_tenant_safe_foreign_keys, 0003_auth_sessions, 0004_crisis_contacts, 0005_therapist_portal, 0006_teacher_portal, 0007_group_snapshots)
+alembic/            migrations (0001_initial_schema, 0002_tenant_safe_foreign_keys, 0003_auth_sessions, 0004_crisis_contacts, 0005_therapist_portal, 0006_teacher_portal, 0007_group_snapshots, 0008_institution_settings)
 tests/              database tests, plus auth and cross-role authorization tests through the API,
                     all against real PostgreSQL
 ```

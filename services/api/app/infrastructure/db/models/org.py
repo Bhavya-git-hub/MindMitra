@@ -17,7 +17,7 @@ from sqlalchemy import (
     func,
     text,
 )
-from sqlalchemy.dialects.postgresql import ARRAY, UUID
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.infrastructure.db.base import (
@@ -309,3 +309,32 @@ class CareTeamMember(UUIDPrimaryKeyMixin, TenantMixin, TimestampMixin, Base):
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
     ends_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class InstitutionSettings(UUIDPrimaryKeyMixin, TenantMixin, TimestampMixin, Base):
+    """Notification and safety settings an administrator changed. One row per institution.
+
+    A missing row, or a missing key inside ``notifications`` / ``safety``, means the default in
+    ``app.domain.settings``. The values are numbers and switches only, never free text.
+    """
+
+    __tablename__ = "institution_settings"
+    __table_args__ = (
+        UniqueConstraint("institution_id", name="uq_institution_settings_institution"),
+        CheckConstraint("jsonb_typeof(notifications) = 'object'", name="notifications_is_object"),
+        CheckConstraint("jsonb_typeof(safety) = 'object'", name="safety_is_object"),
+        Index("ix_institution_settings_updated_by", "updated_by"),
+        {"schema": "org"},
+    )
+
+    # uq_institution_settings_institution already leads with institution_id: no separate index.
+    institution_id: Mapped[uuid.UUID] = tenant_column(index=False)
+    notifications: Mapped[dict[str, object]] = mapped_column(
+        JSONB, nullable=False, server_default=text("'{}'::jsonb")
+    )
+    safety: Mapped[dict[str, object]] = mapped_column(
+        JSONB, nullable=False, server_default=text("'{}'::jsonb")
+    )
+    updated_by: Mapped[uuid.UUID | None] = fk_uuid(
+        "iam.users.id", ondelete="SET NULL", nullable=True
+    )

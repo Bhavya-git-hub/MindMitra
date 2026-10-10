@@ -20,6 +20,10 @@ from app.api.problems import install_problem_handlers, problem
 from app.api.rate_limit import SlidingWindowRateLimiter
 from app.api.routes import (
     admin,
+    admin_directory,
+    admin_insights,
+    admin_resources,
+    admin_settings,
     auth,
     care,
     health,
@@ -77,6 +81,10 @@ ROUTERS = (
     teacher.router,
     insights.router,
     admin.router,
+    admin_directory.router,
+    admin_resources.router,
+    admin_insights.router,
+    admin_settings.router,
 )
 
 _REQUEST_ID_RE = re.compile(r"^[A-Za-z0-9._-]{8,64}$")

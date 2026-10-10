@@ -94,7 +94,7 @@ function Headline({ analytics }: { analytics: GroupAnalytics }) {
 
 function WeeklyTable({ weeks }: { weeks: WeekFigures[] }) {
   return (
-    <div className="overflow-x-auto">
+    <div className="relative overflow-x-auto">
       <table className="w-full min-w-[34rem] text-left text-sm">
         <caption className="sr-only">
           Weekly shares of students. Small numbers of students are described in words, never
