@@ -12,7 +12,7 @@ AI-assisted, privacy-preserving student wellness and therapist support platform 
 |------|---------|
 | `apps/web` | Next.js + TypeScript + Tailwind + shadcn/ui frontend (all four role portals) |
 | `services/api` | FastAPI backend: auth, RBAC, domain logic, PostgreSQL, Redis |
-| `services/ml` | Internal ML inference service: risk signals, sentiment, crisis detection, safety layer |
+| `services/ml` | Internal AI service: the wellness companion behind a safety layer (crisis rules, input and output guards); risk signals later |
 | `packages/contracts` | Shared API contracts (OpenAPI spec, generated types) |
 | `infra` | Docker and AWS (Terraform) infrastructure |
 | `data/synthetic` | Synthetic-data generators and fixtures (no real data, ever) |

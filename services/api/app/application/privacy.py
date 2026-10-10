@@ -12,11 +12,10 @@ from sqlalchemy import or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.application import cohort_stats, institution_settings
-from app.application.access import has_active_care_link
+from app.application import cohort_stats
 from app.application.auth.errors import Conflict
 from app.application.errors import InvalidInput
-from app.application.notifications import notify
+from app.application.escalation import raise_alert
 from app.application.student_wellness import authorize_own
 from app.application.timeutil import now_utc
 from app.core.config import Settings
@@ -32,8 +31,6 @@ from app.infrastructure.db.enums import (
     AlertStatus,
     AuditOutcome,
     ConsentScope,
-    NotificationPriority,
-    NotificationType,
     UserRole,
 )
 from app.infrastructure.db.ids import uuid7
@@ -381,49 +378,19 @@ async def request_support(
     if recent is not None:  # repeated taps must not flood the team: one request is already out
         return HelpRequestResult(recent, True, recent.assigned_to is not None)
 
-    primary = await db.scalar(
-        select(m.CareTeamMember.therapist_id)
-        .where(
-            m.CareTeamMember.student_id == actor.user_id,
-            m.CareTeamMember.institution_id == actor.institution_id,
-            m.CareTeamMember.starts_at <= now,
-            m.CareTeamMember.ends_at.is_(None),
-        )
-        .order_by(m.CareTeamMember.role, m.CareTeamMember.starts_at)
-        .limit(1)
-    )
-    assigned = primary
-    if assigned is not None and not await has_active_care_link(
-        db, therapist_id=assigned, student_id=actor.user_id, now=now
-    ):
-        assigned = None
-    safety = (await institution_settings.load(db, actor.institution_id)).safety
-    alert = m.RiskAlert(
-        id=uuid7(),
+    escalation = await raise_alert(
+        db,
         institution_id=actor.institution_id,
         student_id=actor.user_id,
-        assigned_to=assigned,
         source=AlertSource.HELP_BUTTON,
         detector=AlertDetector.HUMAN,
         category=AlertCategory.ACUTE_DISTRESS,
         severity=AlertSeverity.HIGH,
-        status=AlertStatus.OPEN,
-        requires_human=True,
+        title="A student has asked for support",
+        now=now,
         excerpt=text,
-        sla_ack_due_at=now + dt.timedelta(minutes=safety.alert_ack_minutes),
     )
-    db.add(alert)
-    await db.flush()
-    if assigned is not None:
-        await notify(
-            db,
-            institution_id=actor.institution_id,
-            user_id=assigned,
-            type=NotificationType.RISK_ALERT,
-            priority=NotificationPriority.CRITICAL,
-            title="A student has asked for support",
-            payload={"alert_id": str(alert.id)},
-        )
+    alert = escalation.alert
     await append_audit_event(
         db,
         institution_id=actor.institution_id,
@@ -436,4 +403,4 @@ async def request_support(
         subject_student_id=actor.user_id,
     )
     await db.commit()
-    return HelpRequestResult(alert, False, assigned is not None)
+    return HelpRequestResult(alert, False, escalation.assigned_to_care_team)

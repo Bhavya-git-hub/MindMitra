@@ -71,7 +71,7 @@ says otherwise. Each phase ends with tests run and passing (rule 20).
   - **Student portal: done** (API + 20 screens; ADR 0005): dashboard, daily check-in, mood,
     stress and sleep tracking, WHO-5 wellbeing check, trends, goals, rule-based suggestions,
     therapist search and profile, booking and cancellation, messages, resources, privacy
-    center, consent, urgent support. AI companion page is an entry point only (Phase 6).
+    center, consent, urgent support. AI companion built in Phase 6.
     Still to do here: private journal screens, own-data **deletion** request.
 - Therapist: caseload view, availability, appointment booking/confirmation
 - Encrypted session notes (Clinical-Confidential), visible to author only
@@ -130,6 +130,14 @@ language and fail-safe behaviour.
 - Red-team test suite of unsafe prompts
 
 **Exit:** companion passes the safety red-team suite; crisis messages escalate every time.
+
+**Status:** built ([ADR 0010](docs/adr/0010-ai-wellness-companion-and-safety-layer.md)). The AI
+service (`services/ml`) has the guarded prompt, input and output guards, crisis rules shared
+with the API, a provider interface (Anthropic by default, an offline fake for development), and
+red-team, never-miss and normal-conversation suites. The API escalates crisis messages before
+the model is called, enforces limits and retention, and lets students delete conversations.
+Still to do: reporting a reply, retrieval of vetted resources, and a trained crisis classifier
+alongside the rules.
 
 ---
 

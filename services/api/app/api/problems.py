@@ -22,6 +22,7 @@ _TITLES = {
     422: "Unprocessable content",
     429: "Too many requests",
     500: "Internal server error",
+    503: "Service unavailable",
 }
 _SLUGS = {
     401: "unauthorized",
@@ -30,6 +31,7 @@ _SLUGS = {
     409: "conflict",
     422: "validation-error",
     429: "rate-limited",
+    503: "unavailable",
 }
 
 

@@ -39,7 +39,9 @@ SCOPES: tuple[ScopeInfo, ...] = (
         ConsentScope.SHARE_AI_SIGNALS_WITH_CARE_TEAM,
         "Share AI companion signals with my therapist",
         "If you use the AI companion, allows high-level signals (never your conversation) to "
-        "reach your care team. The companion is not available yet, so nothing is shared.",
+        "reach your care team. The companion doesn't share any signals yet. Whatever you "
+        "choose, if a message suggests you may not be safe, your counselling team is asked to "
+        "reach out, without seeing what you wrote.",
     ),
     ScopeInfo(
         ConsentScope.JOURNAL_SAFETY_SCANNING,
@@ -50,8 +52,9 @@ SCOPES: tuple[ScopeInfo, ...] = (
     ScopeInfo(
         ConsentScope.AI_COMPANION_HISTORY,
         "Keep my AI companion history",
-        "Lets the companion remember earlier conversations. Turn it off and each conversation "
-        "starts fresh.",
+        "Keeps your companion conversations for 90 days after your last message. Turn it off "
+        "and each conversation is deleted a day after your last message. You can delete a "
+        "conversation yourself at any time.",
     ),
     ScopeInfo(
         ConsentScope.ANONYMOUS_AGGREGATE_RESEARCH,

@@ -263,8 +263,9 @@ def can_handle_risk_alert(
     assigned_to: uuid.UUID | None,
     has_active_care_link: bool,
 ) -> Decision:
-    """An alert is handled by the therapist it is assigned to, or (while unassigned) by a
-    therapist on the student's care team."""
+    """An alert is handled by the therapist it is assigned to. An unassigned alert (the
+    student has no care-team therapist) belongs to the counselling team: any therapist at the
+    institution may pick it up, and acknowledging assigns it to them (ADR 0010)."""
     if actor.role is not Role.THERAPIST:
         return deny("role_not_permitted")
     if not same_tenant(actor, alert_institution_id):
@@ -275,9 +276,9 @@ def can_handle_risk_alert(
             if assigned_to == actor.user_id
             else deny("assigned_to_someone_else", hide=True)
         )
-    if not has_active_care_link:
-        return deny("no_care_team_link", hide=True)
-    return allow("care_team_unassigned")
+    if has_active_care_link:
+        return allow("care_team_unassigned")
+    return allow("counselling_team_unassigned")
 
 
 def can_verify_therapist(

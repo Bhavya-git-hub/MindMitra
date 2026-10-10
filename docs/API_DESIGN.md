@@ -112,7 +112,7 @@ it; `409` invalid transition or duplicate; `422` validation, weak password, unkn
 | Invitations | `POST /users/invitations`, `POST /auth/invitations/accept` | `POST /admin/users` sends an account-setup link; the user completes it with `POST /auth/password/reset` |
 | User admin paths | `/users`, `/users/{id}/deactivate` | `/admin/users`, `PATCH /admin/users/{id}` with a status |
 | Institution settings | `/admin/institution` | `/admin/config`; notification, safety and crisis-contact settings under `/admin/settings/...` |
-| Administrator portal | `/admin/health`, `/admin/ai/kill-switch` | Everything an administrator does is under `/admin/...`, guarded by one permission per area. No admin route returns individual wellbeing, therapy, message or companion content ([ADR 0008](adr/0008-administrator-portal-scope-and-confidentiality.md)) |
+| Administrator portal | `/admin/health`, `/admin/settings/safety` (companion switch) | Everything an administrator does is under `/admin/...`, guarded by one permission per area. No admin route returns individual wellbeing, therapy, message or companion content ([ADR 0008](adr/0008-administrator-portal-scope-and-confidentiality.md)) |
 | Therapist views | Nested under `/checkins`, `/session-notes` | Everything a therapist does is under `/therapist/...`; the older `/students*` routes remain for now. Student data needs a **verified** therapist, an **active care link**, and (for check-ins and wellbeing checks) the student's **consent**. Conversations reuse `/me/conversations` |
 | Teacher portal | `/referrals` for faculty, `/analytics` | Everything a teacher does is under `/teacher/...`; referral triage is under `/therapist/referrals`. Group figures use fixed 4/8/12 completed-week windows, size bands and rounded shares ([ADR 0007](adr/0007-teacher-portal-aggregation-thresholds-and-referrals.md)). The legacy `GET /insights/mood-summary` uses the same completed-week window and rounding, and counts only students who consented |
 | Student portal | `/checkins`, `/journal`, `/threads`, `/consent`, `/privacy`, `/safety` | Everything a student does is under `/me/...` with no student id in the path, so the caller can only ever address their own data (`403/404` tests cover other students' ids on the staff routes). Check-in is `POST /me/check-ins`; messages are keyed by the other person; consent is `/me/consents`. Time zone comes from `?tz=` (IANA) per request |
@@ -198,13 +198,16 @@ Legend for **Who**: `S` student, `T` therapist, `F` faculty, `A` institution adm
 
 ### 2.4 AI companion (`/companion`)
 
+Built in Phase 6 ([ADR 0010](adr/0010-ai-wellness-companion-and-safety-layer.md)).
+
 | Method & path | Who | Purpose |
 |---------------|-----|---------|
-| `POST /companion/conversations` | S | Start a conversation |
-| `POST /companion/conversations/{id}/messages` | S own | Send message; streams assistant reply via SSE; runs crisis detection first |
-| `GET /companion/conversations` / `/{id}` | S own | History (subject to retention) |
-| `DELETE /companion/conversations/{id}` | S own | Delete immediately |
-| `POST /companion/messages/{id}/report` | S own | Report a bad response |
+| `GET /companion/status` | S | Whether the companion is on, today's allowance, retention and the disclaimer |
+| `POST /companion/conversations` | S | Start a conversation (`ai_companion:use:own`) |
+| `POST /companion/conversations/{id}/messages` | S own | Send a message (at most 2,000 characters) and get the whole reply back (not streamed). Crisis rules run first; a crisis returns a fixed reply, `support.level="crisis"` with contacts, and raises an alert. 429 with `Retry-After` over a limit, 503 when switched off or not configured, 409 while a reply is pending |
+| `GET /companion/conversations` / `/{id}` | S own | Conversations and messages that have not expired |
+| `DELETE /companion/conversations/{id}` | S own | Delete immediately (204) |
+| `POST /companion/messages/{id}/report` | S own | Report a bad response (not built yet) |
 
 Teachers, therapists and admins have **no** companion access.
 
@@ -299,7 +302,7 @@ Teachers, therapists and admins have **no** companion access.
 | `GET /admin/audit` | A | Search audit events (metadata, never content) |
 | `GET/PATCH /admin/institution` | A | Institution settings |
 | `GET /admin/health` | A, PA | Queue depth, notification failures, ML status |
-| `POST /admin/ai/kill-switch` | A | Disable companion for institution |
+| `PATCH /admin/settings/safety` | A | Includes `companion_enabled` (the institution's switch) and `companion_daily_messages` (10 to 500) |
 
 ### 2.14 Health (`/health`)
 
@@ -314,10 +317,11 @@ Teachers, therapists and admins have **no** companion access.
 | `POST /internal/v1/crisis/detect` | api | Text → `{crisis, category, confidence, requires_human, rules_hit}` |
 | `POST /internal/v1/signals/support-need` | worker | Feature vector → band + factors |
 | `POST /internal/v1/sentiment` | worker | Text → score |
-| `POST /internal/v1/companion/respond` | api | Guardrailed generation (streamed) |
-| `GET /internal/v1/models` | api | Loaded model versions |
+| `POST /internal/v1/companion/respond` | api | **Built.** `{message, history}` → `{kind, reply, crisis, topic, flags, model_version}`; `kind` is `reply`, `crisis` (no reply: the API answers), `redirect`, `fallback` or `unavailable`. Not streamed |
+| `GET /internal/v1/models` | api | **Built.** Model, prompt and crisis-rules versions |
+| `GET /internal/v1/health` | infra | **Built.** Liveness, no authentication, no details |
 
-Auth: signed service token (JWT with `aud=ml`, 5 min) + private network only. The ML service
+Auth: signed service token (HS256 JWT with `aud=mindmitra-ml`, `iss=mindmitra-api`, 5 min, secret `ML_SERVICE_TOKEN`) + private network only. The ML service
 **does not persist request text**.
 
 ## 3. Representative payloads

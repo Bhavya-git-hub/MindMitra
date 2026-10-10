@@ -24,6 +24,7 @@ from app.infrastructure.db.enums import (
     AdminLevel,
     AIConversationStatus,
     AIMessageRole,
+    AIReplyKind,
     AlertCategory,
     AlertDetector,
     AlertSeverity,
@@ -788,6 +789,7 @@ async def seed_database(session: AsyncSession, cfg: SeedConfig | None = None) ->
                 status=AIConversationStatus.ENDED,
                 model_version="synthetic-companion-0.1",
                 expires_at=started + dt.timedelta(days=30),
+                last_message_at=started + dt.timedelta(minutes=8),
                 created_at=started,
                 updated_at=started,
             )
@@ -804,6 +806,7 @@ async def seed_database(session: AsyncSession, cfg: SeedConfig | None = None) ->
                             c.AI_USER_PROMPTS if user_turn else c.AI_ASSISTANT_REPLIES
                         ),
                         token_count=rng.randint(20, 160),
+                        reply_kind=None if user_turn else AIReplyKind.REPLY,
                         created_at=ts,
                         updated_at=ts,
                     )

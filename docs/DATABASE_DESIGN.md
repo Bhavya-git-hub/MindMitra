@@ -143,6 +143,18 @@ erDiagram
   it gets its own reminders. Composite FK to the appointment, cascading.
 - `set_updated_at` triggers on both new tables.
 
+### 0.1f AI companion (migration `0010`)
+
+- `ai.ai_conversations` gains `last_message_at` (backfilled from the newest message). Retention
+  runs from it: `expires_at` is one day after the last message, or 90 days with the
+  `AI_COMPANION_HISTORY` consent. Expired rows are hidden at once and deleted by the scheduler.
+- `ai.ai_messages` gains `reply_kind` (`reply`, `crisis`, `redirect`, `fallback`,
+  `unavailable`), set only on assistant messages (`ck_ai_messages_reply_kind_on_assistant`).
+  Content stays encrypted (`EncryptedText("ai.ai_messages.content")`).
+- Institution settings (`safety`) gain `companion_enabled` and `companion_daily_messages`
+  (10 to 500), validated in code like the other settings.
+- See [ADR 0010](adr/0010-ai-wellness-companion-and-safety-layer.md).
+
 ### 0.2 Requirements checklist
 
 | Requirement | How it is met |
@@ -188,7 +200,7 @@ erDiagram
 | Row-level security | Policies on tenant tables | **Not yet.** `institution_id` is on all tenant tables and `session.set_rls_context()` sets `app.user_id`, `app.institution_id`, `app.role` per transaction | Policies need the authorization model; they ship with it |
 | Enum storage | Not specified | `VARCHAR(32)` + named CHECK constraint instead of native PostgreSQL enums | Values can be added by a normal migration without `ALTER TYPE` |
 | Audit | Append-only, hash-chained | Implemented: BEFORE UPDATE/DELETE/TRUNCATE triggers reject changes; `hash = SHA256(prev_hash + canonical fields)` per institution; advisory lock serialises appends; `verify_chain()` finds the first altered row | As designed; S3 Object Lock checkpoints are a deployment task |
-| Retention | Sweep jobs | `ai_conversations.expires_at` and soft-delete columns exist; no job yet | Background-worker phase |
+| Retention | Sweep jobs | Companion conversations are swept by the scheduler once `expires_at` passes (migration `0010`); other soft-delete columns have no job yet | The rest belongs to the background-worker phase |
 | Not yet built | `resource_interaction`, `video_session`, `referral*`, `notification_preference`, `delivery_log`, `outbox_event`, `push_subscription`, `analytics.*`, resource embeddings | Deferred | Each belongs to a later feature phase |
 
 ### 0.5 Running it

@@ -18,7 +18,6 @@ from app.application.therapist_access import require_verified
 from app.domain.auth.policies import (
     Principal,
     can_manage_appointment,
-    can_read_ai_conversation,
     can_read_student_wellness,
     can_read_therapy_note,
 )
@@ -102,32 +101,6 @@ async def own_appointments(db: AsyncSession, actor: Principal, limit: int) -> li
         .limit(min(limit, MAX_LIMIT))
     )
     return list(rows)
-
-
-async def own_ai_conversations(
-    db: AsyncSession, actor: Principal, limit: int
-) -> list[m.AIConversation]:
-    rows = list(
-        await db.scalars(
-            select(m.AIConversation)
-            .where(
-                m.AIConversation.student_id == actor.user_id,
-                m.AIConversation.deleted_at.is_(None),
-            )
-            .order_by(m.AIConversation.started_at.desc())
-            .limit(min(limit, MAX_LIMIT))
-        )
-    )
-    for conv in rows:  # defence in depth: the query is already scoped to the caller
-        enforce(
-            can_read_ai_conversation(
-                actor, owner_student_id=conv.student_id, institution_id=conv.institution_id
-            ),
-            action="ai_conversation.list",
-            resource_type="ai_conversation",
-            resource_id=conv.id,
-        )
-    return rows
 
 
 # ---- therapist: assigned students ------------------------------------------------------------

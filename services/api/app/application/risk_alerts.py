@@ -1,7 +1,8 @@
 """Support alerts for the therapist who is looking after the student.
 
 An alert means "a person should reach out", never a conclusion about the student. A therapist
-sees an alert assigned to them, or an unassigned one for a student on their care team.
+sees an alert assigned to them, or an unassigned one: a student with no care-team therapist
+belongs to the whole counselling team, and whoever acknowledges the alert takes it.
 Alerts are not consent-gated (the student asked for help, or a safety rule fired), but every
 list and every action is audited, without the excerpt text.
 """
@@ -14,7 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.application.access import NotFound, enforce, has_active_care_link
 from app.application.errors import InvalidInput
-from app.application.therapist_access import active_students, require_verified
+from app.application.therapist_access import require_verified
 from app.application.timeutil import now_utc
 from app.domain.auth.policies import Principal, can_handle_risk_alert
 from app.infrastructure.db import models as m
@@ -73,11 +74,8 @@ async def list_alerts(
             .where(
                 m.RiskAlert.institution_id == actor.institution_id,
                 m.RiskAlert.status.in_(statuses),
-                or_(
-                    m.RiskAlert.assigned_to == actor.user_id,
-                    (m.RiskAlert.assigned_to.is_(None))
-                    & m.RiskAlert.student_id.in_(active_students(actor)),
-                ),
+                # Unassigned alerts (no care-team therapist) are the counselling team's.
+                or_(m.RiskAlert.assigned_to == actor.user_id, m.RiskAlert.assigned_to.is_(None)),
             )
             .order_by(
                 severity_rank,

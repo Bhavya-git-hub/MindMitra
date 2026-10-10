@@ -272,6 +272,17 @@ privacy officer, and auto-expires.
 - Companion has no tools, DB, or network access; context = own session + vetted resources.
 - Prompt-injection and jailbreak test suite in CI; output PII scrub; per-user quotas.
 - Provider contract: no training on data, no retention beyond processing, region-pinned.
+- As built ([ADR 0010](adr/0010-ai-wellness-companion-and-safety-layer.md)):
+  - Only `services/ml` holds a model key (`ANTHROPIC_API_KEY`, from the environment, sent only
+    in the request header). The API reaches it with a five-minute HS256 service token signed
+    with `ML_SERVICE_TOKEN`; https is required in staging and production.
+  - The AI service receives no user identifiers, stores and logs no text, and does not echo
+    input in validation errors.
+  - Emails, links, phone numbers and ID-like numbers are scrubbed before text reaches the model.
+  - Crisis rules run in the API before limits and switches, so a crisis is escalated even when
+    the AI service is down.
+  - Limits: 8 messages a minute per student (in process), a daily allowance from institution
+    settings, an institution switch and the deployment-wide `COMPANION_ENABLED`.
 
 ### 6.4 Supply chain
 

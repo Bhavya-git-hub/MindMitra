@@ -120,6 +120,16 @@ class AIMessageRole(enum.StrEnum):
     ASSISTANT = "assistant"
 
 
+class AIReplyKind(enum.StrEnum):
+    """How an assistant message was produced (ADR 0010)."""
+
+    REPLY = "reply"  # a model reply that passed the output checks
+    CRISIS = "crisis"  # a fixed crisis reply with contacts; a person was alerted
+    REDIRECT = "redirect"  # a fixed reply to a request the companion must not answer
+    FALLBACK = "fallback"  # a fixed reply that replaced a model reply failing a check
+    UNAVAILABLE = "unavailable"  # the AI service could not be reached
+
+
 class AIConversationStatus(enum.StrEnum):
     ACTIVE = "active"
     ENDED = "ended"

@@ -22,6 +22,8 @@ SAFETY_INVARIANTS: Final[tuple[str, ...]] = (
     "A teacher's safety concern always raises an alert for a person to review.",
     "Alerts are reviewed by people. Nothing here lets a system act on a student automatically.",
     "At least one emergency contact must stay active.",
+    "The AI companion never diagnoses, never discusses medication, and hands every crisis to "
+    "a person; a crisis message always gets crisis contacts, even over the daily limit.",
 )
 
 
@@ -50,8 +52,12 @@ class SafetySettings(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     # How long a therapist has to acknowledge an alert raised by a student's request for
-    # a person to reach out, or by a teacher's safety referral.
+    # a person to reach out, a teacher's safety referral, or the AI companion.
     alert_ack_minutes: int = Field(default=15, ge=5, le=1440)
+    # The AI companion for students. Off hides it; crisis contacts and Get help stay.
+    companion_enabled: bool = True
+    # Messages one student may send the companion per day (crisis messages always get through).
+    companion_daily_messages: int = Field(default=100, ge=10, le=500)
 
 
 def merged[T: BaseModel](model: type[T], stored: dict[str, object] | None) -> T:

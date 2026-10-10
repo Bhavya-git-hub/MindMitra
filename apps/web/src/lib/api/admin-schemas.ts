@@ -245,7 +245,11 @@ export const notificationSettingsSchema = z.object({
 export type NotificationSettings = z.infer<typeof notificationSettingsSchema>;
 
 export const safetySettingsSchema = z.object({
-  values: z.object({ alert_ack_minutes: z.number().int() }),
+  values: z.object({
+    alert_ack_minutes: z.number().int(),
+    companion_enabled: z.boolean(),
+    companion_daily_messages: z.number().int(),
+  }),
   fixed_rules: z.array(z.string()),
 });
 export type SafetySettings = z.infer<typeof safetySettingsSchema>;

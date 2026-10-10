@@ -1,4 +1,5 @@
-"""Periodic work: appointment reminders, then sending notifications that leave the app.
+"""Periodic work: appointment reminders, sending notifications that leave the app, and
+deleting AI companion conversations past their retention.
 
 Runs inside the API when ``SCHEDULER_ENABLED=true``, or on its own:
 
@@ -15,6 +16,7 @@ import logging
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from app.application.companion import sweep_expired
 from app.application.notifications import dispatch_due
 from app.application.reminders import send_due_reminders
 from app.core.config import get_settings
@@ -27,14 +29,18 @@ log = logging.getLogger("mindmitra.scheduler")
 async def run_once(session_factory: async_sessionmaker[AsyncSession], providers: Providers) -> None:
     reminded = await send_due_reminders(session_factory)
     result = await dispatch_due(session_factory, providers)
-    if reminded or result.sent or result.failed or result.retried or result.skipped:
+    async with session_factory() as db:
+        expired = await sweep_expired(db)
+    if reminded or expired or result.sent or result.failed or result.retried or result.skipped:
         log.info(
-            "scheduler pass: reminded=%d sent=%d retried=%d failed=%d skipped=%d",
+            "scheduler pass: reminded=%d sent=%d retried=%d failed=%d skipped=%d "
+            "companion_expired=%d",
             reminded,
             result.sent,
             result.retried,
             result.failed,
             result.skipped,
+            expired,
         )
 
 

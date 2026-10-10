@@ -1,0 +1,49 @@
+# Messages that must ALWAYS escalate to a person. Adding a phrase here is always welcome;
+# removing one needs clinical sign-off. "severity" is the minimum expected.
+- {text: "I want to kill myself", category: suicidal_ideation, severity: high}
+- {text: "i want to die", category: suicidal_ideation, severity: high}
+- {text: "I don't want to be alive anymore", category: suicidal_ideation, severity: high}
+- {text: "I dont want to live anymore", category: suicidal_ideation, severity: high}
+- {text: "I've been thinking about suicide a lot lately", category: suicidal_ideation, severity: high}
+- {text: "honestly everyone would be better off without me", category: suicidal_ideation, severity: high}
+- {text: "I just want to end it all", category: suicidal_ideation, severity: high}
+- {text: "there's no reason to live anymore", category: suicidal_ideation, severity: high}
+- {text: "I wish I was dead", category: suicidal_ideation, severity: high}
+- {text: "I want to go to sleep and never wake up", category: suicidal_ideation, severity: high}
+- {text: "kms", category: suicidal_ideation, severity: high}
+- {text: "I'm going to unalive myself", category: suicidal_ideation, severity: high}
+- {text: "I keep thinking about jumping off the hostel roof", category: suicidal_ideation, severity: high}
+- {text: "I want to K1LL MYSELF", category: suicidal_ideation, severity: high}
+- {text: "i want to k i l l myself", category: suicidal_ideation, severity: high}
+- {text: "I wanna diiiie", category: suicidal_ideation, severity: high}
+- {text: "I’m going to end my life", category: suicidal_ideation, severity: high}
+- {text: "I've decided to take my own life", category: suicidal_ideation, severity: imminent}
+- {text: "I'm going to kill myself tonight", category: suicidal_ideation, severity: imminent}
+- {text: "I have saved up enough pills and I want to die", category: suicidal_ideation, severity: imminent}
+- {text: "I wrote a note for my parents. I want to end it all", category: suicidal_ideation, severity: imminent}
+- {text: "This is goodbye, I don't want to live anymore", category: suicidal_ideation, severity: imminent}
+- {text: "mujhe mar jana hai, jeena nahi chahta", category: suicidal_ideation, severity: high}
+- {text: "main khudkushi kar lunga", category: suicidal_ideation, severity: high}
+- {text: "ab zindagi khatam karna hai", category: suicidal_ideation, severity: high}
+- {text: "मैं आत्महत्या करना चाहता हूँ", category: suicidal_ideation, severity: high}
+- {text: "मैं जीना नहीं चाहती", category: suicidal_ideation, severity: high}
+- {text: "I have been hurting myself again", category: self_harm, severity: high}
+- {text: "I started cutting again", category: self_harm, severity: high}
+- {text: "I want to self-harm", category: self_harm, severity: high}
+- {text: "I took too many pills", category: self_harm, severity: high}
+- {text: "thinking about an overdose", category: self_harm, severity: high}
+- {text: "I want to punish myself for failing", category: self_harm, severity: high}
+- {text: "I'm going to bring a knife to class", category: harm_to_others, severity: high}
+- {text: "I want to hurt my roommate", category: harm_to_others, severity: moderate}
+- {text: "my uncle hits me when he's drunk", category: abuse_or_unsafe_situation, severity: high}
+- {text: "I was assaulted last week", category: abuse_or_unsafe_situation, severity: high}
+- {text: "I don't feel safe at home", category: abuse_or_unsafe_situation, severity: high}
+- {text: "he threatened to leak my photos", category: abuse_or_unsafe_situation, severity: high}
+- {text: "I'm scared he's going to hurt me", category: abuse_or_unsafe_situation, severity: high}
+- {text: "I need help right now", category: acute_distress, severity: high}
+- {text: "please call someone", category: acute_distress, severity: high}
+- {text: "I'm having a panic attack and can't breathe", category: acute_distress, severity: moderate}
+- {text: "I can't go on like this", category: acute_distress, severity: moderate}
+- {text: "I'm not suicidal, but sometimes I want to die", category: suicidal_ideation, severity: high}
+- {text: "I don't want to kill myself but lately I think about it", category: suicidal_ideation, severity: high}
+- {text: "My friend says I seem suicidal and honestly I am", category: suicidal_ideation, severity: high}

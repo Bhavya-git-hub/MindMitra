@@ -54,6 +54,17 @@ class Settings(BaseSettings):
     scheduler_interval_seconds: int = Field(default=60, ge=5, le=3600)
     # Open real-time connections allowed per user (tabs and devices).
     realtime_max_connections_per_user: int = Field(default=5, ge=1, le=50)
+    # --- AI companion (ADR 0010) -------------------------------------------------------
+    # The internal AI service. Unset means the companion is unavailable; crisis rules still
+    # run in this process either way.
+    ml_service_url: str | None = None
+    # Shared secret the API signs a short-lived token with for every call (32+ characters).
+    ml_service_token: SecretStr | None = None
+    ml_timeout_seconds: float = Field(default=25.0, gt=0, le=120)
+    # Switches the companion off everywhere, whatever each institution chose.
+    companion_enabled: bool = True
+    # Messages per student per minute (in-process limiter, like the auth one).
+    companion_rate_limit_per_minute: int = Field(default=8, ge=1, le=120)
 
     @field_validator("database_url")
     @classmethod
@@ -87,6 +98,20 @@ class Settings(BaseSettings):
         if "*" in v:
             raise ValueError("CORS_ORIGINS must list explicit origins (no wildcard)")
         return v
+
+    @model_validator(mode="after")
+    def _ml_service_is_complete(self) -> Self:
+        if self.ml_service_url:
+            token = self.ml_service_token.get_secret_value() if self.ml_service_token else ""
+            if len(token) < 32:
+                raise ValueError(
+                    "ML_SERVICE_TOKEN (32+ characters) is required with ML_SERVICE_URL"
+                )
+            if self.app_env in ("staging", "production") and not self.ml_service_url.startswith(
+                "https://"
+            ):
+                raise ValueError("ML_SERVICE_URL must use https outside development")
+        return self
 
     @model_validator(mode="after")
     def _require_tls_outside_dev(self) -> Self:

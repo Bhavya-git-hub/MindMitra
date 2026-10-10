@@ -23,6 +23,7 @@ from app.infrastructure.db.enums import (
 from app.infrastructure.db.ids import uuid7
 from tests.api_world import World
 from tests.student_helpers import Session, new_student, new_therapist
+from tests.therapist_helpers import fresh_therapist
 
 pytestmark = pytest.mark.asyncio
 
@@ -393,6 +394,23 @@ async def test_repeated_taps_do_not_flood_the_team(
     )
     assert count == 1
     assert (await s.post("/me/support-requests", {"message": "x" * 1001})).status_code == 422
+
+
+async def test_with_no_care_team_a_support_request_reaches_the_counselling_team(
+    client: httpx.AsyncClient, api_db: AsyncSession, world: World
+) -> None:
+    team = await fresh_therapist(client, api_db, world)
+    s = await new_student(client, api_db, world)
+    out = (await s.post("/me/support-requests", {"message": "please call"})).json()
+    assert out["reaches_care_team"] is False
+    note = await api_db.scalar(
+        select(m.Notification).where(
+            m.Notification.user_id == team.id, m.Notification.type == NotificationType.RISK_ALERT
+        )
+    )
+    assert note is not None and note.payload == {"alert_id": out["id"]}
+    seen = {a["id"] for a in (await team.get("/therapist/alerts")).json()}
+    assert out["id"] in seen
 
 
 async def test_safety_resources_are_national_plus_my_institution(
