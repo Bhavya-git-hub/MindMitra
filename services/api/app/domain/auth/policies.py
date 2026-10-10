@@ -116,3 +116,67 @@ def can_manage_user(
     if actor.user_id == target_user_id:
         return deny("cannot_manage_self")
     return allow("institution_admin")
+
+
+def can_use_own_student_record(
+    actor: Principal, *, student_id: uuid.UUID, institution_id: uuid.UUID
+) -> Decision:
+    """Create, change or read a private student record (goal, recommendation, consent ...).
+
+    Only the student it belongs to, in their own institution. Nobody else, whatever their role,
+    including a therapist on the care team: sharing is read-only and consent-gated elsewhere.
+    """
+    if actor.role is not Role.STUDENT:
+        return deny("role_not_permitted")
+    if not same_tenant(actor, institution_id) or actor.user_id != student_id:
+        return deny("not_owner", hide=True)
+    return allow("own_record")
+
+
+def can_book_with_therapist(
+    actor: Principal,
+    *,
+    therapist_institution_id: uuid.UUID,
+    accepting_new_students: bool,
+    has_active_care_link: bool,
+) -> Decision:
+    """Students book with therapists of their own institution who are taking new students
+    (or who already work with them)."""
+    if actor.role is not Role.STUDENT:
+        return deny("role_not_permitted")
+    if not same_tenant(actor, therapist_institution_id):
+        return deny("other_tenant", hide=True)
+    if not accepting_new_students and not has_active_care_link:
+        return deny("not_accepting_new_students")
+    return allow("student_booking")
+
+
+def can_cancel_appointment_as_student(
+    actor: Principal, *, appointment_institution_id: uuid.UUID, student_id: uuid.UUID
+) -> Decision:
+    if actor.role is not Role.STUDENT:
+        return deny("role_not_permitted")
+    if not same_tenant(actor, appointment_institution_id) or actor.user_id != student_id:
+        return deny("not_appointment_student", hide=True)
+    return allow("appointment_student")
+
+
+def can_message_in_conversation(
+    actor: Principal,
+    *,
+    conversation_institution_id: uuid.UUID,
+    student_id: uuid.UUID,
+    therapist_id: uuid.UUID,
+    has_active_care_link: bool,
+) -> Decision:
+    """A conversation is private to its student and therapist, and open only while they are on
+    the same care team."""
+    if actor.role not in (Role.STUDENT, Role.THERAPIST):
+        return deny("role_not_permitted")
+    if not same_tenant(actor, conversation_institution_id):
+        return deny("other_tenant", hide=True)
+    if actor.user_id not in (student_id, therapist_id):
+        return deny("not_a_participant", hide=True)
+    if not has_active_care_link:
+        return deny("no_care_team_link", hide=True)
+    return allow("conversation_participant")

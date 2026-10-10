@@ -18,7 +18,17 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 from app.api.deps import AppState, audit_denial
 from app.api.problems import install_problem_handlers, problem
 from app.api.rate_limit import SlidingWindowRateLimiter
-from app.api.routes import admin, auth, care, health, insights, me
+from app.api.routes import (
+    admin,
+    auth,
+    care,
+    health,
+    insights,
+    me,
+    student_care,
+    student_privacy,
+    student_wellness,
+)
 from app.application.access import AccessDenied, NotFound
 from app.application.auth.delivery import InMemoryTokenOutbox, TokenDelivery
 from app.application.auth.errors import (
@@ -30,6 +40,7 @@ from app.application.auth.errors import (
     RegistrationRejected,
 )
 from app.application.care import InvalidTransition
+from app.application.errors import InvalidInput
 from app.core.access_tokens import AccessTokenCodec, load_private_key
 from app.core.config import Settings, get_settings
 from app.domain.auth.policies import Principal
@@ -50,7 +61,17 @@ PUBLIC_ROUTES: frozenset[tuple[str, str]] = frozenset(
     }
 )
 
-ROUTERS = (health.router, auth.router, me.router, care.router, insights.router, admin.router)
+ROUTERS = (
+    health.router,
+    auth.router,
+    me.router,
+    student_wellness.router,
+    student_care.router,
+    student_privacy.router,
+    care.router,
+    insights.router,
+    admin.router,
+)
 
 _REQUEST_ID_RE = re.compile(r"^[A-Za-z0-9._-]{8,64}$")
 _SECURITY_HEADERS = {
@@ -134,7 +155,7 @@ def create_app(
             CORSMiddleware,
             allow_origins=s.cors_origin_list,
             allow_credentials=True,  # the refresh cookie
-            allow_methods=["GET", "POST", "PATCH", "DELETE"],
+            allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
             allow_headers=["Authorization", "Content-Type", "X-CSRF-Token", "X-Request-ID"],
             expose_headers=["X-Request-ID", "Retry-After"],
         )
@@ -196,3 +217,7 @@ def _install_domain_handlers(app: FastAPI) -> None:
     @app.exception_handler(InvalidTransition)
     async def _transition(request: Request, exc: InvalidTransition) -> JSONResponse:
         return problem(request, 409, str(exc))
+
+    @app.exception_handler(InvalidInput)
+    async def _invalid(request: Request, exc: InvalidInput) -> JSONResponse:
+        return problem(request, 422, str(exc) or "The request is not valid.")

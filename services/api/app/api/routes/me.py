@@ -9,7 +9,9 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_db, require_permission
-from app.application import care
+from app.api.schemas.student import StudentAppointmentOut, appointment_view_out
+from app.api.zone import Zone, since_days
+from app.application import booking, care, student_wellness
 from app.domain.auth.permissions import Permission, permissions_for
 from app.domain.auth.policies import Principal
 from app.infrastructure.db import models as m
@@ -89,9 +91,13 @@ async def me(
 async def my_mood_entries(
     db: Db,
     principal: Annotated[Principal, Depends(require_permission(Permission.WELLNESS_READ_OWN))],
+    zone: Zone,
     limit: Limit = 50,
+    days: Annotated[int | None, Query(ge=1, le=365)] = None,
 ) -> list[MoodEntryOut]:
-    rows = await care.own_mood_entries(db, principal, limit)
+    rows = await student_wellness.list_mood_entries(
+        db, principal, limit=limit, since=since_days(days, zone)
+    )
     return [
         MoodEntryOut(
             id=r.id,
@@ -109,9 +115,12 @@ async def my_mood_entries(
 async def my_appointments(
     db: Db,
     principal: Annotated[Principal, Depends(require_permission(Permission.APPOINTMENT_READ_OWN))],
+    upcoming: bool | None = None,
     limit: Limit = 50,
-) -> list[AppointmentOut]:
-    return [appointment_out(a) for a in await care.own_appointments(db, principal, limit)]
+) -> list[StudentAppointmentOut]:
+    """Own appointments, newest first (or soonest first with ``upcoming=true``)."""
+    rows = await booking.list_own(db, principal, upcoming=upcoming, limit=limit)
+    return [appointment_view_out(v) for v in rows]
 
 
 @router.get("/ai-conversations")

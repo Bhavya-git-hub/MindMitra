@@ -37,7 +37,7 @@ EXPECTED_TABLES = {
     "therapy": {"therapist_availability", "appointments", "therapy_sessions", "therapy_notes"},
     "comm": {"messages"},
     "ai": {"ai_conversations", "ai_messages", "recommendations"},
-    "safety": {"risk_alerts"},
+    "safety": {"risk_alerts", "crisis_contacts"},
     "consent": {"consents"},
     "notify": {"notifications"},
     "audit": {"audit_logs"},

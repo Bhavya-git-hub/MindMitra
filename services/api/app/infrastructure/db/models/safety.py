@@ -10,6 +10,7 @@ from sqlalchemy import (
     DateTime,
     Index,
     Numeric,
+    SmallInteger,
     String,
     text,
 )
@@ -22,6 +23,7 @@ from app.infrastructure.db.base import (
     TimestampMixin,
     UUIDPrimaryKeyMixin,
     enum_col,
+    fk_uuid,
     tenant_fk,
     uuid_col,
 )
@@ -32,6 +34,7 @@ from app.infrastructure.db.enums import (
     AlertSeverity,
     AlertSource,
     AlertStatus,
+    CrisisContactKind,
 )
 
 
@@ -113,3 +116,39 @@ class RiskAlert(UUIDPrimaryKeyMixin, TenantMixin, TimestampMixin, Base):
     )
     resolved_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     outcome: Mapped[str | None] = mapped_column(String(60), nullable=True)
+
+
+class CrisisContact(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    """A place to get help right now: emergency number, helpline or campus service.
+
+    ``institution_id`` NULL means the contact applies to every institution (national lines).
+    Shown to students on the emergency page; kept in the database so an institution can keep
+    its own contacts current without a code change.
+    """
+
+    __tablename__ = "crisis_contacts"
+    __table_args__ = (
+        CheckConstraint("btrim(label) <> ''", name="label_not_blank"),
+        CheckConstraint(
+            "phone IS NOT NULL OR url IS NOT NULL OR description IS NOT NULL",
+            name="has_a_way_to_reach",
+        ),
+        Index("ix_crisis_contacts_institution_active", "institution_id", "is_active", "sort_order"),
+        {"schema": "safety"},
+    )
+
+    institution_id: Mapped[uuid.UUID | None] = fk_uuid(
+        "org.institutions.id", ondelete="CASCADE", nullable=True
+    )
+    label: Mapped[str] = mapped_column(String(160), nullable=False)
+    kind: Mapped[CrisisContactKind] = mapped_column(
+        enum_col(CrisisContactKind, "crisis_contact_kind"), nullable=False
+    )
+    phone: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    description: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    hours: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    sort_order: Mapped[int] = mapped_column(
+        SmallInteger, nullable=False, server_default=text("100")
+    )
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("true"))

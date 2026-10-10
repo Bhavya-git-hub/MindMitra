@@ -21,7 +21,13 @@ from app.domain.auth.policies import (
 )
 from app.infrastructure.db import models as m
 from app.infrastructure.db.audit import append_audit_event
-from app.infrastructure.db.enums import AppointmentStatus, AuditOutcome, ConsentScope, UserRole
+from app.infrastructure.db.enums import (
+    AppointmentStatus,
+    AuditOutcome,
+    CareRole,
+    ConsentScope,
+    UserRole,
+)
 
 MAX_LIMIT = 200
 
@@ -269,6 +275,36 @@ class InvalidTransition(Exception):
     pass
 
 
+async def _ensure_care_link(db: AsyncSession, appt: m.Appointment) -> None:
+    """Confirming a first appointment puts the student on the therapist's care team.
+
+    That is what lets the two of them message each other; it does not by itself let the
+    therapist see any wellbeing data (that also needs the student's consent).
+    """
+    now = _now()
+    if await has_active_care_link(
+        db, therapist_id=appt.therapist_id, student_id=appt.student_id, now=now
+    ):
+        return
+    has_primary = await db.scalar(
+        select(m.CareTeamMember.id).where(
+            m.CareTeamMember.student_id == appt.student_id,
+            m.CareTeamMember.role == CareRole.PRIMARY,
+            m.CareTeamMember.ends_at.is_(None),
+        )
+    )
+    db.add(
+        m.CareTeamMember(
+            institution_id=appt.institution_id,
+            student_id=appt.student_id,
+            therapist_id=appt.therapist_id,
+            role=CareRole.SECONDARY if has_primary else CareRole.PRIMARY,
+            starts_at=now,
+        )
+    )
+    await db.flush()
+
+
 async def update_appointment_status(
     db: AsyncSession, actor: Principal, appointment_id: uuid.UUID, new_status: AppointmentStatus
 ) -> m.Appointment:
@@ -288,6 +324,8 @@ async def update_appointment_status(
         raise InvalidTransition(f"cannot change an appointment from {appt.status} to {new_status}")
     old = appt.status
     appt.status = new_status
+    if new_status is AppointmentStatus.CONFIRMED:
+        await _ensure_care_link(db, appt)
     if new_status is AppointmentStatus.CANCELLED:
         appt.cancelled_at = _now()
         appt.cancelled_by = actor.user_id
