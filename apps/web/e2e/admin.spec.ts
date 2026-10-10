@@ -252,7 +252,7 @@ test.describe("administrator portal (real API)", () => {
     await signInAndWait(page, "administrator");
     await open(page, "/admin/settings", /^Settings$/);
 
-    await page.getByRole("button", { name: "Notifications" }).click();
+    await page.getByRole("button", { name: "Notifications", exact: true }).click();
     const hours = page.getByLabel("Hours before an appointment");
     await hours.fill("24, 0");
     await page.getByRole("button", { name: "Save" }).click();

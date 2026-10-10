@@ -12,7 +12,11 @@ export function Header({ role }: { role: Role }) {
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center gap-1 border-b bg-background/90 px-2 backdrop-blur sm:gap-2 sm:px-6">
       <MobileNav role={role} />
-      <Link href={PORTAL_PATHS[role]} className="rounded-lg md:hidden" aria-label="MindMitra home">
+      <Link
+        href={PORTAL_PATHS[role]}
+        className="rounded-lg max-[379px]:hidden md:hidden"
+        aria-label="MindMitra home"
+      >
         <Logo showName={false} />
       </Link>
       <div className="flex-1" />

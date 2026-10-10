@@ -309,7 +309,7 @@ describe("notification bell", () => {
     });
     const { container } = renderWithApp(<NotificationBell role="student" />, session);
     const user = userEvent.setup();
-    const bell = await screen.findByRole("button", { name: "Notifications, 2 unread" });
+    const bell = await screen.findByRole("button", { name: "Open notifications, 2 unread" });
     await expectNoA11yViolations(container);
     await user.click(bell);
     const panel = await screen.findByRole("dialog", { name: "Notifications" });
@@ -333,7 +333,7 @@ describe("notification bell", () => {
         "GET /me/notifications/unread-count": () => json({ unread }),
       }),
     );
-    expect(await screen.findByRole("button", { name: "Notifications" })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Open notifications" })).toBeInTheDocument();
     const s = await connect();
     unread = 1;
     act(() =>
@@ -345,7 +345,7 @@ describe("notification bell", () => {
       }),
     );
     expect(
-      await screen.findByRole("button", { name: "Notifications, 1 unread" }),
+      await screen.findByRole("button", { name: "Open notifications, 1 unread" }),
     ).toBeInTheDocument();
   });
 });

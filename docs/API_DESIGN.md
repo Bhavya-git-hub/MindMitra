@@ -38,8 +38,11 @@ Interactive docs at `/docs` in development and test only.
 | `GET /me/recommendations`, `POST /me/recommendations/refresh`, `PATCH /me/recommendations/{id}` | `recommendation:manage:own` | Rule-based suggestions with a stated reason; mark viewed, done or dismissed |
 | `GET /resources`, `GET /resources/{id}` | `resource:read` | Published resources of the institution |
 | `GET /therapists`, `GET /therapists/{id}`, `GET /therapists/{id}/slots` | `therapist_directory:read` | Therapist directory (name, focus areas, languages, bio, next opening) and bookable slots; no clinical data |
-| `POST /me/appointments`, `PATCH /me/appointments/{id}` | `appointment:book:own` | Request a slot (`requested`, max 3 upcoming, at least 2 hours ahead, reason is encrypted); cancel up to 2 hours before |
-| `GET /me/conversations`, `GET`, `POST /me/conversations/{therapist_id}/messages`, `POST /me/conversations/{therapist_id}/read` | `message:participate:own` | One-to-one messages with a care-team therapist; `client_msg_id` makes retries idempotent |
+| `POST /me/appointments`, `PATCH /me/appointments/{id}` | `appointment:book:own` | Request a slot (`requested`, max 3 upcoming, at least 2 hours ahead, reason is encrypted); cancel before it starts, with an optional `reason` from a fixed list. Appointments carry `can_reschedule`, `reschedule_count`, `rescheduled_at`, `cancel_reason` and `session_status` (the delivered session once the therapist starts it) |
+| `POST /me/appointments/{id}/reschedule` | `appointment:book:own` | `{availability_id}`: move to another open time of the same therapist, at least 2 hours ahead, at most 3 times; it goes back to `requested`. `409` for a taken time or the limit, `404` for another therapist's time ([ADR 0009](adr/0009-therapist-communication-real-time-and-notifications.md)) |
+| `GET /me/conversations`, `GET`, `POST /me/conversations/{therapist_id}/messages`, `POST /me/conversations/{therapist_id}/read` | `message:participate:own` | One-to-one messages with a care-team therapist; `client_msg_id` makes retries idempotent. Writing needs an active care link; a student can still read their own history after it ends (the therapist cannot). Teachers and administrators get `403` |
+| `GET /me/notifications?unread=&before=&limit=`, `GET /me/notifications/unread-count`, `POST /me/notifications/{id}/read`, `POST /me/notifications/read-all` | `profile:read_own` | Every role's own notifications (`{items, unread}`; limit up to 100). Titles are fixed phrases, payloads ids and fixed event names only. Someone else's notification is `404` |
+| `WS /ws` | First frame `{"type":"auth","token"}` | Real-time hints for the signed-in user: `notification`, `notifications_read`, `message`, `message_read`, `appointment` (ids only). See section 4 |
 | `GET /me/consents`, `PUT /me/consents/{scope}` | `consent:manage:own` | Consent state per scope, in plain language; the required scope cannot be withdrawn; takes effect immediately |
 | `GET /me/privacy/access-history`, `GET /me/privacy/export` | `privacy:read:own` | Role-level list of others' successful reads of the student's data; full data export (excludes therapy notes) |
 | `POST /me/support-requests` | `support_request:create` | "Please have a person reach out": creates a human-handled alert, rate limited to one open request |
@@ -52,8 +55,9 @@ Interactive docs at `/docs` in development and test only.
 | `GET`, `PATCH /therapist/profile` | `therapist_profile:manage` | Own profile (bio, focus areas, languages, accepting new students, caseload cap) and verification status |
 | `POST /therapist/verification` | `therapist_profile:manage` | Submit licence number, body and expiry; sets the status back to `pending`. A therapist cannot verify themself |
 | `GET`, `POST /therapist/availability`, `DELETE /therapist/availability/{id}` | `therapist_profile:manage` | Own bookable times (optional weekly repeat); a booked time cannot be removed |
-| `GET /therapist/appointments?scope=requests\|upcoming\|past\|all` | `appointment:manage` | Own appointments with `can_start` and `session_id` |
-| `PATCH /appointments/{id}` | `appointment:manage` | Confirm, cancel, complete or mark no-show. Confirming a first appointment creates the care-team link; the student is notified (ids-only payload) |
+| `GET /therapist/appointments?scope=requests\|upcoming\|past\|all` | `appointment:manage` | Own appointments with `can_start`, `session_id`, `can_reschedule`, `reschedule_count`, `rescheduled_at` and `cancel_reason` |
+| `POST /therapist/appointments/{id}/reschedule` | `appointment:manage` | `{availability_id}` of the therapist's own open times; keeps the status and notifies the student. Same limits as the student's |
+| `PATCH /appointments/{id}` | `appointment:manage` | Confirm, cancel (optional `cancel_reason`, only with `cancelled`, `422` otherwise), complete or mark no-show. Confirming a first appointment creates the care-team link; the student is notified (ids-only payload). Starting a session notifies the student too |
 | `GET /therapist/students`, `GET /therapist/students/{id}` | `student:read:assigned` | Caseload and the authorized profile. **Verified therapist and active care link required** (`404` otherwise). The profile reports which consents are active |
 | `GET /therapist/students/{id}/trends?days=&tz=` | `wellness:read:assigned` | Mood, stress and sleep points; needs the `share_mood_with_care_team` consent (`403` without it); no private notes |
 | `GET /therapist/students/{id}/assessments` | `wellness:read:assigned` | WHO-5 results; needs the `share_assessments_with_care_team` consent |
@@ -88,7 +92,7 @@ Interactive docs at `/docs` in development and test only.
 | `GET /admin/appointments/oversight?weeks=` | `appointment:oversee` | Appointments by outcome, scheduled per week, confirmed in the next 7 days, requests waiting over 2 days, and per-therapist workload. Counts only; no student, time slot or content |
 | `GET`, `POST /admin/resources`, `GET`, `PUT`, `DELETE /admin/resources/{id}`, `PATCH .../publication` | `resource:manage` | The self-help library. Shipped (`global`) resources are readable but not editable (`403`). Publishing records the reviewing administrator and time; links must be `https://` |
 | `GET /admin/config`, `PATCH /admin/config` | `config:manage` | Institution name and e-mail domains |
-| `GET`, `PATCH /admin/settings/notifications` | `notification_config:manage` | Reminder switch and hours (1 to 3 values of 1 to 168), therapist-suggestion notifications, goal reminders, email. Also returns the `fixed_rules` that cannot be changed. Reminders, goal reminders and email are **stored but not yet used** (no scheduler or mail delivery yet) |
+| `GET`, `PATCH /admin/settings/notifications` | `notification_config:manage` | Reminder switch and hours (1 to 3 values of 1 to 168), therapist-suggestion notifications, goal reminders, email. Also returns the `fixed_rules` that cannot be changed. Appointment reminders are sent by the scheduler when it runs (`SCHEDULER_ENABLED`); email deliveries are created when switched on and sent once a provider is configured (`skipped` until then); goal reminders are stored but not yet used |
 | `GET`, `PATCH /admin/settings/safety` | `safety_config:manage` | `alert_ack_minutes` (5 to 1 440): the response time given to new alerts. Used when an alert is raised |
 | `GET`, `POST /admin/settings/crisis-contacts`, `PATCH`, `DELETE .../{id}` | `safety_config:manage` | The institution's crisis contacts. Shipped contacts are read only; the last active emergency contact cannot be hidden or removed (`409`) |
 | `GET /admin/audit?action=&outcome=&actor_id=&resource_type=&since=&until=&before_seq=&limit=` | `audit:read` | Audit metadata for the institution, newest first. A range is at most 366 days. Reading the log is audited |
@@ -397,21 +401,27 @@ No student name beyond what the teacher submitted, no clinician identity, no out
 
 ## 4. Real-time interface (WebSocket)
 
-`GET /api/v1/ws` (cookie auth; origin checked; ticket from `POST /ws/ticket` valid 30 s).
+As built ([ADR 0009](adr/0009-therapist-communication-real-time-and-notifications.md)):
+`/api/v1/ws`, one socket per tab, server-to-client events only.
 
-| Direction | Event | Payload (IDs only) |
-|-----------|-------|--------------------|
-| server → client | `message.created` | `thread_id`, `message_id` |
-| server → client | `message.read` | `thread_id`, `message_id`, `by_role` |
-| server → client | `notification.created` | `notification_id`, `priority` |
-| server → client | `escalation.assigned` / `escalation.reescalated` | `escalation_id`, `severity` (therapists only) |
-| server → client | `appointment.updated` | `appointment_id` |
-| client → server | `typing` | `thread_id` (rate-limited) |
-| client → server | `ack` | `escalation_id` (also available via REST) |
+1. Connect; the `Origin` must be an allowed web origin (close `4403`).
+2. Within 10 seconds send `{"type":"auth","token":"<access token>"}` (close `4401` otherwise).
+   The token never goes in the URL. At most five sockets per person (close `4429`).
+3. The server answers `{"type":"ready"}`, then sends this user's events. `{"type":"ping"}` gets
+   `{"type":"pong"}`. The session is re-checked every minute (close `4401` when it has ended); a
+   client that falls 100 events behind is closed with `1013`.
 
-Message bodies are never pushed over WebSocket; clients fetch via REST. Every subscription is
-re-authorized on connect and when care-team membership changes. Critical alerts are also
-delivered by SMS and push, never WebSocket alone.
+| Event | Payload (ids and fixed words only) | Sent to |
+|-------|------------------------------------|---------|
+| `notification` | `id`, `notification_type`, `title` (a fixed phrase) | the recipient |
+| `notifications_read` | none | the reader's other tabs |
+| `message` | `with` (the other person's user id), `message_id` | the recipient and the sender's other tabs |
+| `message_read` | `with` | the sender (read receipt) and the reader's other tabs |
+| `appointment` | `appointment_id`, `event` (`requested`, `confirmed`, `cancelled`, `cancelled_by_student`, `rescheduled_by_student`, `rescheduled_by_therapist`, `completed`, `no_show`, `session_started`, `session_completed`, `session_abandoned`) | the student and the therapist |
+
+Events are published only after the transaction commits. Message bodies, names and times are
+never pushed; clients fetch through REST, which applies the usual checks. The hub is in-process:
+several API instances need a shared broker behind `EventBroker`.
 
 ## 5. Authorization mapping
 

@@ -46,8 +46,9 @@ export function notificationHref(n: AppNotification, role: Role): string | null 
 }
 
 function bellLabel(unread: number): string {
-  if (unread === 0) return "Notifications";
-  return `Notifications, ${unread > 99 ? "more than 99" : unread} unread`;
+  // "Open …" keeps the bell distinct from any "Notifications" tab or heading on the page.
+  if (unread === 0) return "Open notifications";
+  return `Open notifications, ${unread > 99 ? "more than 99" : unread} unread`;
 }
 
 /**

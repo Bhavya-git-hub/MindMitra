@@ -4,8 +4,9 @@ Run from services/api (`uv run python ../../scripts/e2e/prepare_backend.py <out.
 DATABASE_URL pointing at an EMPTY throwaway database and SEED_USER_PASSWORD set. It migrates the
 schema, loads the synthetic seed, and writes one active user per role (email only) to <out.json>.
 For the therapist portal it also writes a verified therapist who has a student on their care team
-(with a confirmed appointment that is due to start, so a session can be run), and a therapist who
-is still waiting for verification. For the teacher portal it makes sure the signed-in student is
+(with a confirmed appointment that is due to start, so a session can be run, and three open
+times weeks ahead for the booking, moving and live-update tests), and a therapist who is still
+waiting for verification. For the teacher portal it makes sure the signed-in student is
 enrolled in a class the signed-in teacher teaches, and clears any live referral or request between
 them, so the referral and "ask a teacher" flows can run from a clean slate.
 The password is never written to disk: the e2e run passes it through the environment.
@@ -80,7 +81,8 @@ async def _prepare_therapist_portal() -> dict[str, str]:
             pair = (
                 await conn.execute(
                     text(
-                        "select t.user_id, tu.email, t.institution_id, c.student_id, su.full_name "
+                        "select t.user_id, tu.email, t.institution_id, c.student_id, su.full_name, "
+                        "su.email "
                         "from org.therapists t "
                         "join iam.users tu on tu.id = t.user_id "
                         "join org.care_team_members c on c.therapist_id = t.user_id "
@@ -98,7 +100,31 @@ async def _prepare_therapist_portal() -> dict[str, str]:
             ).first()
             if pair is None:
                 raise SystemExit("seed has no verified therapist with a care-team student")
-            therapist_id, therapist_email, institution_id, student_id, student_name = pair
+            therapist_id, therapist_email, institution_id, student_id, student_name, student_email = (
+                pair
+            )
+            # The communication tests book with this pair: clear the student's other future
+            # bookings (so the booking cap cannot get in the way) and give the therapist three
+            # open times at an hour nothing else uses.
+            await conn.execute(
+                text(
+                    "update therapy.appointments set status = 'cancelled', cancelled_at = now() "
+                    "where student_id = :s and status in ('requested', 'confirmed') "
+                    "and starts_at > now() + interval '2 hours'"
+                ),
+                {"s": student_id},
+            )
+            await conn.execute(
+                text(
+                    "insert into therapy.therapist_availability "
+                    "(id, institution_id, therapist_id, starts_at, ends_at, mode) "
+                    "select gen_random_uuid(), :i, :t, d, d + interval '50 minutes', 'video' "
+                    "from (select date_trunc('day', now()) + make_interval(days => n, hours => 3) d "
+                    "      from generate_series(20, 22) n) days "
+                    "on conflict do nothing"
+                ),
+                {"i": institution_id, "t": therapist_id},
+            )
             # Free the next hour for this pair, then add a confirmed appointment about to begin.
             await conn.execute(
                 text(
@@ -134,6 +160,9 @@ async def _prepare_therapist_portal() -> dict[str, str]:
         await engine.dispose()
     return {
         "therapist": therapist_email,
+        "therapist_id": str(therapist_id),
+        "care_student": student_email,
+        "care_student_id": str(student_id),
         "care_student_name": student_name,
         "pending_therapist": pending,
     }
