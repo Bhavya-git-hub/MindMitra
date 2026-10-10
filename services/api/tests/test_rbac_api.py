@@ -322,15 +322,16 @@ async def test_small_cohorts_are_suppressed_and_large_ones_aggregated(
     ]
     for s in students:
         await b.aggregate_consent(world.inst_a, s)
+    # Nine days back: inside the last four completed weeks, never the week in progress.
     for s in students[:9]:
-        await b.mood_entry(world.inst_a, s, 3)
+        await b.mood_entry(world.inst_a, s, 3, days_ago=9)
     await api_db.commit()
 
     tok = await token_for(client, teacher, world.password)
     r = (await call(client, "GET", "/insights/mood-summary", token=tok)).json()
     assert r["suppressed"] is True and r["cohort_size"] is None and r["average_mood"] is None
 
-    await b.mood_entry(world.inst_a, students[9], 5)
+    await b.mood_entry(world.inst_a, students[9], 5, days_ago=9)
     await api_db.commit()
     r = (await call(client, "GET", "/insights/mood-summary", token=tok)).json()
     assert r["suppressed"] is False and r["cohort_size"] == 10

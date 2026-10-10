@@ -188,7 +188,9 @@ class Builder:
         )
         await self.db.flush()
 
-    async def mood_entry(self, inst_id: uuid.UUID, student: Actor, score: int) -> None:
+    async def mood_entry(
+        self, inst_id: uuid.UUID, student: Actor, score: int, *, days_ago: int = 1
+    ) -> None:
         self.db.add(
             m.MoodEntry(
                 institution_id=inst_id,
@@ -196,7 +198,7 @@ class Builder:
                 mood_score=score,
                 emotions=["calm"],
                 note="private synthetic note",
-                logged_at=NOW - dt.timedelta(days=1),
+                logged_at=NOW - dt.timedelta(days=days_ago),
             )
         )
         await self.db.flush()
