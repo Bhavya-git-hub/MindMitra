@@ -11,7 +11,7 @@
 
 Code: `services/api/app/infrastructure/db/` (models, session, audit helper, seed),
 `services/api/alembic/versions/` (`0001_initial_schema.py`, `0002_tenant_safe_foreign_keys.py`,
-`0003_auth_sessions.py`, `0004_crisis_contacts.py`, `0005_therapist_portal.py`, `0006_teacher_portal.py`), tests in `services/api/tests/`. Migration `0003` (authentication phase)
+`0003_auth_sessions.py`, `0004_crisis_contacts.py`, `0005_therapist_portal.py`, `0006_teacher_portal.py`, `0007_group_snapshots.py`, `0008_institution_settings.py`), tests in `services/api/tests/`. Migration `0003` (authentication phase)
 adds the three `iam` session and token tables; see [SECURITY_ARCHITECTURE.md §0](SECURITY_ARCHITECTURE.md#0-implementation-status-authentication-and-authorization-as-built).
 Verified against PostgreSQL 16: migration up/down/up, `alembic check` (models == migration),
 107 tests, `ruff`, `mypy --strict`, `pip-audit`. Migration `0002` was also checked against a seeded database (backfill) and downgraded/upgraded again; schemas from `0001 -> 0002`, from scratch, and `0002 -> 0001` are identical to the expected ones. See 0.6 for the review that produced `0002`.
@@ -114,6 +114,15 @@ erDiagram
   makes concurrent first reads store one row. Rows are deleted when a student's consent or
   account status changes, and cascade is not needed because nothing references them.
 - `set_updated_at` trigger; a `CHECK` on `view`, `group_kind` and `weeks > 0`.
+
+### 0.1d Institution settings (migration `0008`)
+
+- `org.institution_settings`: one row per institution (`uq_institution_settings_institution`),
+  holding the settings an administrator changed as two JSONB objects, `notifications` and
+  `safety` (both `CHECK jsonb_typeof = 'object'`), plus `updated_by` (`SET NULL` when the user
+  goes). A missing row or key means the default in `app/domain/settings.py`, so a new setting needs
+  no data migration. Values are validated (and the invariants enforced) in the application, not
+  by the database. `set_updated_at` trigger; index on `updated_by`.
 
 ### 0.2 Requirements checklist
 

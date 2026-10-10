@@ -5,8 +5,9 @@ react-hook-form + zod · Recharts · Vitest + Testing Library + axe · Playwrigh
 
 **Current state:** the frontend foundation. Design system, application shell, authentication
 (connected to the real API), the four role portals with protected routes and role-based
-redirects, and the shared building blocks. The student, therapist and teacher portals are built; the
-administrator portal is still a placeholder (overview and account).
+redirects, and the shared building blocks. The student, therapist, teacher and administrator portals are built (the administrator
+portal manages accounts, therapist verification, departments and courses, resources, anonymous
+analytics, the audit log and settings; it never shows what people wrote).
 
 ## Quick start
 

@@ -50,7 +50,7 @@ export type WeekFigures = z.infer<typeof weekSchema>;
 
 export const analyticsSchema = z.object({
   label: z.string(),
-  scope: z.enum(["class", "department"]),
+  scope: z.enum(["class", "department", "institution"]),
   window_weeks: z.number().int(),
   state: z.enum(["ok", "too_small"]),
   students_contributing: z.string().nullable(),

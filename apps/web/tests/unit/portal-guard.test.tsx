@@ -1,11 +1,13 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { Users } from "lucide-react";
 import { describe, expect, it } from "vitest";
 
 import { AccountView } from "@/components/account/account-view";
 import { PortalLayout } from "@/components/auth/portal-layout";
 import { PortalOverview } from "@/components/portal/portal-overview";
 import type { Role } from "@/lib/auth/roles";
+import { NAVIGATION } from "@/lib/navigation";
 
 import { navigation } from "../helpers/navigation";
 import { json, makeSession, me, problem, renderWithApp, tokens } from "../helpers/render";
@@ -102,12 +104,23 @@ describe("shell navigation", () => {
   });
 
   it("shows pages that are not built yet as disabled, not as links", async () => {
-    navigation.pathname = "/admin/account";
-    renderWithApp(portal("administrator"), makeSession({}, { signedInAs: "administrator" }));
-    await screen.findByRole("main");
-    const nav = screen.getByRole("navigation", { name: "Administrator navigation" });
-    expect(within(nav).queryByRole("link", { name: /Audit log/ })).not.toBeInTheDocument();
-    expect(within(nav).getAllByText("Soon").length).toBeGreaterThan(0);
+    // every portal page is built now, so list a planned one for the duration of this test
+    const planned = { label: "Planned page", href: "/admin/planned", icon: Users, soon: true };
+    NAVIGATION.administrator.push(planned);
+    try {
+      navigation.pathname = "/admin/account";
+      renderWithApp(portal("administrator"), makeSession({}, { signedInAs: "administrator" }));
+      await screen.findByRole("main");
+      const nav = screen.getByRole("navigation", { name: "Administrator navigation" });
+      expect(within(nav).queryByRole("link", { name: /Planned page/ })).not.toBeInTheDocument();
+      expect(within(nav).getAllByText("Soon").length).toBeGreaterThan(0);
+      expect(within(nav).getByRole("link", { name: "Audit log" })).toHaveAttribute(
+        "href",
+        "/admin/audit",
+      );
+    } finally {
+      NAVIGATION.administrator.pop();
+    }
   });
 
   it("has a skip link, a persistent Get help button for students, and a disclaimer", async () => {
