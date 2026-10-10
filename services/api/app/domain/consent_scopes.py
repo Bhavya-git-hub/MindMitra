@@ -26,8 +26,9 @@ SCOPES: tuple[ScopeInfo, ...] = (
     ScopeInfo(
         ConsentScope.SHARE_MOOD_WITH_CARE_TEAM,
         "Share my mood check-ins with my therapist",
-        "Lets a therapist on your care team see your mood scores, energy and emotions. They "
-        "never see the private notes you write in a check-in.",
+        "Lets a verified therapist on your care team see your mood, energy, stress and sleep "
+        "from check-ins, and their trends over time. They never see the private notes you "
+        "write in a check-in.",
     ),
     ScopeInfo(
         ConsentScope.SHARE_ASSESSMENTS_WITH_CARE_TEAM,

@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.application.access import NotFound, enforce, has_active_care_link
 from app.application.errors import InvalidInput
+from app.application.therapist_access import require_verified
 from app.application.timeutil import now_utc
 from app.domain.auth.permissions import Role
 from app.domain.auth.policies import Principal, can_message_in_conversation
@@ -47,6 +48,8 @@ def _parties(actor: Principal, other_id: uuid.UUID) -> tuple[uuid.UUID, uuid.UUI
 async def _authorize(
     db: AsyncSession, actor: Principal, other_id: uuid.UUID, action: str
 ) -> tuple[uuid.UUID, uuid.UUID]:
+    if actor.role is Role.THERAPIST:
+        await require_verified(db, actor, action)
     other = await db.get(m.User, other_id)
     if other is None or other.institution_id != actor.institution_id:
         raise NotFound
@@ -71,6 +74,8 @@ async def _authorize(
 
 async def list_conversations(db: AsyncSession, actor: Principal) -> list[Conversation]:
     """Care-team counterparts plus anyone the caller has already exchanged messages with."""
+    if actor.role is Role.THERAPIST:
+        await require_verified(db, actor, "conversation.list")
     now = now_utc()
     if actor.role is Role.STUDENT:
         link_col, other_col, msg_other = (

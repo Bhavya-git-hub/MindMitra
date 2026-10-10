@@ -35,6 +35,29 @@ class AdminLevel(enum.StrEnum):
     PLATFORM_ADMIN = "platform_admin"
 
 
+class VerificationStatus(enum.StrEnum):
+    """Professional verification of a therapist. Only ``verified`` therapists appear to students
+    or reach student data; ``expired`` is derived from the licence expiry date, not stored."""
+
+    PENDING = "pending"
+    VERIFIED = "verified"
+    REJECTED = "rejected"
+
+
+class FollowUpKind(enum.StrEnum):
+    CHECK_IN = "check_in"
+    BOOK_SESSION = "book_session"
+    REFERRAL = "referral"
+    PAPERWORK = "paperwork"
+    OTHER = "other"
+
+
+class FollowUpStatus(enum.StrEnum):
+    OPEN = "open"
+    DONE = "done"
+    CANCELLED = "cancelled"
+
+
 class CareRole(enum.StrEnum):
     PRIMARY = "primary"
     SECONDARY = "secondary"

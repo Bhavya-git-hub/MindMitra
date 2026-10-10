@@ -11,6 +11,7 @@ import uuid
 
 from sqlalchemy import (
     CheckConstraint,
+    Date,
     DateTime,
     ForeignKeyConstraint,
     Index,
@@ -35,6 +36,8 @@ from app.infrastructure.db.base import (
 from app.infrastructure.db.column_types import EncryptedText
 from app.infrastructure.db.enums import (
     AppointmentStatus,
+    FollowUpKind,
+    FollowUpStatus,
     SessionMode,
     TherapySessionStatus,
 )
@@ -227,3 +230,56 @@ class TherapyNote(UUIDPrimaryKeyMixin, TenantMixin, TimestampMixin, Base):
     version: Mapped[int] = mapped_column(SmallInteger, nullable=False, server_default=text("1"))
     body: Mapped[str] = mapped_column(EncryptedText("therapy.therapy_notes.body"), nullable=False)
     locked_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class FollowUp(UUIDPrimaryKeyMixin, TenantMixin, TimestampMixin, Base):
+    """A reminder a therapist sets for themselves about one student on their care team.
+
+    The kind is a fixed label (safe to list); the free-text note is encrypted and only the
+    owning therapist can read it. It is never shown to the student.
+    """
+
+    __tablename__ = "follow_ups"
+    __table_args__ = (
+        tenant_fk("therapist_id", "org.therapists", ondelete="RESTRICT"),
+        tenant_fk("student_id", "org.students", ondelete="RESTRICT"),
+        # The linked session must be this therapist's own, in this tenant (NULL: no session).
+        ForeignKeyConstraint(
+            ["session_id", "therapist_id", "institution_id"],
+            [
+                "therapy.therapy_sessions.id",
+                "therapy.therapy_sessions.therapist_id",
+                "therapy.therapy_sessions.institution_id",
+            ],
+            ondelete="RESTRICT",
+            name="fk_follow_ups_session_therapist_tenant",
+        ),
+        CheckConstraint(
+            "(status = 'done') = (completed_at IS NOT NULL)", name="completed_at_matches_status"
+        ),
+        Index("ix_follow_ups_therapist_status_due", "therapist_id", "status", "due_on"),
+        Index("ix_follow_ups_student_id", "student_id"),
+        Index(
+            "ix_follow_ups_session_id",
+            "session_id",
+            postgresql_where=text("session_id IS NOT NULL"),
+        ),
+        {"schema": "therapy"},
+    )
+
+    therapist_id: Mapped[uuid.UUID] = uuid_col()
+    student_id: Mapped[uuid.UUID] = uuid_col()
+    session_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    kind: Mapped[FollowUpKind] = mapped_column(
+        enum_col(FollowUpKind, "follow_up_kind"), nullable=False
+    )
+    status: Mapped[FollowUpStatus] = mapped_column(
+        enum_col(FollowUpStatus, "follow_up_status"),
+        nullable=False,
+        server_default=FollowUpStatus.OPEN.value,
+    )
+    due_on: Mapped[dt.date] = mapped_column(Date, nullable=False)
+    note: Mapped[str | None] = mapped_column(
+        EncryptedText("therapy.follow_ups.note"), nullable=True
+    )
+    completed_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

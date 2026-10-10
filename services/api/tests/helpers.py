@@ -1,5 +1,6 @@
 """Small query helpers shared by the tests."""
 
+import datetime as dt
 import uuid
 from typing import Any
 
@@ -7,7 +8,7 @@ from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.infrastructure.db import models as m
-from app.infrastructure.db.enums import AppointmentStatus, UserRole
+from app.infrastructure.db.enums import AppointmentStatus, UserRole, VerificationStatus
 from app.infrastructure.db.ids import uuid7
 
 
@@ -122,7 +123,11 @@ async def student_in(session: AsyncSession, inst: m.Institution, dept: m.Departm
 async def therapist_in(session: AsyncSession, inst: m.Institution) -> m.Therapist:
     u = await new_user(session, inst, UserRole.THERAPIST)
     t = m.Therapist(
-        user_id=u.id, institution_id=inst.id, licence_number=f"L-{uuid.uuid4().hex[:8]}"
+        user_id=u.id,
+        institution_id=inst.id,
+        licence_number=f"L-{uuid.uuid4().hex[:8]}",
+        verification_status=VerificationStatus.VERIFIED,
+        verified_at=dt.datetime.now(dt.UTC),
     )
     session.add(t)
     await session.flush()

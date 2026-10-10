@@ -46,6 +46,7 @@ from app.infrastructure.db.enums import (
     TherapySessionStatus,
     UserRole,
     UserStatus,
+    VerificationStatus,
 )
 from app.infrastructure.db.ids import uuid7
 from app.infrastructure.db.seed import content as c
@@ -78,6 +79,11 @@ class SeedResult:
     institution_id: uuid.UUID
     password: str
     counts: dict[str, int]
+
+
+def _awaiting_verification(index: int, total: int) -> bool:
+    """The last of three or more therapists is left unverified for the demo."""
+    return total >= 3 and index == total - 1
 
 
 def _utc(d: dt.date, hour: int, minute: int = 0) -> dt.datetime:
@@ -226,6 +232,16 @@ async def seed_database(session: AsyncSession, cfg: SeedConfig | None = None) ->
             bio="Synthetic profile for development.",
             accepting_new_students=i % 5 != 4,
             max_caseload=rng.choice([25, 30, 40]),
+            # Demo data: everyone is verified except the last therapist, so the "waiting for
+            # verification" experience can be tried. Real verification is an admin action.
+            verification_status=(
+                VerificationStatus.PENDING
+                if _awaiting_verification(i, cfg.therapists)
+                else VerificationStatus.VERIFIED
+            ),
+            verified_at=None if _awaiting_verification(i, cfg.therapists) else now,
+            licence_body="Synthetic Council of Counsellors",
+            licence_expires_on=today + dt.timedelta(days=365 * 2),
         )
         for i, u in enumerate(therapist_users)
     ]
@@ -282,7 +298,12 @@ async def seed_database(session: AsyncSession, cfg: SeedConfig | None = None) ->
     for i, s in enumerate(students[:-1]):
         if rng.random() > 0.65:
             continue
-        candidates = [t for t in therapists if load[t.user_id] < min(t.max_caseload, 28)]
+        candidates = [
+            t
+            for t in therapists
+            if t.verification_status is VerificationStatus.VERIFIED
+            and load[t.user_id] < min(t.max_caseload, 28)
+        ]
         if not candidates:
             break
         t = candidates[i % len(candidates)]

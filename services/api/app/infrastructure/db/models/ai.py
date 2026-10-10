@@ -113,6 +113,11 @@ class Recommendation(UUIDPrimaryKeyMixin, TenantMixin, TimestampMixin, Base):
         ),
         Index("ix_recommendations_student_status", "student_id", "status"),
         Index("ix_recommendations_resource_id", "resource_id"),
+        Index(
+            "ix_recommendations_authored_by",
+            "authored_by",
+            postgresql_where=text("authored_by IS NOT NULL"),
+        ),
         {"schema": "ai"},
     )
 
@@ -133,3 +138,7 @@ class Recommendation(UUIDPrimaryKeyMixin, TenantMixin, TimestampMixin, Base):
     confidence: Mapped[Decimal | None] = mapped_column(Numeric(4, 3), nullable=True)
     model_version: Mapped[str | None] = mapped_column(String(80), nullable=True)
     expires_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # The therapist who made a `source = therapist` suggestion.
+    authored_by: Mapped[uuid.UUID | None] = fk_uuid(
+        "iam.users.id", ondelete="SET NULL", nullable=True
+    )

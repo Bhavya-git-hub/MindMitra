@@ -11,6 +11,7 @@ from app.application.access import NotFound, enforce, has_active_care_link
 from app.application.auth.errors import Conflict
 from app.application.directory import BOOKING_LEAD_TIME
 from app.application.errors import InvalidInput
+from app.application.therapist_access import is_verified
 from app.application.timeutil import now_utc
 from app.domain.auth.policies import (
     Principal,
@@ -108,6 +109,7 @@ async def book(
         or therapist_user is None
         or therapist_user.status is not UserStatus.ACTIVE
         or therapist_user.deleted_at is not None
+        or not is_verified(therapist)  # unverified therapists cannot be booked, and look absent
     ):
         raise NotFound
     now = now_utc()

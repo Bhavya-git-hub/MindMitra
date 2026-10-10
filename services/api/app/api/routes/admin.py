@@ -13,12 +13,13 @@ from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import app_state, get_auth_service, get_db, require_permission
-from app.application import admin
+from app.api.schemas import therapist as ther
+from app.application import admin, therapist_profile
 from app.application.auth.service import AuthService
 from app.domain.auth.permissions import Permission
 from app.domain.auth.policies import Principal
 from app.infrastructure.db import models as m
-from app.infrastructure.db.enums import UserRole, UserStatus
+from app.infrastructure.db.enums import UserRole, UserStatus, VerificationStatus
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 Db = Annotated[AsyncSession, Depends(get_db)]
@@ -188,3 +189,36 @@ async def audit_log(
         )
         for r in rows
     ]
+
+
+# ---- professional verification (therapists) -------------------------------------------------
+
+
+@router.get("/therapists")
+async def therapists_for_review(
+    db: Db,
+    principal: Annotated[Principal, Depends(require_permission(Permission.THERAPIST_VERIFY))],
+    status: Literal["pending", "verified", "rejected"] | None = None,
+) -> list[ther.TherapistReviewOut]:
+    rows = await therapist_profile.list_for_verification(
+        db, principal, VerificationStatus(status) if status else None
+    )
+    return [ther.review_out(t, u) for t, u in rows]
+
+
+@router.patch("/therapists/{therapist_id}/verification")
+async def review_therapist(
+    therapist_id: uuid.UUID,
+    body: ther.VerificationReviewIn,
+    db: Db,
+    principal: Annotated[Principal, Depends(require_permission(Permission.THERAPIST_VERIFY))],
+) -> ther.TherapistReviewOut:
+    t, u = await therapist_profile.set_verification(
+        db,
+        principal,
+        therapist_id,
+        status=VerificationStatus(body.status),
+        note=body.note,
+        licence_expires_on=body.licence_expires_on,
+    )
+    return ther.review_out(t, u)

@@ -28,6 +28,7 @@ from app.api.routes import (
     student_care,
     student_privacy,
     student_wellness,
+    therapist,
 )
 from app.application.access import AccessDenied, NotFound
 from app.application.auth.delivery import InMemoryTokenOutbox, TokenDelivery
@@ -69,6 +70,7 @@ ROUTERS = (
     student_care.router,
     student_privacy.router,
     care.router,
+    therapist.router,
     insights.router,
     admin.router,
 )

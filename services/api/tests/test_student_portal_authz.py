@@ -27,6 +27,7 @@ FAKE = uuid.UUID(int=1)
 
 # (method, path, json body, roles allowed past the guard)
 STUDENT_ONLY = {"student"}
+STUDENT_AND_THERAPIST = {"student", "therapist"}
 ROUTES: list[tuple[str, str, Any, set[str]]] = [
     ("POST", "/me/check-ins", {"mood_score": 3}, STUDENT_ONLY),
     ("POST", "/me/wellness/mood-entries", {"mood_score": 3}, STUDENT_ONLY),
@@ -56,10 +57,11 @@ ROUTES: list[tuple[str, str, Any, set[str]]] = [
     ("GET", f"/therapists/{FAKE}/slots", None, STUDENT_ONLY),
     ("POST", "/me/appointments", {"availability_id": str(FAKE)}, STUDENT_ONLY),
     ("PATCH", f"/me/appointments/{FAKE}", {"status": "cancelled"}, STUDENT_ONLY),
-    ("GET", "/me/conversations", None, STUDENT_ONLY),
-    ("GET", f"/me/conversations/{FAKE}/messages", None, STUDENT_ONLY),
-    ("POST", f"/me/conversations/{FAKE}/messages", {"body": "hi"}, STUDENT_ONLY),
-    ("POST", f"/me/conversations/{FAKE}/read", None, STUDENT_ONLY),
+    # messaging is the student/therapist pair (a therapist's side is tested in the therapist suite)
+    ("GET", "/me/conversations", None, STUDENT_AND_THERAPIST),
+    ("GET", f"/me/conversations/{FAKE}/messages", None, STUDENT_AND_THERAPIST),
+    ("POST", f"/me/conversations/{FAKE}/messages", {"body": "hi"}, STUDENT_AND_THERAPIST),
+    ("POST", f"/me/conversations/{FAKE}/read", None, STUDENT_AND_THERAPIST),
     ("GET", "/me/consents", None, STUDENT_ONLY),
     ("PUT", "/me/consents/email_notifications", {"granted": True}, STUDENT_ONLY),
     ("GET", "/me/privacy/access-history", None, STUDENT_ONLY),
@@ -167,7 +169,11 @@ async def test_non_students_cannot_read_student_data_by_any_known_route(
             f"/me/conversations/{s.id}/messages",
         ):
             r = await call(client, "GET", path, token=token)
-            assert r.status_code == 403, (role, path)
+            if role == "therapist" and path.startswith("/me/conversations"):
+                # the messaging API is shared; a therapist with no link to s sees nothing
+                assert r.status_code in (403, 404), (role, path)
+            else:
+                assert r.status_code == 403, (role, path)
             assert "stu-private" not in r.text
         r = await call(client, "GET", f"/students/{s.id}/mood-entries", token=token)
         assert r.status_code in (403, 404)  # therapists: not on the care team; others: no role

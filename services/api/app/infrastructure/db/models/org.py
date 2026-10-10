@@ -6,6 +6,7 @@ import uuid
 from sqlalchemy import (
     Boolean,
     CheckConstraint,
+    Date,
     DateTime,
     ForeignKeyConstraint,
     Index,
@@ -30,7 +31,12 @@ from app.infrastructure.db.base import (
     tenant_fk,
     uuid_col,
 )
-from app.infrastructure.db.enums import AdminLevel, CareRole, EnrollmentStatus
+from app.infrastructure.db.enums import (
+    AdminLevel,
+    CareRole,
+    EnrollmentStatus,
+    VerificationStatus,
+)
 
 
 class Institution(UUIDPrimaryKeyMixin, TimestampMixin, Base):
@@ -164,6 +170,15 @@ class Therapist(TimestampMixin, Base):
             "institution_id", "licence_number", name="uq_therapists_institution_licence"
         ),
         CheckConstraint("max_caseload BETWEEN 1 AND 500", name="max_caseload_range"),
+        CheckConstraint(
+            "(verification_status = 'verified') = (verified_at IS NOT NULL)",
+            name="verified_at_matches_status",
+        ),
+        Index(
+            "ix_therapists_verified_by",
+            "verified_by",
+            postgresql_where=text("verified_by IS NOT NULL"),
+        ),
         {"schema": "org"},
     )
 
@@ -184,6 +199,19 @@ class Therapist(TimestampMixin, Base):
     max_caseload: Mapped[int] = mapped_column(
         SmallInteger, nullable=False, server_default=text("40")
     )
+    # Professional verification: done by an administrator; `pending` until then.
+    verification_status: Mapped[VerificationStatus] = mapped_column(
+        enum_col(VerificationStatus, "verification_status"),
+        nullable=False,
+        server_default=VerificationStatus.PENDING.value,
+    )
+    verified_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    verified_by: Mapped[uuid.UUID | None] = fk_uuid(
+        "iam.users.id", ondelete="SET NULL", nullable=True
+    )
+    licence_body: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    licence_expires_on: Mapped[dt.date | None] = mapped_column(Date, nullable=True)
+    verification_note: Mapped[str | None] = mapped_column(String(300), nullable=True)
 
 
 class Administrator(TimestampMixin, Base):
