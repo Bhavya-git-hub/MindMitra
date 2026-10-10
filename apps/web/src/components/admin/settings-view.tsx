@@ -15,7 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { CONTACT_KINDS, type CrisisContact } from "@/lib/api/admin-schemas";
+import { CONTACT_KINDS, type CrisisContact, type SafetySettings } from "@/lib/api/admin-schemas";
 import { describeError } from "@/lib/api/errors";
 import { titleCase } from "@/lib/format";
 import { useAdminApi } from "@/lib/hooks/use-admin-api";
@@ -365,7 +365,15 @@ function SafetyTab() {
   return (
     <>
       <DataView query={safety}>
-        {(s) => <SafetyForm key={s.values.alert_ack_minutes} settings={s} />}
+        {(s) => (
+          <>
+            <SafetyForm key={s.values.alert_ack_minutes} settings={s} />
+            <CompanionForm
+              key={`${s.values.companion_enabled}-${s.values.companion_daily_messages}`}
+              values={s.values}
+            />
+          </>
+        )}
       </DataView>
       <DataView query={contacts}>
         {(rows) => (
@@ -431,11 +439,66 @@ function SafetyTab() {
   );
 }
 
-function SafetyForm({
-  settings,
-}: {
-  settings: { values: { alert_ack_minutes: number }; fixed_rules: string[] };
-}) {
+/** The AI companion's switch and daily message allowance. Crisis handling can't be turned off. */
+function CompanionForm({ values }: { values: SafetySettings["values"] }) {
+  const api = useAdminApi();
+  const [enabled, setEnabled] = React.useState(values.companion_enabled);
+  const [daily, setDaily] = React.useState(String(values.companion_daily_messages));
+  const [errors, setErrors] = React.useState<Record<string, string>>({});
+  const { pending, error, run } = useSubmit();
+
+  function submit(event: React.FormEvent) {
+    event.preventDefault();
+    const n = Number(daily);
+    if (!Number.isInteger(n) || n < 10 || n > 500) {
+      setErrors({ daily: "Use a whole number from 10 to 500." });
+      return;
+    }
+    setErrors({});
+    void run(async () => {
+      await api.updateSafetySettings({ companion_enabled: enabled, companion_daily_messages: n });
+      notify.success("Companion settings saved");
+    }, "We couldn't save those settings.");
+  }
+
+  return (
+    <SectionCard
+      title="AI companion"
+      description="An AI that helps students reflect on everyday pressures. It is not a therapist and never diagnoses. If a message suggests a student may not be safe, it shows crisis contacts and alerts your counselling team instead of replying, even when the companion is switched off."
+    >
+      <form onSubmit={submit} noValidate className="max-w-xl space-y-5">
+        <Toggle
+          id="companion-enabled"
+          label="Let students use the companion"
+          hint="Switching it off stops new replies straight away. Students can still read and delete their conversations."
+          checked={enabled}
+          onChange={setEnabled}
+        />
+        <Field
+          label="Messages each student can send a day"
+          hint="Keeps use sensible and costs predictable. Messages that suggest a crisis are never limited."
+          error={errors.daily}
+        >
+          {(p) => (
+            <Input
+              {...p}
+              type="number"
+              min={10}
+              max={500}
+              className="max-w-xs"
+              value={daily}
+              onChange={(e) => setDaily(e.target.value)}
+            />
+          )}
+        </Field>
+        {error && <InlineAlert tone="destructive">{error}</InlineAlert>}
+        <SaveButton pending={pending}>Save companion settings</SaveButton>
+      </form>
+    </SectionCard>
+  );
+}
+
+function SafetyForm({ settings }: { settings: SafetySettings }) {
   const api = useAdminApi();
   const [minutes, setMinutes] = React.useState(String(settings.values.alert_ack_minutes));
   const [errors, setErrors] = React.useState<Record<string, string>>({});

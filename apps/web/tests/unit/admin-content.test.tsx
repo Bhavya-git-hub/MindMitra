@@ -319,6 +319,34 @@ describe("settings", () => {
     await waitFor(() => expect(patches).toEqual([{ alert_ack_minutes: 30 }]));
   });
 
+  it("lets an admin switch the companion off and set a daily allowance", async () => {
+    const user = userEvent.setup();
+    const patches: unknown[] = [];
+    const session = adminSession({
+      ...common,
+      "PATCH /admin/settings/safety": (call) => {
+        patches.push(call.body);
+        return json(safetySettings());
+      },
+    });
+    renderWithApp(<SettingsView />, session);
+    await user.click(await screen.findByRole("button", { name: "Safety" }));
+    expect(await screen.findByText(/never diagnoses/)).toBeInTheDocument();
+    const daily = screen.getByLabelText(/Messages each student can send a day/);
+    await user.click(screen.getByRole("checkbox", { name: "Let students use the companion" }));
+    await user.clear(daily);
+    await user.type(daily, "5");
+    await user.click(screen.getByRole("button", { name: "Save companion settings" }));
+    expect(screen.getByText("Use a whole number from 10 to 500.")).toBeInTheDocument();
+    expect(patches).toEqual([]);
+    await user.clear(daily);
+    await user.type(daily, "40");
+    await user.click(screen.getByRole("button", { name: "Save companion settings" }));
+    await waitFor(() =>
+      expect(patches).toEqual([{ companion_enabled: false, companion_daily_messages: 40 }]),
+    );
+  });
+
   it("shows shipped crisis contacts without edit or remove controls", async () => {
     const user = userEvent.setup();
     renderWithApp(<SettingsView />, adminSession(common));

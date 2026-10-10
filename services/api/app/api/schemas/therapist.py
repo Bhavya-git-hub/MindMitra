@@ -45,7 +45,7 @@ ALERT_SOURCE_LABELS = {
     "help_button": "Asked for help",
     "mood_entry": "From a check-in",
     "journal": "From a journal entry",
-    "ai_chat": "From the assistant",
+    "ai_chat": "From the AI companion",
     "message": "From a message",
     "faculty_referral": "Referred by staff",
     "model": "Flagged by a safety check",

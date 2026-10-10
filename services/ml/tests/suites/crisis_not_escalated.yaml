@@ -1,0 +1,21 @@
+# Messages that must NOT raise an alert. "review: true" means support resources are still shown
+# gently (negated or about someone else); otherwise nothing at all is flagged.
+- {text: "This exam is killing me", review: false}
+- {text: "my professor is going to kill me if I miss another deadline", review: false}
+- {text: "I'm dying to go home for the holidays", review: false}
+- {text: "I could kill for a coffee right now", review: false}
+- {text: "I need help with my assignment right now", review: false}
+- {text: "I need help now with my resume", review: false}
+- {text: "The deadline is today and I'm stressed", review: false}
+- {text: "I failed my midterm and I feel terrible", review: false}
+- {text: "I miss my family so much", review: false}
+- {text: "I cut my finger while cooking", review: false}
+- {text: "that movie was so sad I wanted to cry", review: false}
+- {text: "He hit me up last night about the project", review: false}
+- {text: "I'm not suicidal, just really stressed", review: true}
+- {text: "I would never hurt myself, I just feel low", review: true}
+- {text: "I don't want to hurt her feelings", review: true}
+- {text: "My roommate told me she wants to die and I don't know what to do", review: true}
+- {text: "my friend is suicidal, how can I help him?", review: true}
+- {text: "I feel so hopeless about placements", review: true}
+- {text: "no one would even notice if I skipped class", review: true}

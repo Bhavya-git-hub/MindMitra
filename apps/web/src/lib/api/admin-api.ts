@@ -17,6 +17,7 @@ import {
   platformAnalyticsSchema,
   reviewSchema,
   safetySettingsSchema,
+  type SafetySettings,
   studentDetailSchema,
   studentSchema,
   teacherAccountSchema,
@@ -259,7 +260,7 @@ export function createAdminApi(client: ApiClient) {
       }),
     safetySettings: () =>
       client.request("/admin/settings/safety", { schema: safetySettingsSchema }),
-    updateSafetySettings: (patch: { alert_ack_minutes?: number }) =>
+    updateSafetySettings: (patch: Partial<SafetySettings["values"]>) =>
       client.request("/admin/settings/safety", {
         method: "PATCH",
         body: patch,

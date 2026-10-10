@@ -40,6 +40,7 @@ from app.infrastructure.db.column_types import EncryptedText
 from app.infrastructure.db.enums import (
     AIConversationStatus,
     AIMessageRole,
+    AIReplyKind,
     RecommendationSource,
     RecommendationStatus,
 )
@@ -74,6 +75,10 @@ class AIConversation(UUIDPrimaryKeyMixin, TenantMixin, TimestampMixin, SoftDelet
     )
     ended_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     expires_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Moves on every message; retention counts from here.
+    last_message_at: Mapped[dt.datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
 
 class AIMessage(UUIDPrimaryKeyMixin, TimestampMixin, Base):
@@ -82,6 +87,9 @@ class AIMessage(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         UniqueConstraint("conversation_id", "seq", name="uq_ai_messages_conversation_seq"),
         CheckConstraint("seq >= 1", name="seq_positive"),
         CheckConstraint("token_count IS NULL OR token_count >= 0", name="token_count_non_negative"),
+        CheckConstraint(
+            "(role = 'assistant') = (reply_kind IS NOT NULL)", name="reply_kind_on_assistant"
+        ),
         {"schema": "ai"},
     )
 
@@ -96,6 +104,9 @@ class AIMessage(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         ARRAY(String(40)), nullable=False, server_default=text("'{}'")
     )
     token_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    reply_kind: Mapped[AIReplyKind | None] = mapped_column(
+        enum_col(AIReplyKind, "ai_reply_kind"), nullable=True
+    )
 
 
 class Recommendation(UUIDPrimaryKeyMixin, TenantMixin, TimestampMixin, Base):

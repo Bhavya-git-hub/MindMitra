@@ -2,7 +2,6 @@ import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 
-import { AssistantView } from "@/components/student/assistant-view";
 import { GoalsView } from "@/components/student/goals-view";
 import { RecommendationsView } from "@/components/student/recommendations-view";
 import { ResourceDetailView, ResourcesView } from "@/components/student/resources-views";
@@ -284,23 +283,6 @@ describe("recommendations", () => {
       studentSession({ "GET /me/recommendations": () => problem(503, "Down") }),
     );
     expect((await screen.findAllByRole("alert")).length).toBeGreaterThan(0);
-  });
-});
-
-describe("AI companion entry point", () => {
-  it("is honest that the companion isn't available and that it is not a clinician", async () => {
-    const { container } = renderWithApp(
-      <AssistantView />,
-      studentSession({ "GET /me/ai-conversations": () => json([]) }),
-    );
-    expect(await screen.findByText("The companion isn't available yet")).toBeInTheDocument();
-    expect(screen.getByText(/not a therapist/i)).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "consent settings" })).toHaveAttribute(
-      "href",
-      "/student/privacy/consent",
-    );
-    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
-    await expectNoA11yViolations(container);
   });
 });
 

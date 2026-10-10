@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_db, require_permission
 from app.api.schemas.student import StudentAppointmentOut, appointment_view_out
 from app.api.zone import Zone, since_days
-from app.application import booking, care, student_wellness
+from app.application import booking, companion, student_wellness
 from app.domain.auth.permissions import Permission, permissions_for
 from app.domain.auth.policies import Principal
 from app.infrastructure.db import models as m
@@ -131,7 +131,7 @@ async def my_ai_conversations(
     ],
     limit: Limit = 50,
 ) -> list[AIConversationOut]:
-    rows = await care.own_ai_conversations(db, principal, limit)
+    rows = await companion.list_conversations(db, principal, limit)
     return [
         AIConversationOut(
             id=c.id, status=c.status.value, started_at=c.started_at, ended_at=c.ended_at

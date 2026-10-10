@@ -136,6 +136,15 @@ flowchart LR
 
 ## 4. Wellness companion (generative AI)
 
+> **Status: built in Phase 6.** See [ADR 0010](adr/0010-ai-wellness-companion-and-safety-layer.md).
+> Differences from the design below:
+> - Replies are **not streamed**, because the output guard checks the whole draft first.
+> - The default provider is the Anthropic Messages API, chosen by environment variables;
+>   Bedrock fits the same `LLMProvider` interface.
+> - Crisis detection is the shared rules lexicon only (no trained classifier yet). The API runs
+>   it before calling the service, so the API, not the service, raises the escalation.
+> - Retrieval of vetted resources and the report button are not built yet.
+
 ### 4.1 Conversation flow
 
 ```mermaid
@@ -325,7 +334,7 @@ history, sign-offs.
 
 | Surface | Required text (summary) |
 |---------|-------------------------|
-| Companion | "I'm an AI wellness companion, not a therapist. I can't diagnose or give medical advice. If you're in danger, use Get help now." |
+| Companion | "I'm an AI wellness companion, not a therapist. I can't diagnose or give medical advice, and I can make mistakes. If you're in danger, use Get help now." |
 | Student insights | "This is a pattern from your check-ins, not a diagnosis. It can be wrong. Talking to a counsellor can help." |
 | Therapist signals | "Statistical wellness signal from consented data. Not a diagnosis. Use your professional judgement." |
 | Crisis response | Clinician-written; resources first; no AI-generated content |

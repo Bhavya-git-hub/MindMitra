@@ -551,6 +551,8 @@ class NotificationSettingsPatchIn(BaseModel):
 
 class SafetySettingsPatchIn(BaseModel):
     alert_ack_minutes: int | None = None
+    companion_enabled: bool | None = None
+    companion_daily_messages: int | None = None
 
 
 class SettingsOut(BaseModel):

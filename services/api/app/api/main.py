@@ -29,6 +29,7 @@ from app.api.routes import (
     admin_settings,
     auth,
     care,
+    companion,
     health,
     insights,
     me,
@@ -51,12 +52,14 @@ from app.application.auth.errors import (
     RegistrationRejected,
 )
 from app.application.care import InvalidTransition
+from app.application.companion import CompanionLimited, CompanionOff
 from app.application.errors import InvalidInput
 from app.core.access_tokens import AccessTokenCodec, load_private_key
 from app.core.config import Settings, get_settings
 from app.domain.auth.policies import Principal
 from app.infrastructure.db.session import create_engine, create_session_factory
 from app.infrastructure.events import set_broker
+from app.infrastructure.ml_client import CompanionClient, HttpCompanionClient
 from app.infrastructure.notifications.providers import Providers, build_providers
 from app.infrastructure.realtime_hub import Hub
 from app.workers.scheduler import run_forever
@@ -90,6 +93,7 @@ ROUTERS = (
     student_care.router,
     student_privacy.router,
     student_teacher_support.router,
+    companion.router,
     care.router,
     therapist.router,
     teacher.router,
@@ -121,6 +125,16 @@ def _default_delivery(settings: Settings) -> TokenDelivery:
     )
 
 
+def _default_companion(settings: Settings) -> CompanionClient | None:
+    if not settings.ml_service_url or settings.ml_service_token is None:
+        return None
+    return HttpCompanionClient(
+        settings.ml_service_url,
+        settings.ml_service_token.get_secret_value(),
+        timeout_seconds=settings.ml_timeout_seconds,
+    )
+
+
 def create_app(
     settings: Settings | None = None,
     *,
@@ -128,6 +142,8 @@ def create_app(
     delivery: TokenDelivery | None = None,
     limiter: SlidingWindowRateLimiter | None = None,
     providers: Providers | None = None,
+    companion_client: CompanionClient | None = None,
+    companion_limiter: SlidingWindowRateLimiter | None = None,
 ) -> FastAPI:
     s = settings or get_settings()
     engine: AsyncEngine | None = None
@@ -141,6 +157,7 @@ def create_app(
         providers if providers is not None else build_providers(s.notification_email_provider)
     )
     factory = session_factory
+    ml = companion_client if companion_client is not None else _default_companion(s)
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
@@ -154,6 +171,8 @@ def create_app(
             scheduler.cancel()
             with contextlib.suppress(asyncio.CancelledError):
                 await scheduler
+        if ml is not None:
+            await ml.aclose()
         if engine is not None:
             await engine.dispose()
 
@@ -179,6 +198,9 @@ def create_app(
         limiter=limiter or SlidingWindowRateLimiter(s.auth_rate_limit_per_minute),
         hub=hub,
         providers=chosen_providers,
+        companion=ml,
+        companion_limiter=companion_limiter
+        or SlidingWindowRateLimiter(s.companion_rate_limit_per_minute),
     )
 
     install_problem_handlers(app)
@@ -265,6 +287,24 @@ def _install_domain_handlers(app: FastAPI) -> None:
     @app.exception_handler(InvalidTransition)
     async def _transition(request: Request, exc: InvalidTransition) -> JSONResponse:
         return problem(request, 409, str(exc))
+
+    @app.exception_handler(CompanionOff)
+    async def _companion_off(request: Request, exc: CompanionOff) -> JSONResponse:
+        detail = (
+            "The companion has been switched off."
+            if exc.reason == "switched_off"
+            else "The companion isn't available right now."
+        )
+        return problem(request, 503, detail)
+
+    @app.exception_handler(CompanionLimited)
+    async def _companion_limited(request: Request, exc: CompanionLimited) -> JSONResponse:
+        detail = (
+            "You've reached today's message limit for the companion."
+            if exc.daily
+            else "You're sending messages quickly. Please wait a moment."
+        )
+        return problem(request, 429, detail, headers={"Retry-After": str(exc.retry_after)})
 
     @app.exception_handler(InvalidInput)
     async def _invalid(request: Request, exc: InvalidInput) -> JSONResponse:

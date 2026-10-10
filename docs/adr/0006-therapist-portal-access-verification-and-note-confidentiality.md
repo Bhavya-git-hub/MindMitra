@@ -39,6 +39,9 @@ therapy note, how alerts are claimed and closed, and what the interface may hide
    string, log line, notification or `localStorage`.
 5. **Alerts are claimed, not broadcast.** A therapist sees alerts assigned to them, plus
    unassigned ones for students on their care team; acknowledging an unassigned alert assigns it.
+   (Amended by [ADR 0010](0010-ai-wellness-companion-and-safety-layer.md): an unassigned alert,
+   which means the student has no care-team therapist, is visible to every verified therapist at
+   the institution, and all of them are notified.)
    Resolving needs one of a fixed set of outcomes. No free text is stored, so the alert trail
    cannot become a second place for clinical content. The interface calls an alert "a prompt for
    care, never a conclusion". Nothing in this phase detects risk automatically (see ADR 0005,

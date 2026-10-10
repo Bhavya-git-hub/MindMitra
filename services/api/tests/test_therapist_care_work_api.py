@@ -14,7 +14,7 @@ from app.infrastructure.db.enums import (
     RecommendationSource,
 )
 from tests.api_world import World
-from tests.student_helpers import new_student
+from tests.student_helpers import Session, new_student
 from tests.therapist_helpers import (
     care_pair,
     due_appointment,
@@ -187,21 +187,28 @@ async def test_note_validation(
 # ---- risk alerts ---------------------------------------------------------------------------
 
 
-async def test_alerts_follow_a_clear_path_and_are_only_for_my_students(
+async def _ids(therapist: Session, query: str = "") -> list[str]:
+    return [a["id"] for a in (await therapist.get(f"/therapist/alerts{query}")).json()]
+
+
+async def test_alerts_follow_a_clear_path_and_unassigned_ones_belong_to_the_team(
     client: httpx.AsyncClient, api_db: AsyncSession, world: World
 ) -> None:
     pair = await care_pair(client, api_db, world)
     other = await fresh_therapist(client, api_db, world)
+    elsewhere = await fresh_therapist(client, api_db, world, other_tenant=True)
     alert_id = await make_alert(api_db, pair, excerpt="wants to talk to someone")
 
     alerts = (await pair.therapist.get("/therapist/alerts")).json()
-    assert [a["id"] for a in alerts] == [str(alert_id)]
-    a = alerts[0]
+    a = next(x for x in alerts if x["id"] == str(alert_id))
     assert a["category_label"] == "Seems very distressed" and a["source_label"] == "Asked for help"
     assert "not a diagnosis" in a["disclaimer"] and a["assigned_to_me"] is False
-    assert (await other.get("/therapist/alerts")).json() == []
+    # Unassigned, it is the counselling team's: any therapist at the institution can see it,
+    # nobody elsewhere can.
+    assert str(alert_id) in await _ids(other)
+    assert str(alert_id) not in await _ids(elsewhere)
     url = f"/therapist/alerts/{alert_id}"
-    assert (await other.patch(url, {"action": "acknowledge"})).status_code in (403, 404)
+    assert (await elsewhere.patch(url, {"action": "acknowledge"})).status_code == 404
 
     assert (await pair.therapist.patch(url, {"action": "start"})).status_code == 422  # ack first
     ack = await pair.therapist.patch(url, {"action": "acknowledge"})
@@ -214,10 +221,10 @@ async def test_alerts_follow_a_clear_path_and_are_only_for_my_students(
     ).status_code == 422  # needs outcome
     done = await pair.therapist.patch(url, {"action": "resolve", "outcome": "contacted_student"})
     assert done.json()["status"] == "resolved" and done.json()["outcome"] == "contacted_student"
-    assert (await pair.therapist.get("/therapist/alerts")).json() == []
-    closed = (await pair.therapist.get("/therapist/alerts?closed=true")).json()
-    assert [x["id"] for x in closed] == [str(alert_id)]
-    # once claimed, other therapists on the same care team no longer see or act on it
+    assert str(alert_id) not in await _ids(pair.therapist)
+    assert str(alert_id) in await _ids(pair.therapist, "?closed=true")
+    # once claimed, other therapists no longer see or act on it
+    assert str(alert_id) not in await _ids(other, "?closed=true")
     assert (await other.patch(url, {"action": "acknowledge"})).status_code in (403, 404)
 
 
@@ -226,14 +233,17 @@ async def test_an_alert_assigned_to_someone_else_is_invisible_even_on_the_same_c
 ) -> None:
     pair = await care_pair(client, api_db, world)
     alert_id = await make_alert(api_db, pair, assigned=True)
-    assert len((await pair.therapist.get("/therapist/alerts")).json()) == 1
+    assert str(alert_id) in await _ids(pair.therapist)
     other = await fresh_therapist(client, api_db, world)
     await end_care_link(api_db, pair)
     # the link has ended, but the alert is still assigned to this therapist, who must act on it
     assert (
         await pair.therapist.patch(f"/therapist/alerts/{alert_id}", {"action": "acknowledge"})
     ).status_code == 200
-    assert (await other.get("/therapist/alerts")).json() == []
+    assert str(alert_id) not in await _ids(other)
+    assert (
+        await other.patch(f"/therapist/alerts/{alert_id}", {"action": "start"})
+    ).status_code == 404
 
 
 async def test_alert_actions_are_audited_without_the_excerpt(

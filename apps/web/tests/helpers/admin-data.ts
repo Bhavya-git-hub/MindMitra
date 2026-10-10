@@ -241,6 +241,6 @@ export const notificationSettings = () => ({
 });
 
 export const safetySettings = () => ({
-  values: { alert_ack_minutes: 15 },
+  values: { alert_ack_minutes: 15, companion_enabled: true, companion_daily_messages: 100 },
   fixed_rules: ["At least one emergency contact must stay active."],
 });

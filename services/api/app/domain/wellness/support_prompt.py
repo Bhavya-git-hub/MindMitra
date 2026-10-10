@@ -1,10 +1,12 @@
-"""When to *show support information* after a check-in.
+"""When to *show support information* after a check-in or a message.
 
-This is not detection and not triage: it only decides whether the confirmation screen leads
-with kind words and a link to help. It never creates an alert or contacts anyone. It errs on
-the side of showing the prompt, and a missed phrase is never a reason to think someone is fine
-(human-reviewed safety detection is a separate, later piece of work).
+This is not triage: it only decides whether the confirmation screen leads with kind words and
+a link to help. It never creates an alert or contacts anyone. It errs on the side of showing
+the prompt (any crisis rule, including the gentle tier, counts), and a missed phrase is never a
+reason to think someone is fine.
 """
+
+from app.domain.safety.crisis_rules import detect
 
 _PHRASES = (
     "kill myself",
@@ -30,5 +32,5 @@ def show_support_prompt(*, mood_score: int, stress_level: int | None, note: str 
         return True
     if note:
         lowered = note.lower()
-        return any(p in lowered for p in _PHRASES)
+        return any(p in lowered for p in _PHRASES) or detect(note).show_resources
     return False

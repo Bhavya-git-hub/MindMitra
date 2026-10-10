@@ -38,6 +38,7 @@ from app.domain.auth.policies import Principal
 from app.infrastructure.db import models as m
 from app.infrastructure.db.audit import append_audit_event
 from app.infrastructure.db.enums import AuditOutcome, UserRole, UserStatus
+from app.infrastructure.ml_client import CompanionClient
 from app.infrastructure.notifications.providers import Providers
 from app.infrastructure.realtime_hub import Hub
 
@@ -56,6 +57,11 @@ class AppState:
     limiter: SlidingWindowRateLimiter
     hub: Hub
     providers: Providers
+    # The AI service client, or None when ML_SERVICE_URL is not set (companion unavailable).
+    companion: CompanionClient | None = None
+    companion_limiter: SlidingWindowRateLimiter = dataclasses.field(
+        default_factory=lambda: SlidingWindowRateLimiter(8)
+    )
 
 
 def app_state(request: Request) -> AppState:

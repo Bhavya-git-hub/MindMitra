@@ -25,6 +25,7 @@ class Permission(enum.StrEnum):
     WELLNESS_READ_OWN = "wellness:read:own"
     APPOINTMENT_READ_OWN = "appointment:read:own"
     AI_CONVERSATION_READ_OWN = "ai_conversation:read:own"
+    AI_COMPANION_USE_OWN = "ai_companion:use:own"  # talk to, and delete, own conversations
     WELLNESS_WRITE_OWN = "wellness:write:own"
     GOAL_MANAGE_OWN = "goal:manage:own"
     RECOMMENDATION_MANAGE_OWN = "recommendation:manage:own"
@@ -86,6 +87,7 @@ ROLE_PERMISSIONS: Mapping[Role, frozenset[Permission]] = {
             P.WELLNESS_READ_OWN,
             P.APPOINTMENT_READ_OWN,
             P.AI_CONVERSATION_READ_OWN,
+            P.AI_COMPANION_USE_OWN,
             P.WELLNESS_WRITE_OWN,
             P.GOAL_MANAGE_OWN,
             P.RECOMMENDATION_MANAGE_OWN,
@@ -183,6 +185,7 @@ CONTENT_PERMISSIONS: frozenset[Permission] = frozenset(
         P.FOLLOW_UP_MANAGE,
         P.RECOMMENDATION_CREATE_ASSIGNED,
         P.AI_CONVERSATION_READ_OWN,
+        P.AI_COMPANION_USE_OWN,
         P.STUDENT_READ_ASSIGNED,
         P.WELLNESS_WRITE_OWN,
         P.GOAL_MANAGE_OWN,

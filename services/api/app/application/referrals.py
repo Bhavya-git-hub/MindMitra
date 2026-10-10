@@ -22,11 +22,11 @@ from sqlalchemy import ColumnElement, case, exists, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.application import institution_settings
 from app.application.access import NotFound, enforce
 from app.application.auth.errors import Conflict
 from app.application.care import InvalidTransition
 from app.application.errors import InvalidInput
+from app.application.escalation import raise_alert
 from app.application.notifications import notify
 from app.application.teacher_portal import audit as teacher_audit
 from app.application.therapist_access import require_verified
@@ -45,7 +45,6 @@ from app.infrastructure.db.enums import (
     AlertDetector,
     AlertSeverity,
     AlertSource,
-    AlertStatus,
     AuditOutcome,
     EnrollmentStatus,
     NotificationPriority,
@@ -178,23 +177,18 @@ async def create(
         raise Conflict("You already have an open referral for this student.") from exc
 
     if category is ReferralCategory.SAFETY_CONCERN:
-        safety = (await institution_settings.load(db, actor.institution_id)).safety
-        db.add(
-            m.RiskAlert(
-                id=uuid7(),
-                institution_id=actor.institution_id,
-                student_id=student_id,
-                assigned_to=await _primary_therapist(db, actor.institution_id, student_id, now),
-                source=AlertSource.FACULTY_REFERRAL,
-                source_type="referral",
-                source_id=referral.id,
-                detector=AlertDetector.HUMAN,
-                category=AlertCategory.UNSAFE_SITUATION,
-                severity=AlertSeverity.HIGH,
-                status=AlertStatus.OPEN,
-                requires_human=True,
-                sla_ack_due_at=now + dt.timedelta(minutes=safety.alert_ack_minutes),
-            )
+        await raise_alert(
+            db,
+            institution_id=actor.institution_id,
+            student_id=student_id,
+            source=AlertSource.FACULTY_REFERRAL,
+            detector=AlertDetector.HUMAN,
+            category=AlertCategory.UNSAFE_SITUATION,
+            severity=AlertSeverity.HIGH,
+            title="A teacher has raised a safety concern",
+            now=now,
+            source_type="referral",
+            source_id=referral.id,
         )
     await teacher_audit(
         db,
@@ -209,22 +203,6 @@ async def create(
     )
     await db.commit()
     return await _teacher_view(db, referral)
-
-
-async def _primary_therapist(
-    db: AsyncSession, institution_id: uuid.UUID, student_id: uuid.UUID, now: dt.datetime
-) -> uuid.UUID | None:
-    return await db.scalar(
-        select(m.CareTeamMember.therapist_id)
-        .where(
-            m.CareTeamMember.student_id == student_id,
-            m.CareTeamMember.institution_id == institution_id,
-            m.CareTeamMember.starts_at <= now,
-            m.CareTeamMember.ends_at.is_(None),
-        )
-        .order_by(m.CareTeamMember.role, m.CareTeamMember.starts_at)
-        .limit(1)
-    )
 
 
 async def _teacher_view(db: AsyncSession, referral: m.Referral) -> ReferralView:
