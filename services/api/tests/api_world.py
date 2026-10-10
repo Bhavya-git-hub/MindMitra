@@ -175,6 +175,19 @@ class Builder:
         await self.db.flush()
         return appt.id
 
+    async def aggregate_consent(self, inst_id: uuid.UUID, student: Actor) -> None:
+        """The student agrees to be counted, anonymously, in group figures."""
+        self.db.add(
+            m.Consent(
+                institution_id=inst_id,
+                user_id=student.user_id,
+                scope=ConsentScope.ANONYMOUS_AGGREGATE_RESEARCH,
+                policy_version="test",
+                granted_at=NOW - dt.timedelta(days=30),
+            )
+        )
+        await self.db.flush()
+
     async def mood_entry(self, inst_id: uuid.UUID, student: Actor, score: int) -> None:
         self.db.add(
             m.MoodEntry(

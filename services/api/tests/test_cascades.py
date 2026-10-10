@@ -1,7 +1,7 @@
 """Delete behaviour: erasure cascades for wellness data, RESTRICT for clinical records."""
 
 import pytest
-from sqlalchemy import select, text
+from sqlalchemy import exists, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -125,11 +125,31 @@ async def test_deleting_a_resource_keeps_recommendations(session: AsyncSession) 
 async def test_deleting_a_course_removes_enrollments_and_teaching_links(
     session: AsyncSession,
 ) -> None:
-    link = await helpers.first(session, select(m.CourseTeacher))
+    link = await helpers.first(
+        session,
+        select(m.CourseTeacher).where(
+            ~exists().where(m.Referral.course_id == m.CourseTeacher.course_id)
+        ),
+    )
     cid = link.course_id
     await session.execute(text("DELETE FROM org.courses WHERE id = :i"), {"i": cid})
     assert await helpers.count(session, "org.course_enrollments", "course_id = :i", i=cid) == 0
     assert await helpers.count(session, "org.course_teachers", "course_id = :i", i=cid) == 0
+    assert (
+        await helpers.count(session, "safety.teacher_support_requests", "course_id = :i", i=cid)
+        == 0
+    )
+
+
+async def test_a_course_with_a_referral_cannot_be_deleted_out_from_under_it(
+    session: AsyncSession,
+) -> None:
+    """Referrals are safety records: they follow the retention policy, not a cascade."""
+    referral = await helpers.first(session, select(m.Referral))
+    with pytest.raises(IntegrityError):
+        await session.execute(
+            text("DELETE FROM org.courses WHERE id = :i"), {"i": referral.course_id}
+        )
 
 
 async def test_audit_rows_survive_deletion_of_the_people_they_describe(

@@ -27,7 +27,9 @@ from app.api.routes import (
     me,
     student_care,
     student_privacy,
+    student_teacher_support,
     student_wellness,
+    teacher,
     therapist,
 )
 from app.application.access import AccessDenied, NotFound
@@ -69,8 +71,10 @@ ROUTERS = (
     student_wellness.router,
     student_care.router,
     student_privacy.router,
+    student_teacher_support.router,
     care.router,
     therapist.router,
+    teacher.router,
     insights.router,
     admin.router,
 )

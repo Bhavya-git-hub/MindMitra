@@ -12,12 +12,14 @@ import uuid
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.application import cohort_stats
 from app.application.access import NotFound, enforce
 from app.domain.auth.permissions import Role
 from app.domain.auth.policies import Principal, allow, deny
+from app.domain.wellness import cohort
 from app.infrastructure.db import models as m
 
-MIN_COHORT_SIZE = 10
+MIN_COHORT_SIZE = cohort.MIN_COHORT
 WINDOW = dt.timedelta(days=30)
 
 
@@ -61,13 +63,17 @@ async def mood_summary(
             raise NotFound
 
     since = dt.datetime.now(dt.UTC) - WINDOW
-    stmt = (
-        select(func.count(func.distinct(m.MoodEntry.student_id)), func.avg(m.MoodEntry.mood_score))
-        .join(m.Student, m.Student.user_id == m.MoodEntry.student_id)
-        .where(m.MoodEntry.institution_id == actor.institution_id, m.MoodEntry.logged_at >= since)
-    )
+    members = select(m.Student.user_id).where(m.Student.institution_id == actor.institution_id)
     if department_id is not None:
-        stmt = stmt.where(m.Student.department_id == department_id)
+        members = members.where(m.Student.department_id == department_id)
+    # Only students who opted in to anonymous aggregates are counted, whoever asks.
+    people = cohort_stats.contributors(actor.institution_id, members)
+    stmt = select(
+        func.count(func.distinct(m.MoodEntry.student_id)), func.avg(m.MoodEntry.mood_score)
+    ).where(
+        m.MoodEntry.student_id.in_(people.scalar_subquery()),
+        m.MoodEntry.logged_at >= since,
+    )
     students, avg = (await db.execute(stmt)).one()
     if students < MIN_COHORT_SIZE:
         return MoodSummary(department_id, WINDOW.days, None, None, True)

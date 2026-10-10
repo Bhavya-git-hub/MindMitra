@@ -263,3 +263,84 @@ def can_verify_therapist(
     if actor.user_id == therapist_id:
         return deny("cannot_verify_self")
     return allow("institution_admin")
+
+
+def can_view_class_analytics(
+    actor: Principal, *, course_institution_id: uuid.UUID, teaches_course: bool
+) -> Decision:
+    """A teacher sees figures for the classes they teach. Not other teachers' classes."""
+    if actor.role is not Role.TEACHER:
+        return deny("role_not_permitted")
+    if not same_tenant(actor, course_institution_id):
+        return deny("other_tenant", hide=True)
+    return allow("teaches_course") if teaches_course else deny("not_your_class", hide=True)
+
+
+def can_raise_referral(
+    actor: Principal,
+    *,
+    student_institution_id: uuid.UUID,
+    teaches_course: bool,
+    student_enrolled: bool,
+) -> Decision:
+    """A teacher can raise a referral only for a student enrolled in a class they teach."""
+    if actor.role is not Role.TEACHER:
+        return deny("role_not_permitted")
+    if not same_tenant(actor, student_institution_id):
+        return deny("other_tenant", hide=True)
+    if not teaches_course:
+        return deny("not_your_class", hide=True)
+    return allow("enrolled_in_your_class") if student_enrolled else deny("not_in_class", hide=True)
+
+
+def can_manage_own_teacher_record(
+    actor: Principal, *, record_institution_id: uuid.UUID, record_teacher_id: uuid.UUID
+) -> Decision:
+    """A teacher reads and answers only referrals and requests that are their own."""
+    if actor.role is not Role.TEACHER:
+        return deny("role_not_permitted")
+    if not same_tenant(actor, record_institution_id):
+        return deny("other_tenant", hide=True)
+    return (
+        allow("own_record") if record_teacher_id == actor.user_id else deny("not_owner", hide=True)
+    )
+
+
+def can_triage_referral(
+    actor: Principal,
+    *,
+    referral_institution_id: uuid.UUID,
+    is_verified: bool,
+    on_care_team: bool,
+    student_has_care_team: bool,
+) -> Decision:
+    """A verified therapist triages referrals for their own students, or for students nobody
+    is looking after yet. Not referrals about another therapist's students."""
+    if actor.role is not Role.THERAPIST:
+        return deny("role_not_permitted")
+    if not same_tenant(actor, referral_institution_id):
+        return deny("other_tenant", hide=True)
+    if not is_verified:
+        return deny("not_verified")
+    if on_care_team:
+        return allow("on_care_team")
+    if not student_has_care_team:
+        return allow("unassigned_queue")
+    return deny("another_therapists_student", hide=True)
+
+
+def can_view_department_analytics(
+    actor: Principal,
+    *,
+    department_institution_id: uuid.UUID,
+    department_id: uuid.UUID,
+    teacher_department_id: uuid.UUID,
+) -> Decision:
+    """A teacher sees figures for their own department only. Another department is refused."""
+    if actor.role is not Role.TEACHER:
+        return deny("role_not_permitted")
+    if not same_tenant(actor, department_institution_id):
+        return deny("other_tenant", hide=True)
+    if department_id != teacher_department_id:
+        return deny("other_department")
+    return allow("own_department")

@@ -8,6 +8,7 @@ from sqlalchemy import (
     Boolean,
     CheckConstraint,
     DateTime,
+    ForeignKeyConstraint,
     Index,
     Numeric,
     SmallInteger,
@@ -35,6 +36,12 @@ from app.infrastructure.db.enums import (
     AlertSource,
     AlertStatus,
     CrisisContactKind,
+    ReferralCategory,
+    ReferralOutcome,
+    ReferralStatus,
+    ReferralUrgency,
+    TeacherSupportStatus,
+    TeacherSupportTopic,
 )
 
 
@@ -152,3 +159,162 @@ class CrisisContact(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         SmallInteger, nullable=False, server_default=text("100")
     )
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("true"))
+
+
+def _course_link_fks(
+    who: str, column: str, link: str, name: str, *, ondelete: str = "RESTRICT"
+) -> ForeignKeyConstraint:
+    """``(course_id, <who>_id, institution_id)`` must be a real teaching or enrolment link."""
+    return ForeignKeyConstraint(
+        ["course_id", column, "institution_id"],
+        [f"org.{link}.course_id", f"org.{link}.{column}", f"org.{link}.institution_id"],
+        ondelete=ondelete,
+        name=name,
+    )
+
+
+class Referral(UUIDPrimaryKeyMixin, TenantMixin, TimestampMixin, Base):
+    """A teacher asks for a person from the wellbeing team to reach out to a student.
+
+    Only a teacher of a course the student is enrolled in can raise one (both links are enforced
+    by foreign keys). The factual note is encrypted. The teacher sees ``status`` and nothing
+    else about what happens next; ``claimed_by`` and ``outcome`` are for therapists.
+    """
+
+    __tablename__ = "referrals"
+    __table_args__ = (
+        tenant_fk("teacher_id", "org.teachers", ondelete="RESTRICT"),
+        tenant_fk("student_id", "org.students", ondelete="RESTRICT"),
+        tenant_fk("claimed_by", "org.therapists", ondelete="RESTRICT"),
+        _course_link_fks(
+            "teacher", "teacher_id", "course_teachers", "fk_referrals_course_teacher_tenant"
+        ),
+        _course_link_fks(
+            "student", "student_id", "course_enrollments", "fk_referrals_course_student_tenant"
+        ),
+        CheckConstraint(
+            "(status = 'received') = (claimed_by IS NULL)", name="claimed_unless_received"
+        ),
+        CheckConstraint(
+            "(status = 'closed') = (closed_at IS NOT NULL)", name="closed_at_matches_status"
+        ),
+        CheckConstraint("(status = 'closed') = (outcome IS NOT NULL)", name="outcome_when_closed"),
+        # One live referral per teacher and student; a new one needs the last to be closed.
+        Index(
+            "uq_referrals_live_teacher_student",
+            "teacher_id",
+            "student_id",
+            unique=True,
+            postgresql_where=text("status <> 'closed'"),
+        ),
+        # The triage queue: live referrals, most urgent and oldest first.
+        Index(
+            "ix_referrals_open_queue",
+            "institution_id",
+            "urgency",
+            "created_at",
+            postgresql_where=text("status <> 'closed'"),
+        ),
+        Index("ix_referrals_student_id", "student_id"),
+        Index("ix_referrals_teacher_id", "teacher_id"),
+        Index("ix_referrals_course_id", "course_id"),
+        Index(
+            "ix_referrals_claimed_by", "claimed_by", postgresql_where=text("claimed_by IS NOT NULL")
+        ),
+        {"schema": "safety"},
+    )
+
+    teacher_id: Mapped[uuid.UUID] = uuid_col()
+    student_id: Mapped[uuid.UUID] = uuid_col()
+    course_id: Mapped[uuid.UUID] = uuid_col()
+    category: Mapped[ReferralCategory] = mapped_column(
+        enum_col(ReferralCategory, "referral_category"), nullable=False
+    )
+    urgency: Mapped[ReferralUrgency] = mapped_column(
+        enum_col(ReferralUrgency, "referral_urgency"), nullable=False
+    )
+    note: Mapped[str | None] = mapped_column(EncryptedText("safety.referrals.note"), nullable=True)
+    status: Mapped[ReferralStatus] = mapped_column(
+        enum_col(ReferralStatus, "referral_status"),
+        nullable=False,
+        server_default=ReferralStatus.RECEIVED.value,
+    )
+    claimed_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    claimed_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    closed_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    outcome: Mapped[ReferralOutcome | None] = mapped_column(
+        enum_col(ReferralOutcome, "referral_outcome"), nullable=True
+    )
+
+
+class TeacherSupportRequest(UUIDPrimaryKeyMixin, TenantMixin, TimestampMixin, Base):
+    """A student explicitly asks one of their own teachers for help.
+
+    The student chooses the teacher and course and writes the short message for that teacher, so
+    the teacher seeing it is the student's own act. Nothing else about the student comes with it.
+    """
+
+    __tablename__ = "teacher_support_requests"
+    __table_args__ = (
+        tenant_fk("student_id", "org.students", ondelete="CASCADE"),
+        tenant_fk("teacher_id", "org.teachers", ondelete="CASCADE"),
+        # A request is a conversation, not a safety record: it goes when the class does.
+        _course_link_fks(
+            "teacher",
+            "teacher_id",
+            "course_teachers",
+            "fk_teacher_support_course_teacher_tenant",
+            ondelete="CASCADE",
+        ),
+        _course_link_fks(
+            "student",
+            "student_id",
+            "course_enrollments",
+            "fk_teacher_support_course_student_tenant",
+            ondelete="CASCADE",
+        ),
+        CheckConstraint(
+            "status <> 'acknowledged' OR acknowledged_at IS NOT NULL",
+            name="acknowledged_at_when_acknowledged",
+        ),
+        CheckConstraint(
+            "(status IN ('closed','withdrawn')) = (closed_at IS NOT NULL)",
+            name="closed_at_matches_status",
+        ),
+        Index(
+            "uq_teacher_support_live",
+            "student_id",
+            "teacher_id",
+            "course_id",
+            unique=True,
+            postgresql_where=text("status IN ('open','acknowledged')"),
+        ),
+        Index(
+            "ix_teacher_support_teacher_status",
+            "teacher_id",
+            "status",
+            text("created_at DESC"),
+        ),
+        Index("ix_teacher_support_student_created", "student_id", text("created_at DESC")),
+        Index("ix_teacher_support_course_id", "course_id"),
+        {"schema": "safety"},
+    )
+
+    student_id: Mapped[uuid.UUID] = uuid_col()
+    teacher_id: Mapped[uuid.UUID] = uuid_col()
+    course_id: Mapped[uuid.UUID] = uuid_col()
+    topic: Mapped[TeacherSupportTopic] = mapped_column(
+        enum_col(TeacherSupportTopic, "teacher_support_topic"), nullable=False
+    )
+    message: Mapped[str | None] = mapped_column(
+        EncryptedText("safety.teacher_support_requests.message"), nullable=True
+    )
+    status: Mapped[TeacherSupportStatus] = mapped_column(
+        enum_col(TeacherSupportStatus, "teacher_support_status"),
+        nullable=False,
+        server_default=TeacherSupportStatus.OPEN.value,
+    )
+    acknowledged_at: Mapped[dt.datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    closed_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

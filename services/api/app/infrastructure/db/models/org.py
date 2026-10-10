@@ -238,6 +238,10 @@ class CourseEnrollment(UUIDPrimaryKeyMixin, TenantMixin, TimestampMixin, Base):
         tenant_fk("course_id", "org.courses", ondelete="CASCADE", target_column="id"),
         tenant_fk("student_id", "org.students", ondelete="CASCADE"),
         UniqueConstraint("course_id", "student_id", name="uq_course_enrollments_course_student"),
+        # Target of the referral and support-request foreign keys (keeps them in one institution).
+        UniqueConstraint(
+            "course_id", "student_id", "institution_id", name="uq_course_enrollments_link_tenant"
+        ),
         Index("ix_course_enrollments_student_id", "student_id"),
         {"schema": "org"},
     )
@@ -256,6 +260,9 @@ class CourseTeacher(TenantMixin, TimestampMixin, Base):
     __table_args__ = (
         tenant_fk("course_id", "org.courses", ondelete="CASCADE", target_column="id"),
         tenant_fk("teacher_id", "org.teachers", ondelete="CASCADE"),
+        UniqueConstraint(
+            "course_id", "teacher_id", "institution_id", name="uq_course_teachers_link_tenant"
+        ),
         Index("ix_course_teachers_teacher_id", "teacher_id"),
         {"schema": "org"},
     )

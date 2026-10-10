@@ -24,7 +24,12 @@ from app.infrastructure.db.models.org import (
     Teacher,
     Therapist,
 )
-from app.infrastructure.db.models.safety import CrisisContact, RiskAlert
+from app.infrastructure.db.models.safety import (
+    CrisisContact,
+    Referral,
+    RiskAlert,
+    TeacherSupportRequest,
+)
 from app.infrastructure.db.models.therapy import (
     Appointment,
     FollowUp,
@@ -69,11 +74,13 @@ __all__ = [
     "Recommendation",
     "RefreshToken",
     "Resource",
+    "Referral",
     "RiskAlert",
     "SleepEntry",
     "Student",
     "StressAssessment",
     "Teacher",
+    "TeacherSupportRequest",
     "Therapist",
     "TherapistAvailability",
     "TherapyNote",
