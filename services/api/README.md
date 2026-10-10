@@ -16,13 +16,15 @@ app/
                     problem responses, rate limiter
   application/      use cases: auth/ (login, refresh, reset ...), care, insights, admin, and the
                     student portal: student_wellness, goals, recommendations, directory, booking,
-                    messaging, privacy, safety
+                    messaging, privacy, safety; therapist portal: therapist_access,
+                    therapist_profile, therapist_students, therapist_appointments, therapy_sessions
+                    (notes), risk_alerts, follow_ups, therapist_recommendations, therapist_dashboard
   domain/auth/      roles and permissions, resource policies, password policy (no framework code)
   domain/wellness/  pure rules: WHO-5 scoring, indicators, recommendation rules, support prompt
   core/             settings (env vars only), JWT signing, field encryption, password hashing
   infrastructure/
     db/             models/, session management, UUIDv7 ids, audit hash chain, seed/
-alembic/            migrations (0001_initial_schema, 0002_tenant_safe_foreign_keys, 0003_auth_sessions, 0004_crisis_contacts)
+alembic/            migrations (0001_initial_schema, 0002_tenant_safe_foreign_keys, 0003_auth_sessions, 0004_crisis_contacts, 0005_therapist_portal)
 tests/              database tests, plus auth and cross-role authorization tests through the API,
                     all against real PostgreSQL
 ```

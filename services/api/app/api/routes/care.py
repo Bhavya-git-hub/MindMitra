@@ -114,17 +114,6 @@ async def student_therapy_notes(
     return out
 
 
-@router.get("/therapist/appointments")
-async def therapist_appointments(
-    db: Db,
-    principal: Annotated[Principal, Depends(require_permission(Permission.APPOINTMENT_MANAGE))],
-    status: AppointmentStatus | None = None,
-    limit: Limit = 50,
-) -> list[AppointmentOut]:
-    rows = await care.therapist_appointments(db, principal, status, limit)
-    return [appointment_out(a) for a in rows]
-
-
 @router.patch("/appointments/{appointment_id}")
 async def update_appointment(
     appointment_id: uuid.UUID,

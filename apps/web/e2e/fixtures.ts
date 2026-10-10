@@ -17,15 +17,20 @@ export const HEADING: Record<Role, RegExp> = {
   administrator: /Welcome, /,
 };
 
-const users: Record<Role, string> = JSON.parse(
-  readFileSync(path.resolve(import.meta.dirname, ".auth/users.json"), "utf8"),
-);
+const users: Record<Role, string> & {
+  /** Set by scripts/e2e/prepare_backend.py for the therapist portal. */
+  care_student_name: string;
+  pending_therapist: string;
+} = JSON.parse(readFileSync(path.resolve(import.meta.dirname, ".auth/users.json"), "utf8"));
 const password = process.env.E2E_PASSWORD ?? "";
 
 export const credentials = (role: Role) => ({ email: users[role], password });
+export const careStudentName = users.care_student_name;
+export const pendingTherapistEmail = users.pending_therapist;
 
-export async function signIn(page: Page, role: Role, next?: string) {
-  const { email, password } = credentials(role);
+export async function signIn(page: Page, role: Role, next?: string, email?: string) {
+  const { email: roleEmail, password } = credentials(role);
+  email ??= roleEmail;
   await page.goto(next ? `/login?next=${encodeURIComponent(next)}` : "/login");
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password", { exact: true }).fill(password);

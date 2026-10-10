@@ -32,6 +32,7 @@ export function RecommendationList({
         <li key={rec.id} className="rounded-xl border bg-card p-4">
           <div className="flex flex-wrap items-start justify-between gap-2">
             <h3 className="font-medium">{rec.title}</h3>
+            {rec.source === "therapist" && <Badge variant="info">From your therapist</Badge>}
             {rec.status === "completed" && <Badge variant="success">Done</Badge>}
             {rec.status === "dismissed" && <Badge variant="outline">Dismissed</Badge>}
           </div>

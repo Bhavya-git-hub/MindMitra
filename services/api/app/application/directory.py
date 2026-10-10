@@ -16,7 +16,12 @@ from app.application.access import NotFound, has_active_care_link
 from app.application.timeutil import now_utc
 from app.domain.auth.policies import Principal
 from app.infrastructure.db import models as m
-from app.infrastructure.db.enums import AppointmentStatus, ResourceType, UserStatus
+from app.infrastructure.db.enums import (
+    AppointmentStatus,
+    ResourceType,
+    UserStatus,
+    VerificationStatus,
+)
 
 MAX_LIMIT = 100
 BOOKING_LEAD_TIME = dt.timedelta(hours=2)
@@ -75,6 +80,17 @@ class TherapistCard:
     on_my_care_team: bool
 
 
+def verified_filter(now: dt.datetime) -> ColumnElement[bool]:
+    """Only therapists whose professional verification is current appear to students."""
+    return and_(
+        m.Therapist.verification_status == VerificationStatus.VERIFIED,
+        or_(
+            m.Therapist.licence_expires_on.is_(None),
+            m.Therapist.licence_expires_on >= now.date(),
+        ),
+    )
+
+
 def _open_slot_filters(now: dt.datetime) -> list[ColumnElement[bool]]:
     """Availability that starts in the booking window and has no live appointment on it."""
     taken = exists().where(
@@ -105,6 +121,7 @@ async def list_therapists(
             m.Therapist.institution_id == actor.institution_id,
             m.User.status == UserStatus.ACTIVE,
             m.User.deleted_at.is_(None),
+            verified_filter(now),
         )
     )
     if specialty:
@@ -151,6 +168,7 @@ async def get_therapist(
                 m.Therapist.institution_id == actor.institution_id,
                 m.User.status == UserStatus.ACTIVE,
                 m.User.deleted_at.is_(None),
+                verified_filter(now_utc()),
             )
         )
     ).first()

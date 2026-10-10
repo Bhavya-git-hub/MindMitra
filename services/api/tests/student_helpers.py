@@ -43,6 +43,9 @@ class Session:
     async def patch(self, path: str, json: Any = None) -> httpx.Response:
         return await call(self.client, "PATCH", path, token=self.token, json=json)
 
+    async def delete(self, path: str) -> httpx.Response:
+        return await call(self.client, "DELETE", path, token=self.token)
+
 
 async def sign_in(client: httpx.AsyncClient, actor: Actor, password: str) -> Session:
     r = await login(client, actor.email, password)
@@ -79,10 +82,11 @@ async def new_therapist(
     first_slot_in: dt.timedelta = dt.timedelta(days=3),
     other_tenant: bool = False,
     accepting: bool = True,
+    verified: bool = True,
 ) -> tuple[Session, list[uuid.UUID]]:
     """A therapist with ``slots`` hour-long open slots, one per day from ``first_slot_in``."""
     inst = world.inst_b if other_tenant else world.inst_a
-    actor = await Builder(db, world.password).user(inst, UserRole.THERAPIST)
+    actor = await Builder(db, world.password).user(inst, UserRole.THERAPIST, verified=verified)
     therapist = await db.get(m.Therapist, actor.user_id)
     assert therapist is not None
     therapist.accepting_new_students = accepting

@@ -45,11 +45,25 @@ Interactive docs at `/docs` in development and test only.
 | `POST /me/support-requests` | `support_request:create` | "Please have a person reach out": creates a human-handled alert, rate limited to one open request |
 | `GET /me/safety/resources` | `privacy:read:own` | Crisis contacts (national and campus) for the student's institution |
 | `GET /me/ai-conversations` | `ai_conversation:read:own` | Own companion conversations (metadata only) |
-| `GET /students` | `student:read:assigned` | Therapist's current care-team students |
+| `GET /students` | `student:read:assigned` | Therapist's current care-team students (older route, kept; requires a verified therapist) |
 | `GET /students/{id}/mood-entries` | `wellness:read:assigned` | Consented mood entries of an assigned student, without the private note; audited |
 | `GET /students/{id}/therapy-notes` | `therapy_note:read` | Notes this therapist wrote about an assigned student; audited |
-| `GET /therapist/appointments` | `appointment:manage` | Therapist's own appointments |
-| `PATCH /appointments/{id}` | `appointment:manage` | `{status: confirmed, cancelled, completed, no_show}`; valid transitions only (`409` otherwise) |
+| `GET /therapist/dashboard?tz=` | `therapist_profile:manage` | Verification status, caseload, today's appointments, waiting requests, open alerts by severity, follow-ups due, unread messages. Works for an unverified therapist (counts are zero) |
+| `GET`, `PATCH /therapist/profile` | `therapist_profile:manage` | Own profile (bio, focus areas, languages, accepting new students, caseload cap) and verification status |
+| `POST /therapist/verification` | `therapist_profile:manage` | Submit licence number, body and expiry; sets the status back to `pending`. A therapist cannot verify themself |
+| `GET`, `POST /therapist/availability`, `DELETE /therapist/availability/{id}` | `therapist_profile:manage` | Own bookable times (optional weekly repeat); a booked time cannot be removed |
+| `GET /therapist/appointments?scope=requests\|upcoming\|past\|all` | `appointment:manage` | Own appointments with `can_start` and `session_id` |
+| `PATCH /appointments/{id}` | `appointment:manage` | Confirm, cancel, complete or mark no-show. Confirming a first appointment creates the care-team link; the student is notified (ids-only payload) |
+| `GET /therapist/students`, `GET /therapist/students/{id}` | `student:read:assigned` | Caseload and the authorized profile. **Verified therapist and active care link required** (`404` otherwise). The profile reports which consents are active |
+| `GET /therapist/students/{id}/trends?days=&tz=` | `wellness:read:assigned` | Mood, stress and sleep points; needs the `share_mood_with_care_team` consent (`403` without it); no private notes |
+| `GET /therapist/students/{id}/assessments` | `wellness:read:assigned` | WHO-5 results; needs the `share_assessments_with_care_team` consent |
+| `GET`, `POST /therapist/students/{id}/recommendations` | `recommendation:create:assigned` | Suggestions this therapist made; creating one shows it to the student as "From your therapist" and notifies them |
+| `GET /therapist/sessions?status=` | `session:manage` | Own sessions (only for students currently on the care team) |
+| `POST /therapist/appointments/{id}/session`, `PATCH /therapist/sessions/{id}` | `session:manage` | Start (from 15 minutes before until a day after the end; idempotent) and complete or abandon a session |
+| `GET`, `PUT /therapist/sessions/{id}/note` | `therapy_note:read` / `therapy_note:write` | The therapy note: **author only**, versioned (`PUT` adds a version, earlier ones are locked, `?version=` reads one), `Cache-Control: no-store, private`, audited by version number only |
+| `GET /therapist/alerts?closed=`, `PATCH /therapist/alerts/{id}` | `risk_alert:manage:assigned` | Alerts assigned to me, or unassigned for students on my care team; acknowledge (claims an unassigned one), start, resolve with a fixed outcome. Free text is never stored |
+| `GET`, `POST /therapist/follow-ups`, `PATCH /therapist/follow-ups/{id}` | `follow_up:manage` | Private reminders (kind, due date, encrypted note) about care-team students |
+| `GET /admin/therapists?status=`, `PATCH /admin/therapists/{id}/verification` | `therapist:verify` | Administrators review and set `verified` or `rejected` (with a short note) within their own institution; an administrator cannot be the subject |
 | `GET /insights/mood-summary?department_id=` | `insights:read:aggregate` | 30-day department cohort size and average mood; suppressed under 10 students |
 | `GET /admin/users`, `POST /admin/users` | `user:manage` | List / create (invited, any role) users of the admin's institution |
 | `PATCH /admin/users/{id}` | `user:manage` | `{status: active, suspended, deactivated}`; non-active revokes sessions |
@@ -70,7 +84,7 @@ it; `409` invalid transition or duplicate; `422` validation, weak password, unkn
 | Invitations | `POST /users/invitations`, `POST /auth/invitations/accept` | `POST /admin/users` sends an account-setup link; the user completes it with `POST /auth/password/reset` |
 | User admin paths | `/users`, `/users/{id}/deactivate` | `/admin/users`, `PATCH /admin/users/{id}` with a status |
 | Institution settings | `/admin/institution` | `/admin/config` |
-| Therapist views | Nested under `/checkins`, `/session-notes` | `/students/{id}/mood-entries`, `/students/{id}/therapy-notes` (read only for now) |
+| Therapist views | Nested under `/checkins`, `/session-notes` | Everything a therapist does is under `/therapist/...`; the older `/students*` routes remain for now. Student data needs a **verified** therapist, an **active care link**, and (for check-ins and wellbeing checks) the student's **consent**. Conversations reuse `/me/conversations` |
 | Student portal | `/checkins`, `/journal`, `/threads`, `/consent`, `/privacy`, `/safety` | Everything a student does is under `/me/...` with no student id in the path, so the caller can only ever address their own data (`403/404` tests cover other students' ids on the staff routes). Check-in is `POST /me/check-ins`; messages are keyed by the other person; consent is `/me/consents`. Time zone comes from `?tz=` (IANA) per request |
 | Pagination | Cursor | `limit` (max 200); audit uses `before_seq` as its cursor |
 | Not built yet | MFA, step-up, `/auth/sessions`, `/health/ready`, idempotency keys, ETags, everything outside the table above | Later phases |

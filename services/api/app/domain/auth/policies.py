@@ -180,3 +180,86 @@ def can_message_in_conversation(
     if not has_active_care_link:
         return deny("no_care_team_link", hide=True)
     return allow("conversation_participant")
+
+
+# ---- therapist portal --------------------------------------------------------------------
+
+
+def can_access_assigned_student(
+    actor: Principal, *, student_institution_id: uuid.UUID, has_active_care_link: bool
+) -> Decision:
+    """A therapist may work with a student only while the student is on their care team.
+    Anything else looks like a missing student."""
+    if actor.role is not Role.THERAPIST:
+        return deny("role_not_permitted")
+    if not same_tenant(actor, student_institution_id):
+        return deny("other_tenant", hide=True)
+    if not has_active_care_link:
+        return deny("no_care_team_link", hide=True)
+    return allow("care_team")
+
+
+def can_manage_own_therapist_record(
+    actor: Principal, *, institution_id: uuid.UUID, therapist_id: uuid.UUID
+) -> Decision:
+    """Availability, follow-ups and sessions belong to the therapist who owns them."""
+    if actor.role is not Role.THERAPIST:
+        return deny("role_not_permitted")
+    if not same_tenant(actor, institution_id) or actor.user_id != therapist_id:
+        return deny("not_owner", hide=True)
+    return allow("owning_therapist")
+
+
+def can_write_therapy_note(
+    actor: Principal,
+    *,
+    session_institution_id: uuid.UUID,
+    session_therapist_id: uuid.UUID,
+    has_active_care_link: bool,
+) -> Decision:
+    """Only the therapist who delivered the session writes its notes, while the student is
+    still on their care team. Nobody else, whatever their role, may add to or amend a note."""
+    if actor.role is not Role.THERAPIST:
+        return deny("role_not_permitted")
+    if not same_tenant(actor, session_institution_id) or actor.user_id != session_therapist_id:
+        return deny("not_session_therapist", hide=True)
+    if not has_active_care_link:
+        return deny("no_care_team_link", hide=True)
+    return allow("session_therapist")
+
+
+def can_handle_risk_alert(
+    actor: Principal,
+    *,
+    alert_institution_id: uuid.UUID,
+    assigned_to: uuid.UUID | None,
+    has_active_care_link: bool,
+) -> Decision:
+    """An alert is handled by the therapist it is assigned to, or (while unassigned) by a
+    therapist on the student's care team."""
+    if actor.role is not Role.THERAPIST:
+        return deny("role_not_permitted")
+    if not same_tenant(actor, alert_institution_id):
+        return deny("other_tenant", hide=True)
+    if assigned_to is not None:
+        return (
+            allow("assigned_therapist")
+            if assigned_to == actor.user_id
+            else deny("assigned_to_someone_else", hide=True)
+        )
+    if not has_active_care_link:
+        return deny("no_care_team_link", hide=True)
+    return allow("care_team_unassigned")
+
+
+def can_verify_therapist(
+    actor: Principal, *, therapist_institution_id: uuid.UUID, therapist_id: uuid.UUID
+) -> Decision:
+    """Administrators verify the therapists of their own institution, never themselves."""
+    if actor.role is not Role.ADMIN:
+        return deny("role_not_permitted")
+    if not same_tenant(actor, therapist_institution_id):
+        return deny("other_tenant", hide=True)
+    if actor.user_id == therapist_id:
+        return deny("cannot_verify_self")
+    return allow("institution_admin")

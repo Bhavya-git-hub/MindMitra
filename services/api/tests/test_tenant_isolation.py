@@ -217,6 +217,10 @@ _EXEMPT = {
     # (availability_id, therapist_id) -> availability: the slot's tenant is its therapist's,
     # which the appointment's own therapist composite FK already ties to this tenant.
     ("therapy.appointments", "availability_id"),
+    # Actor references (who verified / who wrote), set from the signed-in caller and kept
+    # same-tenant by the verification and recommendation policies; SET NULL on user removal.
+    ("org.therapists", "verified_by"),
+    ("ai.recommendations", "authored_by"),
 }
 
 

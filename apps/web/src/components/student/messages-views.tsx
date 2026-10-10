@@ -21,10 +21,14 @@ import { useQuery } from "@/lib/hooks/use-query";
 import { useStudentApi } from "@/lib/hooks/use-student-api";
 import { cn } from "@/lib/utils";
 
+export type MessagingPortal = "student" | "therapist";
+
 const MAX_LENGTH = 4000;
 const REFRESH_MS = 30_000;
 
-export function MessagesView() {
+export function MessagesView({ portal = "student" }: { portal?: MessagingPortal } = {}) {
+  const isTherapist = portal === "therapist";
+  const base = `/${portal}/messages`;
   const api = useStudentApi();
   const conversations = useQuery("conversations", () => api.conversations());
 
@@ -32,11 +36,17 @@ export function MessagesView() {
     <>
       <PageHeader
         title="Messages"
-        description="Private messages with the therapists on your care team. For anything urgent, please don't wait for a reply."
+        description={
+          isTherapist
+            ? "Private messages with the students you support. Messaging is not a crisis service: if a student may be in danger, follow your institution's urgent-care process."
+            : "Private messages with the therapists on your care team. For anything urgent, please don't wait for a reply."
+        }
         actions={
-          <Button asChild variant="outline">
-            <Link href="/student/emergency">Urgent support</Link>
-          </Button>
+          isTherapist ? undefined : (
+            <Button asChild variant="outline">
+              <Link href="/student/emergency">Urgent support</Link>
+            </Button>
+          )
         }
       />
       <DataView query={conversations}>
@@ -45,11 +55,21 @@ export function MessagesView() {
             <EmptyState
               icon={MessageCircle}
               title="No conversations yet"
-              description="Messaging opens once a therapist has confirmed your first appointment."
+              description={
+                isTherapist
+                  ? "A conversation opens once you confirm a student's first appointment."
+                  : "Messaging opens once a therapist has confirmed your first appointment."
+              }
               action={
-                <Button asChild>
-                  <Link href="/student/therapists">Find a therapist</Link>
-                </Button>
+                isTherapist ? (
+                  <Button asChild>
+                    <Link href="/therapist/appointments">View appointment requests</Link>
+                  </Button>
+                ) : (
+                  <Button asChild>
+                    <Link href="/student/therapists">Find a therapist</Link>
+                  </Button>
+                )
               }
             />
           ) : (
@@ -58,7 +78,7 @@ export function MessagesView() {
                 {rows.map((c) => (
                   <li key={c.other_id}>
                     <Link
-                      href={`/student/messages/${c.other_id}`}
+                      href={`${base}/${c.other_id}`}
                       className="flex flex-wrap items-center justify-between gap-2 rounded-lg py-4 hover:bg-accent/50 focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
                     >
                       <span className="min-w-0 space-y-1">
@@ -83,7 +103,14 @@ export function MessagesView() {
   );
 }
 
-export function ConversationView({ otherId }: { otherId: string }) {
+export function ConversationView({
+  otherId,
+  portal = "student",
+}: {
+  otherId: string;
+  portal?: MessagingPortal;
+}) {
+  const isTherapist = portal === "therapist";
   const api = useStudentApi();
   const conversations = useQuery("conversations", () => api.conversations());
   const thread = useQuery(`messages-${otherId}`, () => api.messages(otherId));
@@ -132,21 +159,27 @@ export function ConversationView({ otherId }: { otherId: string }) {
         title={other?.other_name ?? "Conversation"}
         actions={
           <Button asChild variant="ghost">
-            <Link href="/student/messages">All messages</Link>
+            <Link href={`/${portal}/messages`}>All messages</Link>
           </Button>
         }
       />
-      {support && <SupportCallout message={support.message} />}
+      {!isTherapist && support && <SupportCallout message={support.message} />}
       <SectionCard
         title="Messages"
-        description="Only you and this therapist can read these. Replies can take a while: for anything urgent, use urgent support."
+        description={
+          isTherapist
+            ? "Only you and this student can read these. Please don't put clinical notes here: keep those in your private session notes."
+            : "Only you and this therapist can read these. Replies can take a while: for anything urgent, use urgent support."
+        }
       >
         <DataView query={thread}>
           {(rows) => {
             const chronological = [...rows].reverse();
             return chronological.length === 0 ? (
               <p className="text-sm text-muted-foreground">
-                No messages yet. Say hello whenever you&apos;re ready.
+                {isTherapist
+                  ? "No messages yet."
+                  : "No messages yet. Say hello whenever you\u2019re ready."}
               </p>
             ) : (
               <ol aria-label="Messages" className="space-y-3">
@@ -181,8 +214,9 @@ export function ConversationView({ otherId }: { otherId: string }) {
       </SectionCard>
       {other && !other.active ? (
         <InlineAlert tone="info">
-          This conversation has ended, so you can read it but not reply. You can book a new
-          appointment any time.
+          {isTherapist
+            ? "This conversation has ended because the care link is no longer active, so you can read it but not reply."
+            : "This conversation has ended, so you can read it but not reply. You can book a new appointment any time."}
         </InlineAlert>
       ) : (
         <form onSubmit={submit} className="space-y-3" noValidate>

@@ -12,6 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.application.access import NotFound, enforce, has_active_care_link, has_active_consent
+from app.application.therapist_access import require_verified
 from app.domain.auth.policies import (
     Principal,
     can_manage_appointment,
@@ -26,8 +27,10 @@ from app.infrastructure.db.enums import (
     AuditOutcome,
     CareRole,
     ConsentScope,
+    NotificationType,
     UserRole,
 )
+from app.infrastructure.db.ids import uuid7
 
 MAX_LIMIT = 200
 
@@ -131,6 +134,7 @@ async def own_ai_conversations(
 async def assigned_students(
     db: AsyncSession, actor: Principal
 ) -> list[tuple[m.Student, m.User, m.CareTeamMember]]:
+    await require_verified(db, actor, "student.list")
     now = _now()
     rows = await db.execute(
         select(m.Student, m.User, m.CareTeamMember)
@@ -160,6 +164,7 @@ async def _student_or_hidden(
 async def student_mood_entries_for_therapist(
     db: AsyncSession, actor: Principal, student_id: uuid.UUID, limit: int
 ) -> list[m.MoodEntry]:
+    await require_verified(db, actor, "mood_entry.list")
     student = await _student_or_hidden(db, actor, student_id)
     linked = await has_active_care_link(
         db, therapist_id=actor.user_id, student_id=student_id, now=_now()
@@ -197,6 +202,7 @@ async def therapy_notes_for_therapist(
     db: AsyncSession, actor: Principal, student_id: uuid.UUID
 ) -> list[m.TherapyNote]:
     """Notes the caller wrote about this student. Other therapists' notes are never returned."""
+    await require_verified(db, actor, "therapy_note.list")
     student = await _student_or_hidden(db, actor, student_id)
     linked = await has_active_care_link(
         db, therapist_id=actor.user_id, student_id=student_id, now=_now()
@@ -249,6 +255,7 @@ async def therapy_notes_for_therapist(
 async def therapist_appointments(
     db: AsyncSession, actor: Principal, status: AppointmentStatus | None, limit: int
 ) -> list[m.Appointment]:
+    await require_verified(db, actor, "appointment.list")
     stmt = select(m.Appointment).where(
         m.Appointment.therapist_id == actor.user_id,
         m.Appointment.institution_id == actor.institution_id,
@@ -308,6 +315,7 @@ async def _ensure_care_link(db: AsyncSession, appt: m.Appointment) -> None:
 async def update_appointment_status(
     db: AsyncSession, actor: Principal, appointment_id: uuid.UUID, new_status: AppointmentStatus
 ) -> m.Appointment:
+    await require_verified(db, actor, "appointment.update")
     appt = await db.get(m.Appointment, appointment_id, with_for_update=True)
     if appt is None:
         raise NotFound
@@ -329,6 +337,19 @@ async def update_appointment_status(
     if new_status is AppointmentStatus.CANCELLED:
         appt.cancelled_at = _now()
         appt.cancelled_by = actor.user_id
+    if new_status in (AppointmentStatus.CONFIRMED, AppointmentStatus.CANCELLED):
+        # Identifiers only: no names, times or reasons (notify schema rules).
+        db.add(
+            m.Notification(
+                id=uuid7(),
+                institution_id=appt.institution_id,
+                user_id=appt.student_id,
+                type=NotificationType.APPOINTMENT_UPDATE,
+                title="Your appointment was "
+                + ("confirmed" if new_status is AppointmentStatus.CONFIRMED else "cancelled"),
+                payload={"appointment_id": str(appt.id), "event": new_status.value},
+            )
+        )
     await append_audit_event(
         db,
         institution_id=actor.institution_id,

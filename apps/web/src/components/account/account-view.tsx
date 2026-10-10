@@ -40,9 +40,9 @@ export function AccountView() {
       <SectionCard title="Your details">
         <dl className="grid gap-4 sm:grid-cols-2">
           {rows.map(([term, detail]) => (
-            <div key={term} className="space-y-1">
+            <div key={term} className="min-w-0 space-y-1">
               <dt className="text-sm text-muted-foreground">{term}</dt>
-              <dd className="font-medium break-words">{detail}</dd>
+              <dd className="font-medium [overflow-wrap:anywhere]">{detail}</dd>
             </div>
           ))}
         </dl>

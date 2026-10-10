@@ -41,10 +41,17 @@ class Permission(enum.StrEnum):
     WELLNESS_READ_ASSIGNED = "wellness:read:assigned"
     THERAPY_NOTE_READ = "therapy_note:read"
     APPOINTMENT_MANAGE = "appointment:manage"
+    THERAPIST_PROFILE_MANAGE = "therapist_profile:manage"  # own profile, availability, status
+    SESSION_MANAGE = "session:manage"
+    THERAPY_NOTE_WRITE = "therapy_note:write"
+    RISK_ALERT_MANAGE = "risk_alert:manage:assigned"
+    FOLLOW_UP_MANAGE = "follow_up:manage"
+    RECOMMENDATION_CREATE_ASSIGNED = "recommendation:create:assigned"
     # teacher / admin: aggregated, de-identified data only
     INSIGHTS_READ_AGGREGATE = "insights:read:aggregate"
     # admin: accounts, configuration and audit metadata, never clinical content
     USER_MANAGE = "user:manage"
+    THERAPIST_VERIFY = "therapist:verify"
     CONFIG_MANAGE = "config:manage"
     AUDIT_READ = "audit:read"
 
@@ -77,6 +84,13 @@ ROLE_PERMISSIONS: Mapping[Role, frozenset[Permission]] = {
             P.WELLNESS_READ_ASSIGNED,
             P.THERAPY_NOTE_READ,
             P.APPOINTMENT_MANAGE,
+            P.THERAPIST_PROFILE_MANAGE,
+            P.SESSION_MANAGE,
+            P.THERAPY_NOTE_WRITE,
+            P.RISK_ALERT_MANAGE,
+            P.FOLLOW_UP_MANAGE,
+            P.RECOMMENDATION_CREATE_ASSIGNED,
+            P.MESSAGE_PARTICIPATE_OWN,
             P.RESOURCE_READ,
         }
     ),
@@ -86,6 +100,7 @@ ROLE_PERMISSIONS: Mapping[Role, frozenset[Permission]] = {
             P.PROFILE_READ_OWN,
             P.INSIGHTS_READ_AGGREGATE,
             P.USER_MANAGE,
+            P.THERAPIST_VERIFY,
             P.CONFIG_MANAGE,
             P.AUDIT_READ,
         }
@@ -99,6 +114,11 @@ CONTENT_PERMISSIONS: frozenset[Permission] = frozenset(
         P.WELLNESS_READ_OWN,
         P.WELLNESS_READ_ASSIGNED,
         P.THERAPY_NOTE_READ,
+        P.THERAPY_NOTE_WRITE,
+        P.SESSION_MANAGE,
+        P.RISK_ALERT_MANAGE,
+        P.FOLLOW_UP_MANAGE,
+        P.RECOMMENDATION_CREATE_ASSIGNED,
         P.AI_CONVERSATION_READ_OWN,
         P.STUDENT_READ_ASSIGNED,
         P.WELLNESS_WRITE_OWN,

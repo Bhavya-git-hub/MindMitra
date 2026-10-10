@@ -7,6 +7,7 @@ institution are the caller's. Nothing here reads another person's data.
 
 import dataclasses
 import datetime as dt
+import uuid
 from collections import defaultdict
 from decimal import Decimal
 from zoneinfo import ZoneInfo
@@ -324,31 +325,43 @@ async def daily_series(
     db: AsyncSession, actor: Principal, days: int, zone: ZoneInfo
 ) -> list[DailyPoint]:
     """One point per local calendar day, oldest first, ending today (None where nothing logged)."""
+    authorize_own(db, actor, "wellness_trend.read", "wellness_trend")
+    return await series_for_student(db, actor.user_id, actor.institution_id, days, zone)
+
+
+async def series_for_student(
+    db: AsyncSession,
+    student_id: uuid.UUID,
+    institution_id: uuid.UUID,
+    days: int,
+    zone: ZoneInfo,
+) -> list[DailyPoint]:
+    """The series itself. Callers MUST have authorised access to this student first (the
+    student for themselves, or a therapist with a care link and the student's consent)."""
     if not 1 <= days <= MAX_TREND_DAYS:
         raise InvalidInput(f"days must be between 1 and {MAX_TREND_DAYS}.")
-    authorize_own(db, actor, "wellness_trend.read", "wellness_trend")
     today = local_today(zone)
     first = today - dt.timedelta(days=days - 1)
     start, _ = day_bounds(first, zone)
 
     moods = await db.execute(
         select(m.MoodEntry.logged_at, m.MoodEntry.mood_score, m.MoodEntry.energy_level).where(
-            m.MoodEntry.student_id == actor.user_id,
-            m.MoodEntry.institution_id == actor.institution_id,
+            m.MoodEntry.student_id == student_id,
+            m.MoodEntry.institution_id == institution_id,
             m.MoodEntry.logged_at >= start,
         )
     )
     stresses = await db.execute(
         select(m.StressAssessment.completed_at, m.StressAssessment.perceived_stress_level).where(
-            m.StressAssessment.student_id == actor.user_id,
-            m.StressAssessment.institution_id == actor.institution_id,
+            m.StressAssessment.student_id == student_id,
+            m.StressAssessment.institution_id == institution_id,
             m.StressAssessment.completed_at >= start,
         )
     )
     sleeps = await db.execute(
         select(m.SleepEntry.sleep_date, m.SleepEntry.duration_minutes, m.SleepEntry.quality).where(
-            m.SleepEntry.student_id == actor.user_id,
-            m.SleepEntry.institution_id == actor.institution_id,
+            m.SleepEntry.student_id == student_id,
+            m.SleepEntry.institution_id == institution_id,
             m.SleepEntry.sleep_date >= first,
         )
     )

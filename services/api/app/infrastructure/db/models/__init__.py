@@ -27,6 +27,7 @@ from app.infrastructure.db.models.org import (
 from app.infrastructure.db.models.safety import CrisisContact, RiskAlert
 from app.infrastructure.db.models.therapy import (
     Appointment,
+    FollowUp,
     TherapistAvailability,
     TherapyNote,
     TherapySession,
@@ -57,6 +58,7 @@ __all__ = [
     "CourseTeacher",
     "Credential",
     "Department",
+    "FollowUp",
     "Institution",
     "JournalEntry",
     "JournalShare",

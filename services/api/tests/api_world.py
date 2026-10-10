@@ -24,6 +24,7 @@ from app.infrastructure.db.enums import (
     SessionMode,
     UserRole,
     UserStatus,
+    VerificationStatus,
 )
 from app.infrastructure.db.ids import uuid7
 
@@ -76,6 +77,7 @@ class Builder:
         department_id: uuid.UUID | None = None,
         status: UserStatus = UserStatus.ACTIVE,
         tag: str | None = None,
+        verified: bool = True,
     ) -> Actor:
         tag = tag or uuid.uuid4().hex[:10]
         u = m.User(
@@ -113,7 +115,15 @@ class Builder:
             )
         elif role is UserRole.THERAPIST:
             self.db.add(
-                m.Therapist(user_id=u.id, institution_id=inst_id, licence_number=f"L-{tag}")
+                m.Therapist(
+                    user_id=u.id,
+                    institution_id=inst_id,
+                    licence_number=f"L-{tag}",
+                    verification_status=(
+                        VerificationStatus.VERIFIED if verified else VerificationStatus.PENDING
+                    ),
+                    verified_at=NOW if verified else None,
+                )
             )
         else:
             self.db.add(
@@ -227,6 +237,7 @@ async def build_world(db: AsyncSession, password: str) -> World:
         select(m.Therapist.user_id).where(
             m.Therapist.institution_id == inst_a,
             m.Therapist.user_id != therapist.user_id,
+            m.Therapist.verification_status == VerificationStatus.VERIFIED,
             ~exists().where(
                 m.CareTeamMember.therapist_id == m.Therapist.user_id,
                 m.CareTeamMember.student_id == student.user_id,
