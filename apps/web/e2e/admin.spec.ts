@@ -260,7 +260,7 @@ test.describe("administrator portal (real API)", () => {
     await hours.fill("24, 2");
     await page.getByRole("button", { name: "Save" }).click();
     await expect(page.getByText("Notification settings saved")).toBeVisible();
-    await expect(page.getByText("Reminders switch on with scheduled delivery")).toBeVisible();
+    await expect(page.getByText("How reminders and email are sent")).toBeVisible();
 
     await page.getByRole("button", { name: "Safety" }).click();
     const minutes = page.getByLabel(/Minutes a therapist has to acknowledge/);

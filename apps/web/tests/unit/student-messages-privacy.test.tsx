@@ -44,7 +44,7 @@ describe("conversation", () => {
     const session = studentSession({
       "GET /me/conversations": () => json([conversation()]),
       [`GET /me/conversations/${THERAPIST_ID}/messages`]: () =>
-        // The API returns newest first.
+        // Deliberately out of order: the view sorts oldest first itself.
         json([
           message({ id: "m2", body: "Latest", created_at: "2026-10-09T11:00:00Z" }),
           message({ id: "m1", body: "Earlier" }),

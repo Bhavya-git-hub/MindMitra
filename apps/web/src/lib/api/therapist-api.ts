@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import type { ApiClient } from "./client";
 import { browserTimeZone } from "./student-api";
+import type { CancelReason } from "./student-schemas";
 import {
   alertSchema,
   appointmentSchema,
@@ -91,8 +92,25 @@ export function createTherapistApi(client: ApiClient, timeZone: () => string = b
         schema: list(appointmentSchema),
       }),
     /** Confirm, decline (cancel) or close an appointment. */
-    setAppointmentStatus: (id: string, status: "confirmed" | "cancelled" | "no_show") =>
-      client.request(`/appointments/${id}`, { method: "PATCH", body: { status } }),
+    setAppointmentStatus: (
+      id: string,
+      status: "confirmed" | "cancelled" | "no_show",
+      cancelReason?: CancelReason,
+    ) =>
+      client.request(`/appointments/${id}`, {
+        method: "PATCH",
+        body:
+          status === "cancelled" && cancelReason
+            ? { status, cancel_reason: cancelReason }
+            : { status },
+      }),
+    /** Move to another of this therapist's open times; the student is told. */
+    rescheduleAppointment: (id: string, availability_id: string) =>
+      client.request(`/therapist/appointments/${id}/reschedule`, {
+        method: "POST",
+        body: { availability_id },
+        schema: appointmentSchema,
+      }),
 
     students: () => client.request("/therapist/students", { schema: list(caseloadStudentSchema) }),
     student: (id: string) =>

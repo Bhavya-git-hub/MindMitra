@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { Logo } from "@/components/brand/logo";
 import { MobileNav } from "@/components/layout/mobile-nav";
+import { NotificationBell } from "@/components/layout/notification-bell";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { UserMenu } from "@/components/layout/user-menu";
 import { GetHelpButton } from "@/components/safety/get-help-button";
@@ -16,6 +17,7 @@ export function Header({ role }: { role: Role }) {
       </Link>
       <div className="flex-1" />
       {role === "student" && <GetHelpButton compact className="md:hidden" />}
+      <NotificationBell role={role} />
       <ThemeToggle />
       <UserMenu />
     </header>

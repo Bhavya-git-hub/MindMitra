@@ -98,6 +98,10 @@ export const appointment = (extra: Partial<TherapistAppointment> = {}): Therapis
   reason: null,
   session_id: null,
   can_start: false,
+  can_reschedule: true,
+  cancel_reason: null,
+  reschedule_count: 0,
+  rescheduled_at: null,
   ...extra,
 });
 

@@ -29,6 +29,7 @@ import {
   therapistSchema,
   trendsSchema,
   wellnessSummarySchema,
+  type CancelReason,
   type GoalCategory,
   type GoalStatus,
 } from "./student-schemas";
@@ -182,10 +183,17 @@ export function createStudentApi(client: ApiClient, timeZone: () => string = bro
         body: { availability_id, reason: reason || undefined },
         schema: appointmentSchema,
       }),
-    cancelAppointment: (id: string) =>
+    cancelAppointment: (id: string, reason?: CancelReason) =>
       client.request(`/me/appointments/${id}`, {
         method: "PATCH",
-        body: { status: "cancelled" },
+        body: reason ? { status: "cancelled", reason } : { status: "cancelled" },
+        schema: appointmentSchema,
+      }),
+    /** Move to another of the same therapist's open times; it goes back to "requested". */
+    rescheduleAppointment: (id: string, availability_id: string) =>
+      client.request(`/me/appointments/${id}/reschedule`, {
+        method: "POST",
+        body: { availability_id },
         schema: appointmentSchema,
       }),
 

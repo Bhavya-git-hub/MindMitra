@@ -253,10 +253,8 @@ describe("settings", () => {
     const user = userEvent.setup();
     renderWithApp(<SettingsView />, adminSession(common));
     await user.click(await screen.findByRole("button", { name: "Notifications" }));
-    expect(
-      await screen.findByText("Reminders switch on with scheduled delivery"),
-    ).toBeInTheDocument();
-    expect(screen.getByText(/saved now and used once scheduled reminders/)).toBeInTheDocument();
+    expect(await screen.findByText("How reminders and email are sent")).toBeInTheDocument();
+    expect(screen.getByText(/while the reminder service runs/)).toBeInTheDocument();
     expect(screen.getByText("Safety alerts are always shown in the app.")).toBeInTheDocument();
   });
 

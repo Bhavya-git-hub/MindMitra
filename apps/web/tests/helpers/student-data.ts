@@ -74,7 +74,12 @@ export const appointment = (extra: Partial<Appointment> = {}): Appointment => ({
   status: "confirmed",
   reason: null,
   can_cancel: true,
+  can_reschedule: true,
   cancelled_at: null,
+  cancel_reason: null,
+  reschedule_count: 0,
+  rescheduled_at: null,
+  session_status: null,
   ...extra,
 });
 
