@@ -20,15 +20,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/auth/auth-context";
 import type { TherapistAppointment } from "@/lib/api/therapist-schemas";
-import { formatTime, modeLabel } from "@/lib/format";
+import { firstName, formatTime, modeLabel } from "@/lib/format";
 import { useQuery } from "@/lib/hooks/use-query";
 import { useTherapistApi } from "@/lib/hooks/use-therapist-api";
 
 import { VerificationBadge, VerificationNotice } from "./shared";
-
-function firstName(fullName: string): string {
-  return fullName.trim().split(/\s+/)[0] ?? fullName;
-}
 
 function TodayRow({ a }: { a: TherapistAppointment }) {
   return (

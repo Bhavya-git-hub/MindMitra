@@ -26,15 +26,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { Dashboard } from "@/lib/api/student-schemas";
 import { useAuth } from "@/lib/auth/auth-context";
-import { formatDateTime, formatDuration, modeLabel, titleCase } from "@/lib/format";
+import { firstName, formatDateTime, formatDuration, modeLabel, titleCase } from "@/lib/format";
 import { useQuery } from "@/lib/hooks/use-query";
 import { useStudentApi } from "@/lib/hooks/use-student-api";
 import { chartRows, hasAny } from "@/lib/trend-data";
 import { MOOD_LABELS } from "@/lib/student-options";
-
-function firstName(fullName: string): string {
-  return fullName.trim().split(/\s+/)[0] ?? fullName;
-}
 
 function score(value: number | null, max = 5): string | null {
   return value === null ? null : `${Math.round(value * 10) / 10} / ${max}`;

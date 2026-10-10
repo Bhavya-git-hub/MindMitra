@@ -9,14 +9,11 @@ import { DisclaimerBanner } from "@/components/safety/disclaimer-banner";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/lib/auth/auth-context";
 import { ROLE_LABELS, type Role } from "@/lib/auth/roles";
+import { firstName } from "@/lib/format";
 
 export interface PlannedArea {
   title: string;
   description: string;
-}
-
-function firstName(fullName: string): string {
-  return fullName.trim().split(/\s+/)[0] ?? fullName;
 }
 
 /**

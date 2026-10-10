@@ -66,3 +66,8 @@ export const MODE_LABELS: Record<string, string> = {
 export function modeLabel(mode: string): string {
   return MODE_LABELS[mode] ?? titleCase(mode);
 }
+
+/** The first word of a full name, for greetings ("Hello, Asha"). */
+export function firstName(fullName: string): string {
+  return fullName.trim().split(/\s+/)[0] ?? fullName;
+}

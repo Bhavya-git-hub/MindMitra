@@ -1,10 +1,11 @@
 import AxeBuilder from "@axe-core/playwright";
-import type { Page } from "@playwright/test";
 
 import {
   careStudentName,
   expect,
+  open,
   pendingTherapistEmail,
+  settled,
   signIn,
   signInAndWait,
   test,
@@ -23,16 +24,6 @@ const THERAPIST_PAGES: [path: string, heading: RegExp][] = [
   ["/therapist/profile", /^Profile$/],
   ["/therapist/account", /^Account$/],
 ];
-
-async function open(page: Page, path: string, heading: RegExp) {
-  await page.goto(path);
-  await expect(page.getByRole("heading", { level: 1, name: heading })).toBeVisible();
-}
-
-async function settled(page: Page) {
-  await expect(page.getByText(/^Loading/)).toHaveCount(0);
-  await expect(page.locator("[data-slot=skeleton]")).toHaveCount(0);
-}
 
 const NOTE = "Synthetic e2e note: practised paced breathing together.";
 

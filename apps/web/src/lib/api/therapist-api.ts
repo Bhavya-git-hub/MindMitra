@@ -19,6 +19,7 @@ import {
   trendsSchema,
   type FollowUpKind,
 } from "./therapist-schemas";
+import { qs } from "./query-string";
 
 export interface ProfilePatch {
   bio?: string;
@@ -53,17 +54,6 @@ export interface FollowUpPatch {
   status?: "open" | "done" | "cancelled";
   due_on?: string;
   note?: string;
-}
-
-type Query = Record<string, string | number | boolean | undefined | null>;
-
-function qs(params: Query): string {
-  const search = new URLSearchParams();
-  for (const [key, value] of Object.entries(params)) {
-    if (value !== undefined && value !== null && value !== "") search.set(key, String(value));
-  }
-  const text = search.toString();
-  return text ? `?${text}` : "";
 }
 
 export type AppointmentScope = "requests" | "upcoming" | "past" | "all";

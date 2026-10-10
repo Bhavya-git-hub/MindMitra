@@ -62,4 +62,15 @@ export const test = base.extend<{ guard: void }>({
   ],
 });
 
+export async function open(page: Page, path: string, heading: RegExp) {
+  await page.goto(path);
+  await expect(page.getByRole("heading", { level: 1, name: heading })).toBeVisible();
+}
+
+/** Waits until nothing on the page is still loading its data. */
+export async function settled(page: Page) {
+  await expect(page.getByText(/^Loading/)).toHaveCount(0);
+  await expect(page.locator("[data-slot=skeleton]")).toHaveCount(0);
+}
+
 export { expect };
