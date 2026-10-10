@@ -102,11 +102,11 @@ describe("shell navigation", () => {
   });
 
   it("shows pages that are not built yet as disabled, not as links", async () => {
-    navigation.pathname = "/teacher/account";
-    renderWithApp(portal("teacher"), makeSession({}, { signedInAs: "teacher" }));
+    navigation.pathname = "/admin/account";
+    renderWithApp(portal("administrator"), makeSession({}, { signedInAs: "administrator" }));
     await screen.findByRole("main");
-    const nav = screen.getByRole("navigation", { name: "Teacher navigation" });
-    expect(within(nav).queryByRole("link", { name: /Class insights/ })).not.toBeInTheDocument();
+    const nav = screen.getByRole("navigation", { name: "Administrator navigation" });
+    expect(within(nav).queryByRole("link", { name: /Audit log/ })).not.toBeInTheDocument();
     expect(within(nav).getAllByText("Soon").length).toBeGreaterThan(0);
   });
 

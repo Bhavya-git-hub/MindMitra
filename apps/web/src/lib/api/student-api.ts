@@ -32,6 +32,7 @@ import {
   type GoalCategory,
   type GoalStatus,
 } from "./student-schemas";
+import { qs } from "./query-string";
 
 export interface SleepInput {
   bedtime: string;
@@ -65,17 +66,6 @@ export interface GoalPatch {
   target_value?: number | null;
   target_date?: string | null;
   status?: GoalStatus;
-}
-
-type Query = Record<string, string | number | boolean | undefined | null>;
-
-function qs(params: Query): string {
-  const search = new URLSearchParams();
-  for (const [key, value] of Object.entries(params)) {
-    if (value !== undefined && value !== null && value !== "") search.set(key, String(value));
-  }
-  const text = search.toString();
-  return text ? `?${text}` : "";
 }
 
 /** The viewer's IANA time zone, so "today" means the student's today. */

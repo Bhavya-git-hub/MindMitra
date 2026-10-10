@@ -5,8 +5,8 @@ react-hook-form + zod · Recharts · Vitest + Testing Library + axe · Playwrigh
 
 **Current state:** the frontend foundation. Design system, application shell, authentication
 (connected to the real API), the four role portals with protected routes and role-based
-redirects, and the shared building blocks. The student and therapist portals are built; the
-teacher and administrator portals are still placeholders (overview and account).
+redirects, and the shared building blocks. The student, therapist and teacher portals are built; the
+administrator portal is still a placeholder (overview and account).
 
 ## Quick start
 
@@ -99,15 +99,15 @@ page, a skip link on every page.
 
 ## Student portal
 
-| Area | Pages (under `/student`) | Data |
-|------|--------------------------|------|
-| Dashboard | `/` | `GET /me/dashboard`: today's mood, stress and sleep, wellbeing check, next appointment, 7-day trends, suggestions, check-in status |
-| Check-in and tracking | `/check-in`, `/mood`, `/stress`, `/sleep` | `POST /me/check-ins`, stress and sleep entries |
-| Wellness | `/wellness`, `/trends`, `/assessment`, `/goals`, `/recommendations` | summary, trends (7/30/90 days), WHO-5 check, goals, rule-based suggestions |
-| Companion | `/assistant` | Entry point only. The companion is not built; the page says so and links to what works |
-| Care | `/therapists`, `/therapists/[id]`, `/appointments`, `/messages`, `/messages/[id]` | directory, slots, booking, cancellation, one-to-one messages |
-| Library | `/resources`, `/resources/[id]` | published resources |
-| Privacy and safety | `/privacy`, `/privacy/consent`, `/emergency` | access history, export, consent switches, crisis contacts, "ask someone to reach out" |
+| Area                  | Pages (under `/student`)                                                          | Data                                                                                                                               |
+| --------------------- | --------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| Dashboard             | `/`                                                                               | `GET /me/dashboard`: today's mood, stress and sleep, wellbeing check, next appointment, 7-day trends, suggestions, check-in status |
+| Check-in and tracking | `/check-in`, `/mood`, `/stress`, `/sleep`                                         | `POST /me/check-ins`, stress and sleep entries                                                                                     |
+| Wellness              | `/wellness`, `/trends`, `/assessment`, `/goals`, `/recommendations`               | summary, trends (7/30/90 days), WHO-5 check, goals, rule-based suggestions                                                         |
+| Companion             | `/assistant`                                                                      | Entry point only. The companion is not built; the page says so and links to what works                                             |
+| Care                  | `/therapists`, `/therapists/[id]`, `/appointments`, `/messages`, `/messages/[id]` | directory, slots, booking, cancellation, one-to-one messages                                                                       |
+| Library               | `/resources`, `/resources/[id]`                                                   | published resources                                                                                                                |
+| Privacy and safety    | `/privacy`, `/privacy/consent`, `/emergency`                                      | access history, export, consent switches, crisis contacts, "ask someone to reach out"                                              |
 
 Rules the views follow: no student ids in URLs or API paths (only `/me/...`; route ids are
 checked as UUIDs before they reach a path); every number comes from the API (the only fixed
@@ -118,15 +118,15 @@ dialable. Data loading uses the small `useQuery` hook in `src/lib/hooks`.
 
 ## Therapist portal
 
-| Area | Pages (under `/therapist`) | Data |
-|------|----------------------------|------|
-| Dashboard | `/` | `GET /therapist/dashboard`: status, caseload, today, waiting requests, alerts, follow-ups, unread messages |
-| Profile and status | `/profile` | profile, licence details and verification status; submit for verification |
-| Schedule | `/availability`, `/appointments` | bookable times; confirm, decline, cancel, mark no-show, start a session |
-| Students | `/students`, `/students/[id]` | caseload and the authorized profile: trends and wellbeing checks (only what the student shares), recommendations, follow-ups |
-| Sessions and notes | `/sessions`, `/sessions/[id]` | start and close sessions; private, versioned notes only the author can read |
-| Safety and follow-through | `/alerts`, `/follow-ups` | acknowledge, start, resolve alerts with a fixed outcome; private reminders |
-| Messages | `/messages`, `/messages/[id]` | the same conversations API as students, under the therapist routes |
+| Area                      | Pages (under `/therapist`)       | Data                                                                                                                         |
+| ------------------------- | -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| Dashboard                 | `/`                              | `GET /therapist/dashboard`: status, caseload, today, waiting requests, alerts, follow-ups, unread messages                   |
+| Profile and status        | `/profile`                       | profile, licence details and verification status; submit for verification                                                    |
+| Schedule                  | `/availability`, `/appointments` | bookable times; confirm, decline, cancel, mark no-show, start a session                                                      |
+| Students                  | `/students`, `/students/[id]`    | caseload and the authorized profile: trends and wellbeing checks (only what the student shares), recommendations, follow-ups |
+| Sessions and notes        | `/sessions`, `/sessions/[id]`    | start and close sessions; private, versioned notes only the author can read                                                  |
+| Safety and follow-through | `/alerts`, `/follow-ups`         | acknowledge, start, resolve alerts with a fixed outcome; private reminders                                                   |
+| Messages                  | `/messages`, `/messages/[id]`    | the same conversations API as students, under the therapist routes                                                           |
 
 Every page that touches students is wrapped in `RequireVerified`, which shows why it is closed
 instead of the data. That is a courtesy: the API answers `403` or `404` for the same requests
@@ -150,6 +150,6 @@ body of one `PUT`; it is never put in a URL, `localStorage` or a log.
   their institution's contacts at `/student/emergency`; the seeded contacts are demo data and
   must be replaced and verified before go-live.
 - The AI companion has no conversation screen yet (Phase 6).
-- Teacher and administrator portals are still the placeholder overview. There is no screen for
+- The administrator portal is still the placeholder overview. There is no screen for
   administrators to verify therapists yet; the API exists (`/admin/therapists`).
 - No i18n, TanStack Query or generated OpenAPI client yet (see `docs/ARCHITECTURE.md` section 2).

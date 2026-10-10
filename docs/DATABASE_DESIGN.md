@@ -11,7 +11,7 @@
 
 Code: `services/api/app/infrastructure/db/` (models, session, audit helper, seed),
 `services/api/alembic/versions/` (`0001_initial_schema.py`, `0002_tenant_safe_foreign_keys.py`,
-`0003_auth_sessions.py`, `0004_crisis_contacts.py`, `0005_therapist_portal.py`), tests in `services/api/tests/`. Migration `0003` (authentication phase)
+`0003_auth_sessions.py`, `0004_crisis_contacts.py`, `0005_therapist_portal.py`, `0006_teacher_portal.py`), tests in `services/api/tests/`. Migration `0003` (authentication phase)
 adds the three `iam` session and token tables; see [SECURITY_ARCHITECTURE.md §0](SECURITY_ARCHITECTURE.md#0-implementation-status-authentication-and-authorization-as-built).
 Verified against PostgreSQL 16: migration up/down/up, `alembic check` (models == migration),
 107 tests, `ruff`, `mypy --strict`, `pip-audit`. Migration `0002` was also checked against a seeded database (backfill) and downgraded/upgraded again; schemas from `0001 -> 0002`, from scratch, and `0002 -> 0001` are identical to the expected ones. See 0.6 for the review that produced `0002`.
@@ -84,6 +84,25 @@ erDiagram
 - `ai.recommendations.authored_by`: set when a therapist made the suggestion (`source = therapist`).
 - Seed data: every therapist is verified except the last one (when there are three or more), who
   is left waiting for verification so the unverified experience can be seen and tested.
+
+### 0.1b Teacher portal additions (migration `0006`)
+
+- `safety.referrals`: a teacher's referral of one student from one course (`category`, `urgency`,
+  encrypted optional `note`, `status` `received`/`in_progress`/`closed`, `claimed_by`, `claimed_at`,
+  `closed_at`, fixed `outcome`). The course link is a composite foreign key
+  `(course_id, teacher_id, institution_id)` to `org.course_teachers` and
+  `(course_id, student_id, institution_id)` to `org.course_enrollments`, so a referral can only
+  exist for a real teaching and enrolment link in one tenant. Those two tables gain unique
+  constraints that include `institution_id` to support this. Referral foreign keys are
+  `RESTRICT`: a course cannot be deleted away from a referral (retention).
+- `safety.teacher_support_requests`: a student's explicit request to one of their own teachers
+  (`topic`, encrypted optional `message`, `status` `open`/`acknowledged`/`closed`/`withdrawn`, `acknowledged_at`, `closed_at`). Same
+  composite foreign keys, but `CASCADE`: if the link is removed, so is the request.
+- Indexes on every new foreign key column, `set_updated_at` triggers on both tables, partial
+  unique indexes allow one live referral per teacher and student, and one live request per
+  student, teacher and course.
+- Seed data: about 80% of students hold an `anonymous_aggregate_research` consent (deterministic),
+  faculty-tagged resources, three demo referrals and two demo support requests (marked synthetic).
 
 ### 0.2 Requirements checklist
 

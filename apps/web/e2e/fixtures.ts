@@ -21,12 +21,23 @@ const users: Record<Role, string> & {
   /** Set by scripts/e2e/prepare_backend.py for the therapist portal. */
   care_student_name: string;
   pending_therapist: string;
+  /** Set for the teacher portal: a class the teacher teaches and a student enrolled in it. */
+  teacher_course_code: string;
+  teacher_course_title: string;
+  teacher_student_name: string;
+  teacher_full_name: string;
 } = JSON.parse(readFileSync(path.resolve(import.meta.dirname, ".auth/users.json"), "utf8"));
 const password = process.env.E2E_PASSWORD ?? "";
 
 export const credentials = (role: Role) => ({ email: users[role], password });
 export const careStudentName = users.care_student_name;
 export const pendingTherapistEmail = users.pending_therapist;
+export const teacherCourse = {
+  code: users.teacher_course_code,
+  title: users.teacher_course_title,
+  studentName: users.teacher_student_name,
+  teacherName: users.teacher_full_name,
+};
 
 export async function signIn(page: Page, role: Role, next?: string, email?: string) {
   const { email: roleEmail, password } = credentials(role);
@@ -61,5 +72,16 @@ export const test = base.extend<{ guard: void }>({
     { auto: true },
   ],
 });
+
+export async function open(page: Page, path: string, heading: RegExp) {
+  await page.goto(path);
+  await expect(page.getByRole("heading", { level: 1, name: heading })).toBeVisible();
+}
+
+/** Waits until nothing on the page is still loading its data. */
+export async function settled(page: Page) {
+  await expect(page.getByText(/^Loading/)).toHaveCount(0);
+  await expect(page.locator("[data-slot=skeleton]")).toHaveCount(0);
+}
 
 export { expect };

@@ -41,8 +41,14 @@ from app.infrastructure.db.enums import (
     NotificationType,
     RecommendationSource,
     RecommendationStatus,
+    ReferralCategory,
+    ReferralOutcome,
+    ReferralStatus,
+    ReferralUrgency,
     ResourceType,
     SessionMode,
+    TeacherSupportStatus,
+    TeacherSupportTopic,
     TherapySessionStatus,
     UserRole,
     UserStatus,
@@ -325,6 +331,7 @@ async def seed_database(session: AsyncSession, cfg: SeedConfig | None = None) ->
 
     # -- consents ---------------------------------------------------------------------
     consents: list[m.Consent] = []
+    withdrew_aggregate: set[uuid.UUID] = set()
     for u in all_users:
         consents.append(_consent(iid, u.id, ConsentScope.TERMS_AND_PRIVACY, now, rng))
     for s in students:
@@ -340,6 +347,7 @@ async def seed_database(session: AsyncSession, cfg: SeedConfig | None = None) ->
         if rng.random() < 0.2:
             consents.append(_consent(iid, sid, ConsentScope.EMAIL_NOTIFICATIONS, now, rng))
         if rng.random() < 0.15:  # a granted-then-revoked history row
+            withdrew_aggregate.add(sid)
             g = now - dt.timedelta(days=rng.randint(20, 60))
             consents.append(
                 m.Consent(
@@ -349,6 +357,20 @@ async def seed_database(session: AsyncSession, cfg: SeedConfig | None = None) ->
                     policy_version=POLICY_VERSION,
                     granted_at=g,
                     revoked_at=g + dt.timedelta(days=rng.randint(1, 15)),
+                )
+            )
+    # Most other students have agreed to be counted, anonymously, in group figures. A separate
+    # generator keeps the rest of the demo data identical to what it was before this existed.
+    extra = random.Random(cfg.seed + 1)
+    for s in students:
+        if s.user_id not in withdrew_aggregate and extra.random() < 0.8:
+            consents.append(
+                m.Consent(
+                    institution_id=iid,
+                    user_id=s.user_id,
+                    scope=ConsentScope.ANONYMOUS_AGGREGATE_RESEARCH,
+                    policy_version=POLICY_VERSION,
+                    granted_at=now - dt.timedelta(days=cfg.history_days + 14),
                 )
             )
     session.add_all(consents)
@@ -374,9 +396,32 @@ async def seed_database(session: AsyncSession, cfg: SeedConfig | None = None) ->
                 reviewed_at=now - dt.timedelta(days=rng.randint(10, 90)) if published else None,
             )
         )
+    for title, summary, rtype, tags, minutes in c.FACULTY_RESOURCES:
+        resources.append(
+            m.Resource(
+                institution_id=iid,
+                title=title,
+                summary=summary,
+                body=f"Synthetic body text for '{title}'.",
+                resource_type=ResourceType(rtype),
+                tags=["faculty", *tags],
+                duration_minutes=minutes,
+                is_published=True,
+                reviewed_by=reviewer.id,
+                reviewed_at=now - dt.timedelta(days=30),
+            )
+        )
     session.add_all(resources)
     await session.flush()
     bump("resources", len(resources))
+
+    # -- referrals and student requests to teachers (demo) ---------------------------------
+    referral_rows, request_rows = _demo_referrals(cfg, iid, now, enrolls, ct, therapists)
+    session.add_all(referral_rows)
+    session.add_all(request_rows)
+    await session.flush()
+    bump("referrals", len(referral_rows))
+    bump("teacher_support_requests", len(request_rows))
     contacts = [
         m.CrisisContact(
             institution_id=None,
@@ -395,7 +440,7 @@ async def seed_database(session: AsyncSession, cfg: SeedConfig | None = None) ->
     session.add_all(contacts)
     await session.flush()
     bump("crisis_contacts", len(contacts))
-    published_resources = [r for r in resources if r.is_published]
+    published_resources = [r for r in resources if r.is_published and "faculty" not in r.tags]
 
     # -- per-student wellness data ----------------------------------------------------------
     moods, sleeps, wassess, sassess, goals, journals, shares, recs = [], [], [], [], [], [], [], []
@@ -944,6 +989,87 @@ async def seed_database(session: AsyncSession, cfg: SeedConfig | None = None) ->
 
     await session.commit()
     return SeedResult(institution_id=iid, password=password, counts=counts)
+
+
+def _demo_referrals(
+    cfg: SeedConfig,
+    iid: uuid.UUID,
+    now: dt.datetime,
+    enrolls: list[m.CourseEnrollment],
+    ct: list[m.CourseTeacher],
+    therapists: list[m.Therapist],
+) -> tuple[list[m.Referral], list[m.TeacherSupportRequest]]:
+    """A few referrals in each state and two student requests to teachers, for the demo."""
+    demo = random.Random(cfg.seed + 2)
+    in_course: dict[uuid.UUID, list[uuid.UUID]] = {}
+    for e in enrolls:
+        in_course.setdefault(e.course_id, []).append(e.student_id)
+    taught = [(row.teacher_id, row.course_id) for row in ct]
+    verified = [t for t in therapists if t.verification_status is VerificationStatus.VERIFIED]
+    referral_rows: list[m.Referral] = []
+    request_rows: list[m.TeacherSupportRequest] = []
+    if taught and verified:
+        teacher_id, course_id = taught[0]
+        pool = demo.sample(in_course[course_id], k=min(3, len(in_course[course_id])))
+        shapes = [
+            (ReferralCategory.ACADEMIC_DISTRESS, ReferralUrgency.ROUTINE, ReferralStatus.RECEIVED),
+            (ReferralCategory.WELLBEING_CONCERN, ReferralUrgency.SOON, ReferralStatus.IN_PROGRESS),
+            (ReferralCategory.BEHAVIOUR_CHANGE, ReferralUrgency.ROUTINE, ReferralStatus.CLOSED),
+        ]
+        for n, (student_id, (category, urgency, status)) in enumerate(
+            zip(pool, shapes, strict=False)
+        ):
+            raised = now - dt.timedelta(days=9 - 3 * n)
+            claimed = status is not ReferralStatus.RECEIVED
+            referral_rows.append(
+                m.Referral(
+                    institution_id=iid,
+                    teacher_id=teacher_id,
+                    student_id=student_id,
+                    course_id=course_id,
+                    category=category,
+                    urgency=urgency,
+                    note="Synthetic demo note: has missed the last two sessions.",
+                    status=status,
+                    claimed_by=verified[0].user_id if claimed else None,
+                    claimed_at=raised + dt.timedelta(days=1) if claimed else None,
+                    closed_at=raised + dt.timedelta(days=3)
+                    if status is ReferralStatus.CLOSED
+                    else None,
+                    outcome=ReferralOutcome.CONTACTED_STUDENT
+                    if status is ReferralStatus.CLOSED
+                    else None,
+                    created_at=raised,
+                    updated_at=raised,
+                )
+            )
+    if len(taught) > 1:
+        teacher_id, course_id = taught[2] if len(taught) > 2 else taught[1]
+        asking = demo.sample(in_course[course_id], k=min(2, len(in_course[course_id])))
+        for asker, topic, req_status in zip(
+            asking,
+            (TeacherSupportTopic.EXTENSION, TeacherSupportTopic.WORKLOAD),
+            (TeacherSupportStatus.OPEN, TeacherSupportStatus.ACKNOWLEDGED),
+            strict=False,
+        ):
+            sent = now - dt.timedelta(days=2)
+            request_rows.append(
+                m.TeacherSupportRequest(
+                    institution_id=iid,
+                    student_id=asker,
+                    teacher_id=teacher_id,
+                    course_id=course_id,
+                    topic=topic,
+                    message="Synthetic demo message: I am finding the deadlines hard to manage.",
+                    status=req_status,
+                    acknowledged_at=sent + dt.timedelta(hours=5)
+                    if req_status is TeacherSupportStatus.ACKNOWLEDGED
+                    else None,
+                    created_at=sent,
+                    updated_at=sent,
+                )
+            )
+    return referral_rows, request_rows
 
 
 def _consent(

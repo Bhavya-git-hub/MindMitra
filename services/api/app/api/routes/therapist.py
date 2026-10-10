@@ -14,10 +14,12 @@ from fastapi import APIRouter, Depends, Query, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_db, require_permission
+from app.api.schemas import teacher as ts
 from app.api.schemas import therapist as s
 from app.api.zone import Zone
 from app.application import (
     follow_ups,
+    referrals,
     risk_alerts,
     therapist_appointments,
     therapist_dashboard,
@@ -34,6 +36,7 @@ from app.infrastructure.db.enums import (
     AppointmentStatus,
     FollowUpKind,
     FollowUpStatus,
+    ReferralStatus,
     SessionMode,
     TherapySessionStatus,
 )
@@ -55,6 +58,7 @@ NoteReader = Annotated[Principal, _guard(Permission.THERAPY_NOTE_READ)]
 NoteWriter = Annotated[Principal, _guard(Permission.THERAPY_NOTE_WRITE)]
 Alerts = Annotated[Principal, _guard(Permission.RISK_ALERT_MANAGE)]
 FollowUps = Annotated[Principal, _guard(Permission.FOLLOW_UP_MANAGE)]
+Triage = Annotated[Principal, _guard(Permission.REFERRAL_TRIAGE)]
 Recommenders = Annotated[Principal, _guard(Permission.RECOMMENDATION_CREATE_ASSIGNED)]
 Limit = Annotated[int, Query(ge=1, le=200)]
 
@@ -346,3 +350,36 @@ async def update_follow_up(
         zone=zone,
     )
     return s.follow_up_out(view)
+
+
+# ---- referrals from teachers ----------------------------------------------------------------
+
+
+@router.get("/referrals")
+async def list_referrals(
+    db: Db, principal: Triage, status: ReferralStatus | None = None
+) -> list[ts.TriageReferralOut]:
+    """Open referrals about students on this therapist's care team or with nobody yet."""
+    rows = await referrals.queue(db, principal, status)
+    return [ts.triage_out(v, principal.user_id) for v in rows]
+
+
+@router.get("/referrals/{referral_id}")
+async def get_referral(referral_id: uuid.UUID, db: Db, principal: Triage) -> ts.TriageReferralOut:
+    return ts.triage_out(
+        await referrals.get_for_triage(db, principal, referral_id), principal.user_id
+    )
+
+
+@router.post("/referrals/{referral_id}/claim")
+async def claim_referral(referral_id: uuid.UUID, db: Db, principal: Triage) -> ts.TriageReferralOut:
+    return ts.triage_out(await referrals.claim(db, principal, referral_id), principal.user_id)
+
+
+@router.post("/referrals/{referral_id}/close")
+async def close_referral(
+    referral_id: uuid.UUID, body: ts.CloseIn, db: Db, principal: Triage
+) -> ts.TriageReferralOut:
+    return ts.triage_out(
+        await referrals.close(db, principal, referral_id, body.outcome), principal.user_id
+    )

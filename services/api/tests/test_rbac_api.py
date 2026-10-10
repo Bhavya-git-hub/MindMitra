@@ -320,6 +320,8 @@ async def test_small_cohorts_are_suppressed_and_large_ones_aggregated(
     students = [
         await b.user(world.inst_a, UserRole.STUDENT, department_id=dept.id) for _ in range(10)
     ]
+    for s in students:
+        await b.aggregate_consent(world.inst_a, s)
     for s in students[:9]:
         await b.mood_entry(world.inst_a, s, 3)
     await api_db.commit()

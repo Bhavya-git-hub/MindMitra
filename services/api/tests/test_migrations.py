@@ -43,7 +43,7 @@ EXPECTED_TABLES = {
     },
     "comm": {"messages"},
     "ai": {"ai_conversations", "ai_messages", "recommendations"},
-    "safety": {"risk_alerts", "crisis_contacts"},
+    "safety": {"risk_alerts", "crisis_contacts", "referrals", "teacher_support_requests"},
     "consent": {"consents"},
     "notify": {"notifications"},
     "audit": {"audit_logs"},

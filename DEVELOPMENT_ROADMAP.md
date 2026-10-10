@@ -144,6 +144,8 @@ language and fail-safe behaviour.
 
 **Exit:** faculty/admin dashboards show only aggregate data; leakage tests pass.
 
+*Status: the teacher portal (class and department aggregates, referrals, faculty resources) is built; see [ADR 0007](docs/adr/0007-teacher-portal-aggregation-thresholds-and-referrals.md). Admin analytics, the audit viewer UI and institution settings remain.*
+
 ---
 
 ## Phase 8: AWS infrastructure & deployment

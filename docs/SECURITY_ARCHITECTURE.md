@@ -48,7 +48,7 @@ any route has no guard and is not in `PUBLIC_ROUTES`.
 |--------------------|-------------|
 | `student` | own profile, own wellness records, own appointments, own AI conversations |
 | `therapist` | own profile and availability, assigned students (verified therapists only), assigned students' wellness (with consent), own therapy notes, manage own appointments and sessions, alerts, follow-ups and recommendations for assigned students |
-| `teacher` | own profile, aggregated insights for their own department |
+| `teacher` | own profile, aggregated insights for their own classes and department (consenting students only, small groups suppressed), referrals and student support requests for students they teach, faculty-tagged resources. Never: check-ins of an individual, journals, AI conversations, messages, therapy notes, diagnoses |
 | `administrator` | own profile, aggregated insights, manage users, manage institution configuration, read audit metadata |
 
 | Resource policy | Rule |
@@ -59,7 +59,8 @@ any route has no guard and is not in `PUBLIC_ROUTES`.
 | AI conversations | Only the owning student (INV-8). Not therapists, teachers or admins |
 | Appointments | The appointment's therapist may confirm, cancel, complete or mark no-show (valid transitions only); students read their own |
 | Users and configuration | Admins of the same institution; an admin cannot change their own status |
-| Insights | Teachers: own department only. Admins: any department of their institution. Cohorts under 10 students are suppressed (INV-4) |
+| Insights | Teachers: own classes and own department only. Admins: any department of their institution. Only students with an active `anonymous_aggregate_research` consent count. Groups under 10 students are suppressed (INV-4); shares need 5 students on each side; windows are fixed ([ADR 0007](adr/0007-teacher-portal-aggregation-thresholds-and-referrals.md)) |
+| Teacher referrals | A teacher can refer only a student enrolled in a class they teach; sees back only category, urgency, their own note and status. Verified therapists triage; `safety_concern` raises an alert for humans |
 | Tenancy | A record from another institution is indistinguishable from a missing one (`404`) |
 
 Invariant coverage: INV-1, INV-2 (no admin route reaches content; the audit view is metadata),
@@ -358,6 +359,7 @@ Legal and clinical review is required before production use.
 
 ## 12. Residual risks (see also [ARCHITECTURE.md §17](ARCHITECTURE.md#17-architectural-risks-and-mitigations))
 
+- Overlapping groups (a class and its department, or two classes sharing students) can in principle be compared to infer something about the difference. Fixed windows, rounding, size bands and the 10/5 thresholds make this impractical for small differences but do not remove it ([ADR 0007](adr/0007-teacher-portal-aggregation-thresholds-and-referrals.md)).
 - Insider misuse with legitimate access can be deterred and detected but not fully prevented.
 - Shared or monitored personal devices can expose students; mitigations: quick-exit button,
   content-free notifications, session timeouts, discreet app naming option.

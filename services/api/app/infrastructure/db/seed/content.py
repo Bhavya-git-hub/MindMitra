@@ -245,6 +245,53 @@ CRISIS_FIXTURE_EXCERPT = (
 )
 
 
+# Staff-only resources (tagged "faculty" when seeded). Students and therapists never see these.
+# (title, summary, type, tags, minutes)
+FACULTY_RESOURCES = [
+    (
+        "Responding when a student tells you they are struggling",
+        "What to say, what not to say, and how to pass the conversation on warmly.",
+        "article",
+        ["conversations", "referral"],
+        9,
+    ),
+    (
+        "When and how to refer a student to the wellbeing team",
+        "A plain guide to what a referral is, what you will and will not hear back, and why.",
+        "article",
+        ["referral", "confidentiality"],
+        6,
+    ),
+    (
+        "Spacing deadlines to ease pressure",
+        "Practical ways to spread assessment load across a term.",
+        "article",
+        ["deadlines", "workload", "course-design"],
+        7,
+    ),
+    (
+        "Noticing without diagnosing",
+        "Why your role is to notice and connect, not to assess, and how to stay within it.",
+        "video",
+        ["boundaries", "conversations"],
+        12,
+    ),
+    (
+        "Looking after yourself as a teacher",
+        "Short practices and boundaries for staff who carry other people's worries.",
+        "audio",
+        ["staff-wellbeing", "mindfulness"],
+        8,
+    ),
+    (
+        "Staff support and counselling",
+        "How staff can reach confidential support for themselves. Demo entry.",
+        "service",
+        ["staff-wellbeing", "support"],
+        None,
+    ),
+]
+
 # Crisis contacts. Demo seed data: the national lines below are real public services so the
 # emergency page is realistic in development, but they must be reviewed by the institution
 # before any real deployment. The campus entry is fictional (it has no phone number).

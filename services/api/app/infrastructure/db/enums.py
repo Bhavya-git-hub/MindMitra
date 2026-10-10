@@ -150,6 +150,54 @@ class AlertSource(enum.StrEnum):
     THERAPIST = "therapist"
 
 
+class ReferralCategory(enum.StrEnum):
+    """Why a member of staff asks for a person to reach out. Observable concerns, not labels."""
+
+    ACADEMIC_DISTRESS = "academic_distress"
+    BEHAVIOUR_CHANGE = "behaviour_change"
+    WELLBEING_CONCERN = "wellbeing_concern"
+    SAFETY_CONCERN = "safety_concern"
+
+
+class ReferralUrgency(enum.StrEnum):
+    ROUTINE = "routine"
+    SOON = "soon"
+    URGENT = "urgent"
+
+
+class ReferralStatus(enum.StrEnum):
+    """The only part of a referral's life a teacher ever sees."""
+
+    RECEIVED = "received"
+    IN_PROGRESS = "in_progress"
+    CLOSED = "closed"
+
+
+class ReferralOutcome(enum.StrEnum):
+    """How a therapist closed a referral. Never shown to the teacher who raised it."""
+
+    CONTACTED_STUDENT = "contacted_student"
+    STUDENT_DECLINED = "student_declined"
+    ALREADY_SUPPORTED = "already_supported"
+    REFERRED_ELSEWHERE = "referred_elsewhere"
+    NO_ACTION_NEEDED = "no_action_needed"
+
+
+class TeacherSupportTopic(enum.StrEnum):
+    ACADEMIC_SUPPORT = "academic_support"
+    WORKLOAD = "workload"
+    EXTENSION = "extension"
+    WELLBEING_CHAT = "wellbeing_chat"
+    OTHER = "other"
+
+
+class TeacherSupportStatus(enum.StrEnum):
+    OPEN = "open"
+    ACKNOWLEDGED = "acknowledged"
+    CLOSED = "closed"
+    WITHDRAWN = "withdrawn"
+
+
 class AlertDetector(enum.StrEnum):
     RULES = "rules"
     CLASSIFIER = "classifier"

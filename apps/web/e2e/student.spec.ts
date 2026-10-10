@@ -1,7 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
-import type { Page } from "@playwright/test";
 
-import { expect, signInAndWait, test } from "./fixtures";
+import { expect, open, settled, signInAndWait, test } from "./fixtures";
 
 /** Every page a student can open without needing a particular id. */
 const STUDENT_PAGES: [path: string, heading: RegExp][] = [
@@ -24,17 +23,6 @@ const STUDENT_PAGES: [path: string, heading: RegExp][] = [
   ["/student/privacy/consent", /^Consent$/],
   ["/student/emergency", /^Urgent support$/],
 ];
-
-async function open(page: Page, path: string, heading: RegExp) {
-  await page.goto(path);
-  await expect(page.getByRole("heading", { level: 1, name: heading })).toBeVisible();
-}
-
-/** Waits until nothing on the page is still loading its data. */
-async function settled(page: Page) {
-  await expect(page.getByText(/^Loading/)).toHaveCount(0);
-  await expect(page.locator("[data-slot=skeleton]")).toHaveCount(0);
-}
 
 test.describe("student portal (real API)", () => {
   test("the dashboard shows the check-in, indicators, appointment, trends and ideas", async ({

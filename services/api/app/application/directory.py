@@ -28,14 +28,25 @@ BOOKING_LEAD_TIME = dt.timedelta(hours=2)
 SLOT_WINDOW = dt.timedelta(days=45)
 
 
-def visible_resource_filters(actor: Principal) -> list[ColumnElement[bool]]:
-    """Published, reviewed content that is global or belongs to the caller's institution."""
+FACULTY_TAG = "faculty"
+
+
+def visible_resource_filters(
+    actor: Principal, *, faculty: bool = False
+) -> list[ColumnElement[bool]]:
+    """Published, reviewed content that is global or belongs to the caller's institution.
+
+    Content written for staff is tagged ``faculty``: students and therapists never see it, and
+    teachers see only that, so each audience gets its own library.
+    """
+    is_faculty = m.Resource.tags.contains([FACULTY_TAG])
     return [
         m.Resource.is_published.is_(True),
         or_(
             m.Resource.institution_id.is_(None),
             m.Resource.institution_id == actor.institution_id,
         ),
+        is_faculty if faculty else ~is_faculty,
     ]
 
 
@@ -47,8 +58,9 @@ async def list_resources(
     tag: str | None,
     query: str | None,
     limit: int,
+    faculty: bool = False,
 ) -> list[m.Resource]:
-    stmt = select(m.Resource).where(*visible_resource_filters(actor))
+    stmt = select(m.Resource).where(*visible_resource_filters(actor, faculty=faculty))
     if resource_type is not None:
         stmt = stmt.where(m.Resource.resource_type == resource_type)
     if tag:
@@ -60,9 +72,13 @@ async def list_resources(
     return list(rows)
 
 
-async def get_resource(db: AsyncSession, actor: Principal, resource_id: uuid.UUID) -> m.Resource:
+async def get_resource(
+    db: AsyncSession, actor: Principal, resource_id: uuid.UUID, *, faculty: bool = False
+) -> m.Resource:
     row = await db.scalar(
-        select(m.Resource).where(m.Resource.id == resource_id, *visible_resource_filters(actor))
+        select(m.Resource).where(
+            m.Resource.id == resource_id, *visible_resource_filters(actor, faculty=faculty)
+        )
     )
     if row is None:
         raise NotFound

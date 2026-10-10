@@ -49,6 +49,15 @@ class Permission(enum.StrEnum):
     RECOMMENDATION_CREATE_ASSIGNED = "recommendation:create:assigned"
     # teacher / admin: aggregated, de-identified data only
     INSIGHTS_READ_AGGREGATE = "insights:read:aggregate"
+    # teacher: group figures for their own classes and department (privacy thresholds apply),
+    # referrals they raise, requests students send them, and faculty resources
+    CLASS_INSIGHTS_READ = "class_insights:read:own"
+    REFERRAL_MANAGE_OWN = "referral:manage:own"
+    TEACHER_SUPPORT_MANAGE = "teacher_support:manage:own"
+    FACULTY_RESOURCE_READ = "faculty_resource:read"
+    # therapist: triage referrals from teachers; student: ask one of their own teachers for help
+    REFERRAL_TRIAGE = "referral:triage"
+    TEACHER_SUPPORT_REQUEST = "teacher_support:request"
     # admin: accounts, configuration and audit metadata, never clinical content
     USER_MANAGE = "user:manage"
     THERAPIST_VERIFY = "therapist:verify"
@@ -75,6 +84,7 @@ ROLE_PERMISSIONS: Mapping[Role, frozenset[Permission]] = {
             P.SUPPORT_REQUEST_CREATE,
             P.RESOURCE_READ,
             P.THERAPIST_DIRECTORY_READ,
+            P.TEACHER_SUPPORT_REQUEST,
         }
     ),
     Role.THERAPIST: frozenset(
@@ -90,15 +100,26 @@ ROLE_PERMISSIONS: Mapping[Role, frozenset[Permission]] = {
             P.RISK_ALERT_MANAGE,
             P.FOLLOW_UP_MANAGE,
             P.RECOMMENDATION_CREATE_ASSIGNED,
+            P.REFERRAL_TRIAGE,
             P.MESSAGE_PARTICIPATE_OWN,
             P.RESOURCE_READ,
         }
     ),
-    Role.TEACHER: frozenset({P.PROFILE_READ_OWN, P.INSIGHTS_READ_AGGREGATE}),
+    Role.TEACHER: frozenset(
+        {
+            P.PROFILE_READ_OWN,
+            P.INSIGHTS_READ_AGGREGATE,
+            P.CLASS_INSIGHTS_READ,
+            P.REFERRAL_MANAGE_OWN,
+            P.TEACHER_SUPPORT_MANAGE,
+            P.FACULTY_RESOURCE_READ,
+        }
+    ),
     Role.ADMIN: frozenset(
         {
             P.PROFILE_READ_OWN,
             P.INSIGHTS_READ_AGGREGATE,
+            P.FACULTY_RESOURCE_READ,
             P.USER_MANAGE,
             P.THERAPIST_VERIFY,
             P.CONFIG_MANAGE,
@@ -127,6 +148,8 @@ CONTENT_PERMISSIONS: frozenset[Permission] = frozenset(
         P.MESSAGE_PARTICIPATE_OWN,
         P.PRIVACY_READ_OWN,
         P.SUPPORT_REQUEST_CREATE,
+        P.REFERRAL_TRIAGE,
+        P.TEACHER_SUPPORT_REQUEST,
     }
 )
 
