@@ -313,7 +313,7 @@ test.describe("administrator portal (real API)", () => {
     await expect(table.getByText("auth.login").first()).toBeVisible();
 
     await page.getByRole("button", { name: "Check the log is intact" }).click();
-    await expect(page.getByText("The log is intact")).toBeVisible();
+    await expect(page.getByText("The log is intact", { exact: true })).toBeVisible();
 
     await page.getByLabel("Outcome").selectOption("allowed");
     await page.getByRole("button", { name: "Apply" }).click();
