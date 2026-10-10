@@ -68,6 +68,11 @@ says otherwise. Each phase ends with tests run and passing (rule 20).
 
 - Student: mood/stress/sleep check-ins, private encrypted journal, resource library,
   consent management, own-data export/delete request
+  - **Student portal: done** (API + 20 screens; ADR 0005): dashboard, daily check-in, mood,
+    stress and sleep tracking, WHO-5 wellbeing check, trends, goals, rule-based suggestions,
+    therapist search and profile, booking and cancellation, messages, resources, privacy
+    center, consent, urgent support. AI companion page is an entry point only (Phase 6).
+    Still to do here: private journal screens, own-data **deletion** request.
 - Therapist: caseload view, availability, appointment booking/confirmation
 - Encrypted session notes (Clinical-Confidential), visible to author only
 - Field-level encryption service (KMS-compatible, local key for dev)

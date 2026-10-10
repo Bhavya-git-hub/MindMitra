@@ -95,8 +95,18 @@ describe("shell navigation", () => {
       "page",
     );
     expect(within(nav).getByRole("link", { name: "Overview" })).not.toHaveAttribute("aria-current");
-    // Planned pages are not links.
-    expect(within(nav).queryByRole("link", { name: /Companion chat/ })).not.toBeInTheDocument();
+    expect(within(nav).getByRole("link", { name: "Daily check-in" })).toHaveAttribute(
+      "href",
+      "/student/check-in",
+    );
+  });
+
+  it("shows pages that are not built yet as disabled, not as links", async () => {
+    navigation.pathname = "/therapist/account";
+    renderWithApp(portal("therapist"), makeSession({}, { signedInAs: "therapist" }));
+    await screen.findByRole("main");
+    const nav = screen.getByRole("navigation", { name: "Therapist navigation" });
+    expect(within(nav).queryByRole("link", { name: /My students/ })).not.toBeInTheDocument();
     expect(within(nav).getAllByText("Soon").length).toBeGreaterThan(0);
   });
 

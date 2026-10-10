@@ -1,6 +1,6 @@
 # MindMitra Database Design
 
-- Status: **Partially implemented.** The database layer (models, migrations `0001`-`0003`, seed) exists in
+- Status: **Partially implemented.** The database layer (models, migrations `0001`-`0004`, seed) exists in
   `services/api`; section 0 below states exactly what was built and where it differs from the
   original design in sections 1-10. Where they disagree, **section 0 is authoritative**.
 - Engine: PostgreSQL 16 (AWS RDS Multi-AZ). Implemented extension: `btree_gist`. Designed but not
@@ -11,7 +11,7 @@
 
 Code: `services/api/app/infrastructure/db/` (models, session, audit helper, seed),
 `services/api/alembic/versions/` (`0001_initial_schema.py`, `0002_tenant_safe_foreign_keys.py`,
-`0003_auth_sessions.py`), tests in `services/api/tests/`. Migration `0003` (authentication phase)
+`0003_auth_sessions.py`, `0004_crisis_contacts.py`), tests in `services/api/tests/`. Migration `0003` (authentication phase)
 adds the three `iam` session and token tables; see [SECURITY_ARCHITECTURE.md §0](SECURITY_ARCHITECTURE.md#0-implementation-status-authentication-and-authorization-as-built).
 Verified against PostgreSQL 16: migration up/down/up, `alembic check` (models == migration),
 107 tests, `ruff`, `mypy --strict`, `pip-audit`. Migration `0002` was also checked against a seeded database (backfill) and downgraded/upgraded again; schemas from `0001 -> 0002`, from scratch, and `0002 -> 0001` are identical to the expected ones. See 0.6 for the review that produced `0002`.
@@ -31,7 +31,7 @@ gets `permission denied` on `therapy`, `comm` and `safety`.
 | `therapy` (confidential) | `therapist_availability`, `appointments`, `therapy_sessions`, `therapy_notes` |
 | `comm` | `messages` |
 | `ai` | `ai_conversations`, `ai_messages`, `recommendations` |
-| `safety` | `risk_alerts` |
+| `safety` | `risk_alerts`, `crisis_contacts` |
 | `consent` | `consents` |
 | `notify` | `notifications` |
 | `audit` | `audit_logs` |
@@ -109,6 +109,7 @@ erDiagram
 | Check-ins | One `checkin` table | Split into `mood_entries`, `sleep_entries`, `wellness_assessments`, `stress_assessments` | Requested entities; each has its own constraints and timeline index |
 | Messaging | `message_thread`, `message`, `message_read`, `attachment` | Single `messages` table keyed by (student, therapist) pair, with `read_at`, `client_msg_id` (idempotent retries) and `crisis_checked_at`; sender must be one of the pair | Simpler for a one-to-one care relationship; threads/attachments can be added without breaking it |
 | Crisis workflow | `crisis_signal`, `escalation`, `escalation_event`, `on_call_rota`, `on_call_shift`, `break_glass_grant`, `crisis_resource` | One `risk_alerts` table (source, detector, category, severity, SLA deadline, status, minimal encrypted excerpt) | Requested entity; timeline, rota and break-glass tables are deferred to the safety phase. Categories contain no diagnostic labels (tested) |
+| Crisis contacts | `crisis_resource` | `0004`: `safety.crisis_contacts` (kind `emergency`/`helpline`/`campus`, phone, URL, description, hours, sort order, active flag). `institution_id` NULL means "every institution"; a CHECK requires at least a phone, URL or description. Seeded with **synthetic demo contacts** | Shown to students at `/student/emergency`. Real numbers must be entered and verified per institution before go-live |
 | Consent | Append-only rows with `status` | One row per grant; `revoked_at` ends it; re-granting inserts a new row; partial unique index allows one active grant per (user, scope) | History is preserved and the "one active consent" rule is a database constraint |
 | Appointments | `appointment` + `session_note` | `appointments`, `therapy_sessions` (delivered session), `therapy_notes` (versioned, one row per edit) | Separates scheduling from the clinical session record |
 | Encryption | KMS envelope encryption, per-user/per-note data keys, AAD bound to row | Interim: AES-256-GCM, one key from `FIELD_ENCRYPTION_KEY`, AAD bound to the **column** (`EncryptedText(context)`), versioned ciphertext format | KMS and per-record keys need AWS wiring (deployment phase). Ciphertext moved to another column fails to decrypt (tested) |

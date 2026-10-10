@@ -66,7 +66,20 @@ describe("navigation", () => {
     expect(activeHref(items, "/student")).toBe("/student");
     expect(activeHref(items, "/student/account")).toBe("/student/account");
     expect(activeHref(items, "/student/account/security")).toBe("/student/account");
-    expect(activeHref(items, "/student/check-in")).toBe("/student"); // unbuilt pages never match
+    expect(activeHref(items, "/student/check-in")).toBe("/student/check-in");
+    expect(activeHref(items, "/student/therapists/abc")).toBe("/student/therapists");
+    expect(activeHref(items, "/student/privacy/consent")).toBe("/student/privacy");
     expect(activeHref(items, "/help")).toBeNull();
+  });
+
+  it("keeps the parent item active on pages that belong under it", () => {
+    const items = NAVIGATION.student;
+    for (const path of ["mood", "stress", "sleep", "assessment", "trends"]) {
+      expect(activeHref(items, `/student/${path}`)).toBe("/student/wellness");
+    }
+  });
+
+  it("never highlights an unbuilt item", () => {
+    expect(activeHref(NAVIGATION.therapist, "/therapist/students")).toBe("/therapist");
   });
 });

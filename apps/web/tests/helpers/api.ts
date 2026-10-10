@@ -44,6 +44,7 @@ export const me = (role: Role = "student") => ({
 export interface RecordedCall {
   method: string;
   path: string;
+  query: URLSearchParams;
   headers: Headers;
   body: unknown;
   credentials: RequestCredentials | undefined;
@@ -61,6 +62,7 @@ export function fakeApi(handlers: Record<string, Handler>) {
     const call: RecordedCall = {
       method,
       path,
+      query: url.searchParams,
       headers: new Headers(init?.headers),
       body: typeof init?.body === "string" ? JSON.parse(init.body) : undefined,
       credentials: init?.credentials,

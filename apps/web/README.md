@@ -59,11 +59,14 @@ src/
     (public)/help  crisis and help page (server-rendered, no login needed)
     (student)/student     (therapist)/therapist     (teacher)/teacher     (admin)/admin
                    each: layout (AuthGate + AppShell), page, account/, loading.tsx, error.tsx
+                   the student portal has 20 screens (see "Student portal" below)
     api/session    sets/clears the signed portal-pass cookie (the only route handler)
     design-system  living style guide
   proxy.ts         role redirects from the portal pass + per-request CSP nonce
-  components/      ui/ (shadcn), layout/, states/, cards/, charts/, forms/, safety/, auth/, providers/
-  lib/             api/ (typed client), auth/ (roles, route rules, pass, session manager), env, csp ...
+  components/      ui/ (shadcn), layout/, states/, cards/, charts/, forms/, safety/, auth/, providers/,
+                   student/ (one file of views per area)
+  lib/             api/ (typed client, student-api.ts + zod schemas), hooks/ (useQuery), auth/ (roles,
+                   route rules, pass, session manager), format, sleep, trend-data, env, csp ...
 tests/unit/        Vitest        e2e/   Playwright
 ```
 
@@ -94,6 +97,25 @@ Conventions: calm and warm, no alarm reds for anything ML-related, plain languag
 conveyed by colour alone, visible solid focus ring, reduced-motion respected, one `<h1>` per
 page, a skip link on every page.
 
+## Student portal
+
+| Area | Pages (under `/student`) | Data |
+|------|--------------------------|------|
+| Dashboard | `/` | `GET /me/dashboard`: today's mood, stress and sleep, wellbeing check, next appointment, 7-day trends, suggestions, check-in status |
+| Check-in and tracking | `/check-in`, `/mood`, `/stress`, `/sleep` | `POST /me/check-ins`, stress and sleep entries |
+| Wellness | `/wellness`, `/trends`, `/assessment`, `/goals`, `/recommendations` | summary, trends (7/30/90 days), WHO-5 check, goals, rule-based suggestions |
+| Companion | `/assistant` | Entry point only. The companion is not built; the page says so and links to what works |
+| Care | `/therapists`, `/therapists/[id]`, `/appointments`, `/messages`, `/messages/[id]` | directory, slots, booking, cancellation, one-to-one messages |
+| Library | `/resources`, `/resources/[id]` | published resources |
+| Privacy and safety | `/privacy`, `/privacy/consent`, `/emergency` | access history, export, consent switches, crisis contacts, "ask someone to reach out" |
+
+Rules the views follow: no student ids in URLs or API paths (only `/me/...`; route ids are
+checked as UUIDs before they reach a path); every number comes from the API (the only fixed
+text is wording and the 1-5 labels); empty and error states say what happened and what to do
+next; scores are never shown without their label; the support prompt is information, not
+detection; links and phone numbers from the API are only rendered when they are `http(s)` or
+dialable. Data loading uses the small `useQuery` hook in `src/lib/hooks`.
+
 ## Adding a page to a portal
 
 1. Add the page under `src/app/(role)/role/…`; it inherits the guard and shell from the layout.
@@ -107,6 +129,9 @@ page, a skip link on every page.
 
 - Terms of use and privacy notice pages do not exist yet; the sign-up checkbox names them in
   plain text without links.
-- `/help` lists no phone numbers on purpose: an institution's own crisis contacts will be
-  configured per institution and rendered there.
+- `/help` (public, works signed out) lists no phone numbers on purpose. Signed-in students see
+  their institution's contacts at `/student/emergency`; the seeded contacts are demo data and
+  must be replaced and verified before go-live.
+- The AI companion has no conversation screen yet (Phase 6).
+- Therapist, teacher and administrator portals are still the placeholder overview.
 - No i18n, TanStack Query or generated OpenAPI client yet (see `docs/ARCHITECTURE.md` section 2).
