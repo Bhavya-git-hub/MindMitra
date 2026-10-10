@@ -23,6 +23,7 @@ EXPECTED_TABLES = {
         "course_enrollments",
         "course_teachers",
         "care_team_members",
+        "institution_settings",
     },
     "wellness": {
         "mood_entries",

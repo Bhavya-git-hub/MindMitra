@@ -221,6 +221,7 @@ _EXEMPT = {
     # same-tenant by the verification and recommendation policies; SET NULL on user removal.
     ("org.therapists", "verified_by"),
     ("ai.recommendations", "authored_by"),
+    ("org.institution_settings", "updated_by"),
 }
 
 

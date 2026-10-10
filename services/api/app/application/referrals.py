@@ -22,6 +22,7 @@ from sqlalchemy import ColumnElement, case, exists, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.application import institution_settings
 from app.application.access import NotFound, enforce
 from app.application.auth.errors import Conflict
 from app.application.care import InvalidTransition
@@ -59,7 +60,6 @@ from app.infrastructure.db.ids import uuid7
 
 MAX_NOTE = 1000
 DAILY_LIMIT = 10
-SAFETY_ACK_MINUTES = 15
 URGENCY_RANK = {ReferralUrgency.URGENT: 0, ReferralUrgency.SOON: 1, ReferralUrgency.ROUTINE: 2}
 TEACHER_STATUS_LABELS = {
     ReferralStatus.RECEIVED: "Received by the wellbeing team",
@@ -177,6 +177,7 @@ async def create(
         raise Conflict("You already have an open referral for this student.") from exc
 
     if category is ReferralCategory.SAFETY_CONCERN:
+        safety = (await institution_settings.load(db, actor.institution_id)).safety
         db.add(
             m.RiskAlert(
                 id=uuid7(),
@@ -191,7 +192,7 @@ async def create(
                 severity=AlertSeverity.HIGH,
                 status=AlertStatus.OPEN,
                 requires_human=True,
-                sla_ack_due_at=now + dt.timedelta(minutes=SAFETY_ACK_MINUTES),
+                sla_ack_due_at=now + dt.timedelta(minutes=safety.alert_ack_minutes),
             )
         )
     await teacher_audit(

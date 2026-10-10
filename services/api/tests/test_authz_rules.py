@@ -216,3 +216,23 @@ def test_codec_round_trip_and_rejections() -> None:
 def test_private_key_must_be_ed25519() -> None:
     with pytest.raises(ValueError):
         load_private_key("change-me")
+
+
+# ---- administrator policies ------------------------------------------------------------------
+
+
+def test_only_an_administrator_of_the_same_institution_may_administer() -> None:
+    from app.domain.auth.policies import can_administer, can_edit_resource
+
+    admin = principal(Role.ADMIN)
+    assert can_administer(admin, institution_id=INST).allowed
+    other = can_administer(admin, institution_id=OTHER_INST)
+    assert not other.allowed and other.hide  # another institution's records look absent
+    for role in (Role.STUDENT, Role.THERAPIST, Role.TEACHER):
+        assert not can_administer(principal(role), institution_id=INST).allowed
+
+    assert can_edit_resource(admin, resource_institution_id=INST).allowed
+    shipped = can_edit_resource(admin, resource_institution_id=None)
+    assert not shipped.allowed and shipped.reason == "global_resource_read_only"
+    assert not can_edit_resource(admin, resource_institution_id=OTHER_INST).allowed
+    assert not can_edit_resource(principal(Role.TEACHER), resource_institution_id=INST).allowed

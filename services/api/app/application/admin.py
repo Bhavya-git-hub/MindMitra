@@ -7,28 +7,25 @@ journals, AI conversations or wellness records (CLAUDE.md section 3).
 import dataclasses
 import uuid
 
-from sqlalchemy import select
+from sqlalchemy import func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.application import cohort_stats
 from app.application.access import NotFound, enforce
+from app.application.admin_common import LIKE_ESCAPE, MAX_LIMIT, audit, like
 from app.application.auth.delivery import TokenDelivery
 from app.application.auth.errors import Conflict, RegistrationRejected
 from app.application.auth.service import EMAIL_RE, AuthService, normalise_email
 from app.domain.auth.policies import Principal, can_manage_user
 from app.infrastructure.db import models as m
-from app.infrastructure.db.audit import append_audit_event
 from app.infrastructure.db.enums import (
-    AuditOutcome,
     OneTimeTokenPurpose,
     SessionRevokeReason,
     UserRole,
     UserStatus,
 )
 from app.infrastructure.db.ids import uuid7
-
-MAX_LIMIT = 200
 
 
 @dataclasses.dataclass(frozen=True)
@@ -44,26 +41,10 @@ class NewUser:
     licence_number: str | None = None
 
 
-async def _audit(
-    db: AsyncSession,
-    actor: Principal,
-    action: str,
-    *,
-    resource_type: str,
-    resource_id: uuid.UUID | None,
-    details: dict[str, str] | None = None,
-) -> None:
-    await append_audit_event(
-        db,
-        institution_id=actor.institution_id,
-        actor_id=actor.user_id,
-        actor_role=UserRole.ADMINISTRATOR,
-        action=action,
-        outcome=AuditOutcome.ALLOWED,
-        resource_type=resource_type,
-        resource_id=resource_id,
-        details=details,
-    )
+@dataclasses.dataclass(frozen=True)
+class UserPage:
+    items: list[m.User]
+    total: int
 
 
 async def list_users(
@@ -72,16 +53,77 @@ async def list_users(
     *,
     role: UserRole | None,
     status: UserStatus | None,
-    limit: int,
-) -> list[m.User]:
-    stmt = select(m.User).where(
-        m.User.institution_id == actor.institution_id, m.User.deleted_at.is_(None)
-    )
+    query: str | None = None,
+    limit: int = 50,
+    offset: int = 0,
+) -> UserPage:
+    where = [m.User.institution_id == actor.institution_id, m.User.deleted_at.is_(None)]
     if role is not None:
-        stmt = stmt.where(m.User.role == role)
+        where.append(m.User.role == role)
     if status is not None:
-        stmt = stmt.where(m.User.status == status)
-    return list(await db.scalars(stmt.order_by(m.User.created_at).limit(min(limit, MAX_LIMIT))))
+        where.append(m.User.status == status)
+    if query and query.strip():
+        pattern = like(query)
+        where.append(
+            or_(
+                m.User.full_name.ilike(pattern, escape=LIKE_ESCAPE),
+                m.User.email.ilike(pattern, escape=LIKE_ESCAPE),
+            )
+        )
+    total = await db.scalar(select(func.count()).select_from(m.User).where(*where)) or 0
+    rows = await db.scalars(
+        select(m.User)
+        .where(*where)
+        .order_by(m.User.full_name, m.User.id)
+        .limit(min(limit, MAX_LIMIT))
+        .offset(max(offset, 0))
+    )
+    return UserPage(list(rows), total)
+
+
+async def get_user(db: AsyncSession, actor: Principal, user_id: uuid.UUID) -> m.User:
+    user = await db.get(m.User, user_id)
+    if user is None or user.deleted_at is not None:
+        raise NotFound
+    enforce(
+        can_manage_user(actor, target_user_id=user.id, target_institution_id=user.institution_id),
+        action="user.read",
+        resource_type="user",
+        resource_id=user.id,
+    )
+    return user
+
+
+async def resend_invite(
+    db: AsyncSession,
+    actor: Principal,
+    user_id: uuid.UUID,
+    *,
+    auth: AuthService,
+    delivery: TokenDelivery,
+) -> None:
+    """Send a fresh set-up link to someone who has not finished creating their account."""
+    user = await get_user(db, actor, user_id)
+    if user.status is not UserStatus.INVITED:
+        raise Conflict("This person has already set up their account.")
+    token = await auth.issue_account_setup(user)
+    await audit(db, actor, "user.resend_invite", resource_type="user", resource_id=user.id)
+    await db.commit()
+    await delivery.send(
+        user_id=user.id,
+        email=user.email,
+        purpose=OneTimeTokenPurpose.ACCOUNT_SETUP,
+        token=token,
+    )
+
+
+async def sign_out_everywhere(
+    db: AsyncSession, actor: Principal, user_id: uuid.UUID, *, auth: AuthService
+) -> None:
+    user = await get_user(db, actor, user_id)
+    await auth.revoke_user_sessions(user.id, SessionRevokeReason.LOGOUT)
+    await audit(db, actor, "user.sign_out", resource_type="user", resource_id=user.id)
+    await db.commit()
 
 
 async def _department(db: AsyncSession, actor: Principal, code: str | None) -> m.Department:
@@ -167,13 +209,13 @@ async def create_user(
         raise Conflict("a profile with this number already exists") from exc
 
     token = await auth.issue_account_setup(user)
-    await _audit(
+    await audit(
         db,
         actor,
         "user.create",
         resource_type="user",
         resource_id=user.id,
-        details={"role": data.role.value},
+        role=data.role.value,
     )
     await db.commit()
     await delivery.send(
@@ -200,13 +242,14 @@ async def set_user_status(
         await cohort_stats.invalidate_for_student(db, user.institution_id, user.id)
     if status is not UserStatus.ACTIVE:
         await auth.revoke_user_sessions(user.id, SessionRevokeReason.ACCOUNT_DISABLED)
-    await _audit(
+    await audit(
         db,
         actor,
         "user.update_status",
         resource_type="user",
         resource_id=user.id,
-        details={"from": old.value, "to": status.value},
+        before=old.value,
+        after=status.value,
     )
     await db.commit()
     return user
@@ -232,30 +275,13 @@ async def update_institution(
     if email_domains is not None:
         inst.email_domains = sorted({d.strip().lower() for d in email_domains if d.strip()})
         changed.append("email_domains")
-    await _audit(
+    await audit(
         db,
         actor,
         "institution.update",
         resource_type="institution",
         resource_id=inst.id,
-        details={"fields": ",".join(changed)},
+        fields=",".join(changed),
     )
     await db.commit()
     return inst
-
-
-async def audit_events(
-    db: AsyncSession,
-    actor: Principal,
-    *,
-    action: str | None,
-    before_seq: int | None,
-    limit: int,
-) -> list[m.AuditLog]:
-    """Audit metadata for the admin's own institution (who did what, when; never content)."""
-    stmt = select(m.AuditLog).where(m.AuditLog.institution_id == actor.institution_id)
-    if action:
-        stmt = stmt.where(m.AuditLog.action == action)
-    if before_seq is not None:
-        stmt = stmt.where(m.AuditLog.seq < before_seq)
-    return list(await db.scalars(stmt.order_by(m.AuditLog.seq.desc()).limit(min(limit, MAX_LIMIT))))
