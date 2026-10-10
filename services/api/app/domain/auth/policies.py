@@ -182,6 +182,34 @@ def can_message_in_conversation(
     return allow("conversation_participant")
 
 
+def can_read_conversation_history(
+    actor: Principal,
+    *,
+    conversation_institution_id: uuid.UUID,
+    student_id: uuid.UUID,
+    therapist_id: uuid.UUID,
+    has_active_care_link: bool,
+    has_history: bool,
+) -> Decision:
+    """Reading is like writing, with one difference: the student keeps the messages they already
+    exchanged after the care team ends. The therapist's access still ends with the link (ADR
+    0006), and with no link and no history there is nothing to read (it looks missing)."""
+    if (
+        actor.role is Role.STUDENT
+        and actor.user_id == student_id
+        and has_history
+        and same_tenant(actor, conversation_institution_id)
+    ):
+        return allow("own_history")
+    return can_message_in_conversation(
+        actor,
+        conversation_institution_id=conversation_institution_id,
+        student_id=student_id,
+        therapist_id=therapist_id,
+        has_active_care_link=has_active_care_link,
+    )
+
+
 # ---- therapist portal --------------------------------------------------------------------
 
 

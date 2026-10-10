@@ -252,7 +252,7 @@ test.describe("administrator portal (real API)", () => {
     await signInAndWait(page, "administrator");
     await open(page, "/admin/settings", /^Settings$/);
 
-    await page.getByRole("button", { name: "Notifications" }).click();
+    await page.getByRole("button", { name: "Notifications", exact: true }).click();
     const hours = page.getByLabel("Hours before an appointment");
     await hours.fill("24, 0");
     await page.getByRole("button", { name: "Save" }).click();
@@ -260,7 +260,7 @@ test.describe("administrator portal (real API)", () => {
     await hours.fill("24, 2");
     await page.getByRole("button", { name: "Save" }).click();
     await expect(page.getByText("Notification settings saved")).toBeVisible();
-    await expect(page.getByText("Reminders switch on with scheduled delivery")).toBeVisible();
+    await expect(page.getByText("How reminders and email are sent")).toBeVisible();
 
     await page.getByRole("button", { name: "Safety" }).click();
     const minutes = page.getByLabel(/Minutes a therapist has to acknowledge/);
@@ -313,7 +313,7 @@ test.describe("administrator portal (real API)", () => {
     await expect(table.getByText("auth.login").first()).toBeVisible();
 
     await page.getByRole("button", { name: "Check the log is intact" }).click();
-    await expect(page.getByText("The log is intact")).toBeVisible();
+    await expect(page.getByText("The log is intact", { exact: true })).toBeVisible();
 
     await page.getByLabel("Outcome").selectOption("allowed");
     await page.getByRole("button", { name: "Apply" }).click();

@@ -26,6 +26,8 @@ SESSION_SECRET="$(python3 -c 'import secrets; print(secrets.token_urlsafe(48))')
 export FIELD_ENCRYPTION_KEY JWT_PRIVATE_KEY SEED_USER_PASSWORD SESSION_SECRET
 export CORS_ORIGINS="http://localhost:${WEB_PORT}"
 export AUTH_RATE_LIMIT_PER_MINUTE=1000   # many logins from one IP; the limit itself is unit-tested
+export SCHEDULER_ENABLED=true            # reminders and e-mail dispatch run as they would deployed
+export NOTIFICATION_EMAIL_PROVIDER=log
 
 uv run --quiet python "$ROOT/scripts/e2e/prepare_backend.py" "$WEB/e2e/.auth/users.json"
 

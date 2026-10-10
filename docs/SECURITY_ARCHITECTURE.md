@@ -35,6 +35,9 @@ injected in turn, and the suite failed for every one.
 | Token delivery | `TokenDelivery` interface; an in-memory outbox is used in development and tests. The app refuses to start in staging/production until a real e-mail sender is configured |
 | Rate limiting | 20 requests per minute per client IP across the public auth endpoints, `429` with `Retry-After` (in-process sliding window) |
 | Errors and headers | RFC 9457 problem responses with `request_id`; validation errors never echo input; `X-Request-ID`, `nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`, `Cache-Control: no-store`, CSP `default-src 'none'`, HSTS; CORS only for configured origins |
+| Real-time channel | `/api/v1/ws`: origin checked against the allowed web origins, access token in the first frame (never the URL), at most 5 sockets per person, session re-checked every minute, slow clients dropped. Events hold ids and fixed words only and are published after commit; content is always fetched through REST ([ADR 0009](adr/0009-therapist-communication-real-time-and-notifications.md)) |
+| Notifications | One `notify()` path: fixed titles, payload keys from an allowlist with UUID or short-slug values (checked and tested). The inbox is strictly the caller's own. E-mail goes through `NotificationProvider` with one content-free template; addresses and text are never logged; failures stored as short codes |
+| Conversations | Student and therapist only, while linked; the student keeps read access to their own history afterwards. Teachers and administrators hold no messaging permission (`403`) |
 | Audit | Login success/failure (with reason), logout, registration, verification, reset, user and config changes, every denied authorization (in its own transaction, so it survives the request's rollback) and every therapist read of wellness data or therapy notes. Metadata only |
 
 ### 0.2 Roles, permissions and policies

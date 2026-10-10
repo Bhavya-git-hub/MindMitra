@@ -57,6 +57,20 @@ python -c "from app.core.access_tokens import generate_private_key_pem as g; imp
 uvicorn app.api.main:create_app --factory --reload   # http://localhost:8000/docs (development only)
 ```
 
+The real-time socket is `/api/v1/ws` (uvicorn serves it through the `websockets` package). To
+send appointment reminders and dispatch e-mail deliveries, either run the scheduler inside the
+API with `SCHEDULER_ENABLED=true` (every `SCHEDULER_INTERVAL_SECONDS`, default 60) or on its own:
+
+```bash
+python -m app.workers.scheduler          # loop
+python -m app.workers.scheduler --once   # one pass, for cron
+```
+
+`NOTIFICATION_EMAIL_PROVIDER` is `none` (deliveries are recorded as skipped) or `log`
+(development: one log line per delivery, ids only). A real provider implements
+`NotificationProvider` in `app/infrastructure/notifications/providers.py`. The in-process event
+hub serves one API instance; see [ADR 0009](../../docs/adr/0009-therapist-communication-real-time-and-notifications.md).
+
 Sign in with `POST /api/v1/auth/login` using a seeded e-mail and the seed password. The response
 carries a short-lived access token (send it as `Authorization: Bearer ...`) and sets the refresh
 cookie. In development, e-mailed links (verification, reset, account setup) go to an in-memory

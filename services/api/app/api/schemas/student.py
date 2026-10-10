@@ -11,7 +11,7 @@ from app.application import booking, recommendations
 from app.application.student_wellness import DailyPoint, Summary
 from app.domain.wellness import indicators, instruments
 from app.infrastructure.db import models as m
-from app.infrastructure.db.enums import GoalCategory
+from app.infrastructure.db.enums import CancellationReason, GoalCategory, TherapySessionStatus
 
 Score = Annotated[int, Field(ge=1, le=5)]
 Label = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=60)]
@@ -443,7 +443,13 @@ class StudentAppointmentOut(BaseModel):
     status: str
     reason: str | None
     can_cancel: bool
+    can_reschedule: bool
     cancelled_at: dt.datetime | None
+    cancel_reason: CancellationReason | None
+    reschedule_count: int
+    rescheduled_at: dt.datetime | None
+    # The delivered session once the therapist starts it: in_progress, completed or abandoned.
+    session_status: TherapySessionStatus | None
 
 
 def appointment_view_out(v: booking.AppointmentView) -> StudentAppointmentOut:
@@ -459,12 +465,22 @@ def appointment_view_out(v: booking.AppointmentView) -> StudentAppointmentOut:
         status=a.status.value,
         reason=a.reason,
         can_cancel=v.can_cancel,
+        can_reschedule=v.can_reschedule,
         cancelled_at=a.cancelled_at,
+        cancel_reason=a.cancel_reason,
+        reschedule_count=a.reschedule_count,
+        rescheduled_at=a.rescheduled_at,
+        session_status=v.session_status,
     )
 
 
 class AppointmentPatchIn(BaseModel):
     status: Literal["cancelled"]
+    reason: CancellationReason | None = None  # optional, and only ever one of a fixed list
+
+
+class RescheduleIn(BaseModel):
+    availability_id: uuid.UUID
 
 
 # ---- messages -------------------------------------------------------------------------------

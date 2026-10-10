@@ -124,6 +124,25 @@ erDiagram
   no data migration. Values are validated (and the invariants enforced) in the application, not
   by the database. `set_updated_at` trigger; index on `updated_by`.
 
+### 0.1e Communication (migration `0009`)
+
+- `therapy.appointments` gains `cancel_reason` (enum `cancellation_reason`, only when cancelled:
+  `cancel_reason_only_when_cancelled`), `rescheduled_at` and `reschedule_count` (`>= 0`), and a
+  unique `(id, institution_id)` for tenant-safe references. A move updates the row in place, so
+  the existing exclusion constraints (`ex_appointments_therapist_no_overlap`,
+  `ex_appointments_student_no_overlap`) and `uq_appointments_live_slot` still prevent double
+  booking.
+- `notify.deliveries`: one row per notification and channel (`unique (notification_id, channel)`)
+  for delivery outside the app: `status` (`pending`, `sent`, `failed`, `skipped`), `attempts`,
+  `next_attempt_at`, `sent_at` (set exactly when sent, by check), `last_error` (a short code, never
+  an address or text). Composite FK to `(notifications.id, institution_id)`, cascading; partial
+  index on `next_attempt_at` where pending; index on `user_id`.
+- `notify.appointment_reminders`: one row per reminder sent, `unique (appointment_id, starts_at,
+  offset_hours)`, offset 1 to 168. The scheduler claims a row before notifying, so a reminder is
+  sent at most once even with several schedulers; a moved appointment has a new `starts_at`, so
+  it gets its own reminders. Composite FK to the appointment, cascading.
+- `set_updated_at` triggers on both new tables.
+
 ### 0.2 Requirements checklist
 
 | Requirement | How it is met |

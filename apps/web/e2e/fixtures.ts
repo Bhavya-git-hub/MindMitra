@@ -19,6 +19,9 @@ export const HEADING: Record<Role, RegExp> = {
 
 const users: Record<Role, string> & {
   /** Set by scripts/e2e/prepare_backend.py for the therapist portal. */
+  therapist_id: string;
+  care_student: string;
+  care_student_id: string;
   care_student_name: string;
   pending_therapist: string;
   /** Set for the teacher portal: a class the teacher teaches and a student enrolled in it. */
@@ -31,6 +34,13 @@ const password = process.env.E2E_PASSWORD ?? "";
 
 export const credentials = (role: Role) => ({ email: users[role], password });
 export const careStudentName = users.care_student_name;
+/** The verified therapist and the student on their care team (both signed in by some tests). */
+export const carePair = {
+  therapistId: users.therapist_id,
+  studentEmail: users.care_student,
+  studentId: users.care_student_id,
+  studentName: users.care_student_name,
+};
 export const pendingTherapistEmail = users.pending_therapist;
 export const teacherCourse = {
   code: users.teacher_course_code,

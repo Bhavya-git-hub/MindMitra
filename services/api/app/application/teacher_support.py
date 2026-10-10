@@ -18,6 +18,7 @@ from app.application.access import NotFound, enforce
 from app.application.auth.errors import Conflict
 from app.application.care import InvalidTransition
 from app.application.errors import InvalidInput
+from app.application.notifications import notify
 from app.application.student_wellness import authorize_own
 from app.application.teacher_portal import audit as teacher_audit
 from app.application.timeutil import now_utc
@@ -159,15 +160,13 @@ async def create(
         raise Conflict(
             "You already have an open request with this teacher for this course."
         ) from exc
-    db.add(
-        m.Notification(
-            id=uuid7(),
-            institution_id=actor.institution_id,
-            user_id=teacher_id,
-            type=NotificationType.SYSTEM,
-            title="A student has asked for your help",
-            payload={"request_id": str(request.id)},
-        )
+    await notify(
+        db,
+        institution_id=actor.institution_id,
+        user_id=teacher_id,
+        type=NotificationType.SYSTEM,
+        title="A student has asked for your help",
+        payload={"request_id": str(request.id)},
     )
     await _audit(
         db, actor, UserRole.STUDENT, "teacher_support.create", request.id, actor.user_id,
@@ -244,15 +243,13 @@ async def acknowledge(db: AsyncSession, actor: Principal, request_id: uuid.UUID)
         raise InvalidTransition("This request has already been seen.")
     request.status = TeacherSupportStatus.ACKNOWLEDGED
     request.acknowledged_at = now_utc()
-    db.add(
-        m.Notification(
-            id=uuid7(),
-            institution_id=actor.institution_id,
-            user_id=request.student_id,
-            type=NotificationType.SYSTEM,
-            title="Your teacher has seen your request",
-            payload={"request_id": str(request.id)},
-        )
+    await notify(
+        db,
+        institution_id=actor.institution_id,
+        user_id=request.student_id,
+        type=NotificationType.SYSTEM,
+        title="Your teacher has seen your request",
+        payload={"request_id": str(request.id)},
     )
     await teacher_audit(
         db,

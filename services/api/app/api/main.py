@@ -4,6 +4,8 @@ Every route except those in ``PUBLIC_ROUTES`` declares an authorization guard fr
 ``app.api.deps``; ``tests/test_route_authz.py`` fails the build if one is missing.
 """
 
+import asyncio
+import contextlib
 import datetime as dt
 import re
 import uuid
@@ -18,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 from app.api.deps import AppState, audit_denial
 from app.api.problems import install_problem_handlers, problem
 from app.api.rate_limit import SlidingWindowRateLimiter
+from app.api.realtime import websocket_endpoint
 from app.api.routes import (
     admin,
     admin_directory,
@@ -29,6 +32,7 @@ from app.api.routes import (
     health,
     insights,
     me,
+    notifications,
     student_care,
     student_privacy,
     student_teacher_support,
@@ -52,6 +56,10 @@ from app.core.access_tokens import AccessTokenCodec, load_private_key
 from app.core.config import Settings, get_settings
 from app.domain.auth.policies import Principal
 from app.infrastructure.db.session import create_engine, create_session_factory
+from app.infrastructure.events import set_broker
+from app.infrastructure.notifications.providers import Providers, build_providers
+from app.infrastructure.realtime_hub import Hub
+from app.workers.scheduler import run_forever
 
 API_PREFIX = "/api/v1"
 
@@ -68,10 +76,16 @@ PUBLIC_ROUTES: frozenset[tuple[str, str]] = frozenset(
     }
 )
 
+# WebSocket routes authenticate inside the handler (the first frame carries the token), since
+# a browser cannot set an Authorization header on a WebSocket. Listed so a test can check that
+# nothing else is served without a guard.
+WEBSOCKET_ROUTES: frozenset[str] = frozenset({f"{API_PREFIX}/ws"})
+
 ROUTERS = (
     health.router,
     auth.router,
     me.router,
+    notifications.router,
     student_wellness.router,
     student_care.router,
     student_privacy.router,
@@ -113,6 +127,7 @@ def create_app(
     session_factory: async_sessionmaker[AsyncSession] | None = None,
     delivery: TokenDelivery | None = None,
     limiter: SlidingWindowRateLimiter | None = None,
+    providers: Providers | None = None,
 ) -> FastAPI:
     s = settings or get_settings()
     engine: AsyncEngine | None = None
@@ -120,9 +135,25 @@ def create_app(
         engine = create_engine(s)
         session_factory = create_session_factory(engine)
 
+    hub = Hub(max_per_user=s.realtime_max_connections_per_user)
+    set_broker(hub)
+    chosen_providers = (
+        providers if providers is not None else build_providers(s.notification_email_provider)
+    )
+    factory = session_factory
+
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+        scheduler: asyncio.Task[None] | None = None
+        if s.scheduler_enabled:
+            scheduler = asyncio.create_task(
+                run_forever(factory, chosen_providers, s.scheduler_interval_seconds)
+            )
         yield
+        if scheduler is not None:
+            scheduler.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await scheduler
         if engine is not None:
             await engine.dispose()
 
@@ -146,6 +177,8 @@ def create_app(
         ),
         delivery=delivery or _default_delivery(s),
         limiter=limiter or SlidingWindowRateLimiter(s.auth_rate_limit_per_minute),
+        hub=hub,
+        providers=chosen_providers,
     )
 
     install_problem_handlers(app)
@@ -176,6 +209,7 @@ def create_app(
 
     for router in ROUTERS:
         app.include_router(router, prefix=API_PREFIX)
+    app.add_api_websocket_route(f"{API_PREFIX}/ws", websocket_endpoint)
     return app
 
 

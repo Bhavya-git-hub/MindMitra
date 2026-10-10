@@ -13,6 +13,7 @@ dependencies = [
   "fastapi>=0.115",
   "pyjwt[crypto]>=2.9",
   "uvicorn>=0.30",
+  "websockets>=13",
 ]
 
 [dependency-groups]

@@ -87,6 +87,7 @@ export function ConfirmDialog({
   pending,
   error,
   onConfirm,
+  children,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -97,6 +98,8 @@ export function ConfirmDialog({
   pending: boolean;
   error?: string | null;
   onConfirm: () => void;
+  /** Extra fields between the description and the buttons. */
+  children?: React.ReactNode;
 }) {
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
@@ -105,6 +108,7 @@ export function ConfirmDialog({
           <AlertDialogTitle>{title}</AlertDialogTitle>
           <AlertDialogDescription>{description}</AlertDialogDescription>
         </AlertDialogHeader>
+        {children}
         {error && <InlineAlert tone="destructive">{error}</InlineAlert>}
         <AlertDialogFooter>
           <AlertDialogCancel>{cancelLabel}</AlertDialogCancel>

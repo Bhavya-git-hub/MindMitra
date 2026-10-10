@@ -12,8 +12,9 @@ describe("content security policy", () => {
     expect(prod).not.toMatch(/script-src[^;]*unsafe-inline/);
   });
 
-  it("allows connections only to itself and the API", () => {
-    expect(prod).toContain("connect-src 'self' https://api.example.org");
+  it("allows connections only to itself and the API, including its WebSocket", () => {
+    expect(prod).toContain("connect-src 'self' https://api.example.org wss://api.example.org;");
+    expect(dev).toContain("connect-src 'self' http://localhost:8000 ws://localhost:8000");
   });
 
   it("forbids framing, plugins and foreign form posts", () => {

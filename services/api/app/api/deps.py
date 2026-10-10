@@ -38,6 +38,8 @@ from app.domain.auth.policies import Principal
 from app.infrastructure.db import models as m
 from app.infrastructure.db.audit import append_audit_event
 from app.infrastructure.db.enums import AuditOutcome, UserRole, UserStatus
+from app.infrastructure.notifications.providers import Providers
+from app.infrastructure.realtime_hub import Hub
 
 log = logging.getLogger("mindmitra.authz")
 
@@ -52,6 +54,8 @@ class AppState:
     codec: AccessTokenCodec
     delivery: TokenDelivery
     limiter: SlidingWindowRateLimiter
+    hub: Hub
+    providers: Providers
 
 
 def app_state(request: Request) -> AppState:
@@ -86,17 +90,15 @@ def _unauthorized() -> HTTPException:
 _bearer = HTTPBearer(auto_error=False)
 
 
-async def get_principal(
-    request: Request,
-    db: Annotated[AsyncSession, Depends(get_db)],
-    creds: Annotated[HTTPAuthorizationCredentials | None, Depends(_bearer)],
-) -> Principal:
-    if creds is None:
-        raise _unauthorized()
+async def principal_from_token(
+    db: AsyncSession, codec: AccessTokenCodec, token: str
+) -> Principal | None:
+    """The signed-in user behind an access token, or None. The token must be valid *and* its
+    session live, the user active and the role unchanged. Used by HTTP routes and WebSockets."""
     try:
-        claims = app_state(request).codec.decode(creds.credentials)
+        claims = codec.decode(token)
     except InvalidAccessToken:
-        raise _unauthorized() from None
+        return None
     row = (
         await db.execute(
             select(
@@ -123,13 +125,25 @@ async def get_principal(
         or row.deleted_at is not None
         or row.role.value != claims.role  # role changed since the token was issued
     ):
-        raise _unauthorized()
-    principal = Principal(
+        return None
+    return Principal(
         user_id=claims.user_id,
         institution_id=claims.institution_id,
         role=Role(row.role.value),
         session_id=claims.session_id,
     )
+
+
+async def get_principal(
+    request: Request,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    creds: Annotated[HTTPAuthorizationCredentials | None, Depends(_bearer)],
+) -> Principal:
+    if creds is None:
+        raise _unauthorized()
+    principal = await principal_from_token(db, app_state(request).codec, creds.credentials)
+    if principal is None:
+        raise _unauthorized()
     request.state.principal = principal
     return principal
 

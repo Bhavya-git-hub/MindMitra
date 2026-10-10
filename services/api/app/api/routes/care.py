@@ -5,7 +5,7 @@ import uuid
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, Query
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_db, require_permission
@@ -13,7 +13,7 @@ from app.api.routes.me import AppointmentOut, appointment_out
 from app.application import care
 from app.domain.auth.permissions import Permission
 from app.domain.auth.policies import Principal
-from app.infrastructure.db.enums import AppointmentStatus
+from app.infrastructure.db.enums import AppointmentStatus, CancellationReason
 
 router = APIRouter(tags=["care"])
 Db = Annotated[AsyncSession, Depends(get_db)]
@@ -50,6 +50,13 @@ class TherapyNoteOut(BaseModel):
 
 class AppointmentUpdateIn(BaseModel):
     status: Literal["confirmed", "cancelled", "completed", "no_show"]
+    cancel_reason: CancellationReason | None = None  # only with "cancelled"
+
+    @model_validator(mode="after")
+    def _reason_only_when_cancelling(self) -> "AppointmentUpdateIn":
+        if self.cancel_reason is not None and self.status != "cancelled":
+            raise ValueError("A reason can only be given when cancelling.")
+        return self
 
 
 @router.get("/students")
@@ -122,7 +129,11 @@ async def update_appointment(
     principal: Annotated[Principal, Depends(require_permission(Permission.APPOINTMENT_MANAGE))],
 ) -> AppointmentOut:
     appt = await care.update_appointment_status(
-        db, principal, appointment_id, AppointmentStatus(body.status)
+        db,
+        principal,
+        appointment_id,
+        AppointmentStatus(body.status),
+        cancel_reason=body.cancel_reason,
     )
     out = appointment_out(appt)
     await db.commit()

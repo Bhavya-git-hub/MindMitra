@@ -8,9 +8,11 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.application.access import NotFound, enforce, has_active_care_link
+from app.application.appointment_events import appointment_changed
 from app.application.auth.errors import Conflict
 from app.application.directory import BOOKING_LEAD_TIME
 from app.application.errors import InvalidInput
+from app.application.notifications import notify
 from app.application.therapist_access import is_verified
 from app.application.timeutil import now_utc
 from app.domain.auth.policies import (
@@ -23,7 +25,9 @@ from app.infrastructure.db.audit import append_audit_event
 from app.infrastructure.db.enums import (
     AppointmentStatus,
     AuditOutcome,
+    CancellationReason,
     NotificationType,
+    TherapySessionStatus,
     UserRole,
     UserStatus,
 )
@@ -34,15 +38,23 @@ MAX_REASON_LENGTH = 1000
 LIVE = (AppointmentStatus.REQUESTED, AppointmentStatus.CONFIRMED)
 
 
+MAX_RESCHEDULES = 3  # also enforced in ``rescheduling``
+
+
 @dataclasses.dataclass
 class AppointmentView:
     appointment: m.Appointment
-    therapist_name: str
+    therapist_name: str  # the other person: the therapist for a student, and vice versa
+    session_status: TherapySessionStatus | None = None
 
     @property
     def can_cancel(self) -> bool:
         a = self.appointment
         return a.status in LIVE and a.starts_at > now_utc()
+
+    @property
+    def can_reschedule(self) -> bool:
+        return self.can_cancel and self.appointment.reschedule_count < MAX_RESCHEDULES
 
 
 async def list_own(
@@ -65,8 +77,19 @@ async def list_own(
         if upcoming is False:
             stmt = stmt.where(m.Appointment.starts_at < now)
         stmt = stmt.order_by(m.Appointment.starts_at.desc())
-    rows = await db.execute(stmt.limit(min(limit, 200)))
-    return [AppointmentView(a, name) for a, name in rows.all()]
+    rows = (await db.execute(stmt.limit(min(limit, 200)))).all()
+    sessions: dict[uuid.UUID, TherapySessionStatus] = {}
+    if rows:
+        sessions = {
+            appt_id: status
+            for appt_id, status in await db.execute(
+                select(m.TherapySession.appointment_id, m.TherapySession.status).where(
+                    m.TherapySession.appointment_id.in_([a.id for a, _ in rows]),
+                    m.TherapySession.student_id == actor.user_id,
+                )
+            )
+        }
+    return [AppointmentView(a, name, sessions.get(a.id)) for a, name in rows]
 
 
 async def next_upcoming(db: AsyncSession, actor: Principal) -> AppointmentView | None:
@@ -84,15 +107,13 @@ async def _notify(
     event: str,
 ) -> None:
     # Identifiers only: no names, times or reasons (notify schema rules).
-    db.add(
-        m.Notification(
-            id=uuid7(),
-            institution_id=institution_id,
-            user_id=user_id,
-            type=NotificationType.APPOINTMENT_UPDATE,
-            title=title,
-            payload={"appointment_id": str(appointment_id), "event": event},
-        )
+    await notify(
+        db,
+        institution_id=institution_id,
+        user_id=user_id,
+        type=NotificationType.APPOINTMENT_UPDATE,
+        title=title,
+        payload={"appointment_id": str(appointment_id), "event": event},
     )
 
 
@@ -180,6 +201,7 @@ async def book(
         appointment_id=appt.id,
         event="requested",
     )
+    appointment_changed(db, appt, "requested")
     await append_audit_event(
         db,
         institution_id=actor.institution_id,
@@ -195,7 +217,12 @@ async def book(
     return AppointmentView(appt, therapist_user.full_name)
 
 
-async def cancel(db: AsyncSession, actor: Principal, appointment_id: uuid.UUID) -> AppointmentView:
+async def cancel(
+    db: AsyncSession,
+    actor: Principal,
+    appointment_id: uuid.UUID,
+    reason: CancellationReason | None = None,
+) -> AppointmentView:
     appt = await db.get(m.Appointment, appointment_id, with_for_update=True)
     if appt is None:
         raise NotFound
@@ -216,6 +243,7 @@ async def cancel(db: AsyncSession, actor: Principal, appointment_id: uuid.UUID) 
     appt.status = AppointmentStatus.CANCELLED
     appt.cancelled_at = now
     appt.cancelled_by = actor.user_id
+    appt.cancel_reason = reason
     await _notify(
         db,
         institution_id=actor.institution_id,
@@ -224,6 +252,7 @@ async def cancel(db: AsyncSession, actor: Principal, appointment_id: uuid.UUID) 
         appointment_id=appt.id,
         event="cancelled_by_student",
     )
+    appointment_changed(db, appt, "cancelled_by_student")
     await append_audit_event(
         db,
         institution_id=actor.institution_id,

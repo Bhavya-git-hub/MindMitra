@@ -19,18 +19,26 @@ import type { SupportInfo } from "@/lib/api/student-schemas";
 import { formatDateTime } from "@/lib/format";
 import { useQuery } from "@/lib/hooks/use-query";
 import { useStudentApi } from "@/lib/hooks/use-student-api";
+import { useRealtimeEvent } from "@/lib/realtime/realtime-provider";
 import { cn } from "@/lib/utils";
 
 export type MessagingPortal = "student" | "therapist";
 
 const MAX_LENGTH = 4000;
-const REFRESH_MS = 30_000;
+/** A safety net only: new messages normally arrive over the real-time connection. */
+const REFRESH_MS = 120_000;
 
 export function MessagesView({ portal = "student" }: { portal?: MessagingPortal } = {}) {
   const isTherapist = portal === "therapist";
   const base = `/${portal}/messages`;
   const api = useStudentApi();
   const conversations = useQuery("conversations", () => api.conversations());
+  const reloadConversations = conversations.reload;
+
+  useRealtimeEvent((event) => {
+    if (event.type === "message" || event.type === "message_read" || event.type === "resync")
+      void reloadConversations();
+  });
 
   return (
     <>
@@ -136,6 +144,20 @@ export function ConversationView({
     return () => window.clearInterval(timer);
   }, [reload]);
 
+  // Only events about this conversation reload it; the ids say nothing about the content.
+  useRealtimeEvent((event) => {
+    if (event.type === "resync") {
+      void reload();
+      void reloadConversations();
+    } else if (
+      (event.type === "message" || event.type === "message_read") &&
+      event.with === otherId
+    ) {
+      void reload();
+      if (event.type === "message") void reloadConversations();
+    }
+  });
+
   const other = conversations.state.data?.find((c) => c.other_id === otherId);
 
   function submit(event: React.FormEvent) {
@@ -174,7 +196,10 @@ export function ConversationView({
       >
         <DataView query={thread}>
           {(rows) => {
-            const chronological = [...rows].reverse();
+            // Oldest first, whatever order the API used.
+            const chronological = [...rows].sort((x, y) =>
+              x.created_at.localeCompare(y.created_at),
+            );
             return chronological.length === 0 ? (
               <p className="text-sm text-muted-foreground">
                 {isTherapist
@@ -182,7 +207,7 @@ export function ConversationView({
                   : "No messages yet. Say hello whenever you\u2019re ready."}
               </p>
             ) : (
-              <ol aria-label="Messages" className="space-y-3">
+              <ol aria-label="Messages" aria-live="polite" className="space-y-3">
                 {chronological.map((m) => (
                   <li key={m.id} className={cn("flex", m.mine ? "justify-end" : "justify-start")}>
                     <div

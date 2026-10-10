@@ -185,8 +185,14 @@ async def test_conversation_closes_when_the_care_team_link_ends(
         await s.post(f"/me/conversations/{t.id}/messages", {"body": "after"})
     ).status_code == 404
     convs = (await s.get("/me/conversations")).json()
-    assert convs[0]["active"] is False  # listed, but closed: no reading or writing either
-    assert (await s.get(f"/me/conversations/{t.id}/messages")).status_code == 404
+    assert convs[0]["active"] is False  # listed, and closed for writing
+    # the student keeps their history; the therapist's access ends with the link
+    history = await s.get(f"/me/conversations/{t.id}/messages")
+    assert history.status_code == 200
+    assert [r["body"] for r in history.json()] == ["before", "still open"]
+    assert (await s.post(f"/me/conversations/{t.id}/read")).status_code == 200
+    assert (await t.get(f"/me/conversations/{s.id}/messages")).status_code == 404
+    assert (await t.post(f"/me/conversations/{s.id}/read")).status_code == 404
 
 
 # ---- consent --------------------------------------------------------------------------------

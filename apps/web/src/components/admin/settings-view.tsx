@@ -195,9 +195,10 @@ function NotificationsForm({
           checked={v.recommendation_notifications}
           onChange={(c) => setV({ ...v, recommendation_notifications: c })}
         />
-        <InlineAlert tone="info" title="Reminders switch on with scheduled delivery">
-          The three settings below are saved now and used once scheduled reminders are switched on
-          for your deployment.
+        <InlineAlert tone="info" title="How reminders and email are sent">
+          Appointment reminders go to the student and the therapist at the hours below while the
+          reminder service runs for your deployment. Goal reminders are saved now and used in a
+          later release. Emails go out only once an email provider is set up for your deployment.
         </InlineAlert>
         <Toggle
           id="n-rem"

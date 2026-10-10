@@ -3,10 +3,10 @@
 from collections.abc import Iterator
 from typing import Any
 
-from fastapi.routing import APIRoute
+from fastapi.routing import APIRoute, APIWebSocketRoute
 
 from app.api.deps import AUTHZ_MARKER
-from app.api.main import API_PREFIX, PUBLIC_ROUTES, ROUTERS, create_app
+from app.api.main import API_PREFIX, PUBLIC_ROUTES, ROUTERS, WEBSOCKET_ROUTES, create_app
 
 
 def _api_routes() -> Iterator[tuple[str, str, APIRoute]]:
@@ -53,3 +53,11 @@ def test_routers_cover_the_whole_app() -> None:
     served = {(method.upper(), path) for path, ops in schema["paths"].items() for method in ops}
     walked = {(method, path) for method, path, _ in _api_routes() if method != "HEAD"}
     assert served == walked
+
+
+def test_websocket_routes_are_listed() -> None:
+    """A WebSocket has no HTTP guard: it authenticates in its first frame (``app.api.realtime``).
+    Every one the app serves must be listed, so a new one cannot slip in unreviewed."""
+    app = create_app()
+    sockets = {r.path for r in app.routes if isinstance(r, APIWebSocketRoute)}
+    assert sockets == set(WEBSOCKET_ROUTES)

@@ -8,6 +8,7 @@ import { SectionCard } from "@/components/cards/section-card";
 import { PageHeader } from "@/components/layout/page-header";
 import { EmptyState } from "@/components/states/empty-state";
 import { InlineAlert } from "@/components/states/inline-alert";
+import { CancelReasonField, RescheduleDialog } from "@/components/portal/appointment-changes";
 import { DataView } from "@/components/student/data-view";
 import { NativeSelect, SaveButton, useSubmit } from "@/components/student/form-bits";
 import {
@@ -33,7 +34,14 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import type { Appointment, Slot, Therapist } from "@/lib/api/student-schemas";
+import {
+  CANCEL_REASONS,
+  cancelReasonLabel,
+  type Appointment,
+  type CancelReason,
+  type Slot,
+  type Therapist,
+} from "@/lib/api/student-schemas";
 import {
   formatDateTime,
   formatDay,
@@ -44,6 +52,7 @@ import {
 } from "@/lib/format";
 import { useQuery } from "@/lib/hooks/use-query";
 import { useStudentApi } from "@/lib/hooks/use-student-api";
+import { useRealtimeEvent } from "@/lib/realtime/realtime-provider";
 import { notify } from "@/lib/toast";
 
 const REASON_LIMIT = 500;
@@ -412,13 +421,40 @@ export function TherapistProfileView({ id }: { id: string }) {
 
 // ---- appointments -------------------------------------------------------------------------------
 
-function AppointmentRow({ a, onCancel }: { a: Appointment; onCancel?: (a: Appointment) => void }) {
+/** Reasons a student can give: the therapist being unavailable is the therapist's to give. */
+const STUDENT_CANCEL_REASONS = CANCEL_REASONS.filter((r) => r.value !== "therapist_unavailable");
+
+function SessionNote({ a }: { a: Appointment }) {
+  if (a.session_status === "in_progress") {
+    return (
+      <p className="text-sm font-medium text-primary" role="status">
+        Your therapist has started this session.
+        {a.mode === "video" ? " Join using the link they shared with you." : ""}
+      </p>
+    );
+  }
+  if (a.session_status === "completed") {
+    return <p className="text-sm text-muted-foreground">Session completed.</p>;
+  }
+  return null;
+}
+
+function AppointmentRow({
+  a,
+  onCancel,
+  onMove,
+}: {
+  a: Appointment;
+  onCancel?: (a: Appointment) => void;
+  onMove?: (a: Appointment) => void;
+}) {
   const minutes = Math.round(
     (new Date(a.ends_at).getTime() - new Date(a.starts_at).getTime()) / 60_000,
   );
+  const reason = a.status === "cancelled" ? cancelReasonLabel(a.cancel_reason) : null;
   return (
     <li className="flex flex-wrap items-center justify-between gap-3 py-4">
-      <div className="space-y-1">
+      <div className="min-w-0 space-y-1">
         <p className="font-medium">
           {formatDay(a.starts_at)}, {formatTime(a.starts_at)}
         </p>
@@ -432,10 +468,23 @@ function AppointmentRow({ a, onCancel }: { a: Appointment; onCancel?: (a: Appoin
           </Link>{" "}
           · {modeLabel(a.mode)} · {formatDuration(minutes)}
         </p>
-        {a.reason && <p className="text-sm">&ldquo;{a.reason}&rdquo;</p>}
+        {a.reason && <p className="text-sm break-words">&ldquo;{a.reason}&rdquo;</p>}
+        {a.rescheduled_at && a.status !== "cancelled" && (
+          <p className="text-sm text-muted-foreground">
+            Moved {a.reschedule_count === 1 ? "once" : `${a.reschedule_count} times`}, last on{" "}
+            {formatDateTime(a.rescheduled_at)}.
+          </p>
+        )}
+        {reason && <p className="text-sm text-muted-foreground">Reason: {reason}</p>}
+        <SessionNote a={a} />
       </div>
       <div className="flex flex-wrap items-center gap-2">
         <Badge variant={statusVariant(a.status)}>{statusLabel(a.status)}</Badge>
+        {onMove && a.can_reschedule && (
+          <Button size="sm" variant="outline" onClick={() => onMove(a)}>
+            Move
+          </Button>
+        )}
         {onCancel && a.can_cancel && (
           <Button size="sm" variant="outline" onClick={() => onCancel(a)}>
             Cancel
@@ -451,16 +500,30 @@ export function AppointmentsView() {
   const upcomingQuery = useQuery("appointments-upcoming", () => api.appointments(true));
   const allQuery = useQuery("appointments-all", () => api.appointments());
   const [target, setTarget] = React.useState<Appointment | null>(null);
+  const [moving, setMoving] = React.useState<Appointment | null>(null);
+  const [reason, setReason] = React.useState<CancelReason | "">("");
   const { pending, error, run } = useSubmit();
+  const reloadUpcoming = upcomingQuery.reload;
+  const reloadAll = allQuery.reload;
+  const reloadBoth = React.useCallback(
+    () => Promise.all([reloadUpcoming(), reloadAll()]).then(() => undefined),
+    [reloadUpcoming, reloadAll],
+  );
+
+  // A therapist confirming, moving, cancelling or starting a session shows up straight away.
+  useRealtimeEvent((event) => {
+    if (event.type === "appointment" || event.type === "resync") void reloadBoth();
+  });
 
   function confirmCancel() {
     if (!target) return;
     const id = target.id;
     void run(async () => {
-      await api.cancelAppointment(id);
+      await api.cancelAppointment(id, reason || undefined);
       notify.success("Appointment cancelled");
       setTarget(null);
-      await Promise.all([upcomingQuery.reload(), allQuery.reload()]);
+      setReason("");
+      await reloadBoth();
     }, "We couldn't cancel that appointment. Please try again.");
   }
 
@@ -491,7 +554,7 @@ export function AppointmentsView() {
             ) : (
               <ul className="divide-y">
                 {upcoming.map((a) => (
-                  <AppointmentRow key={a.id} a={a} onCancel={setTarget} />
+                  <AppointmentRow key={a.id} a={a} onCancel={setTarget} onMove={setMoving} />
                 ))}
               </ul>
             )}
@@ -517,7 +580,31 @@ export function AppointmentsView() {
           );
         }}
       </DataView>
-      <AlertDialog open={target !== null} onOpenChange={(open) => !open && setTarget(null)}>
+      <RescheduleDialog
+        open={moving !== null}
+        onOpenChange={(open) => !open && setMoving(null)}
+        description={
+          moving ? `Now ${formatDateTime(moving.starts_at)} with ${moving.therapist_name}.` : ""
+        }
+        note={`${moving?.therapist_name ?? "Your therapist"} will confirm the new time, and your current time is given back.`}
+        loadTimes={async () => (moving ? api.therapistSlots(moving.therapist_id) : [])}
+        onMove={async (slotId) => {
+          if (!moving) return;
+          await api.rescheduleAppointment(moving.id, slotId);
+          notify.success("Appointment moved", "Your therapist will confirm the new time.");
+          setMoving(null);
+          await reloadBoth();
+        }}
+      />
+      <AlertDialog
+        open={target !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setTarget(null);
+            setReason("");
+          }
+        }}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Cancel this appointment?</AlertDialogTitle>
@@ -527,6 +614,7 @@ export function AppointmentsView() {
                 : ""}
             </AlertDialogDescription>
           </AlertDialogHeader>
+          <CancelReasonField value={reason} onChange={setReason} reasons={STUDENT_CANCEL_REASONS} />
           <AlertDialogFooter>
             <AlertDialogCancel>Keep it</AlertDialogCancel>
             <AlertDialogAction

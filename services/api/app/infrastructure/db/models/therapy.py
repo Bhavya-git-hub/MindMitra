@@ -36,6 +36,7 @@ from app.infrastructure.db.base import (
 from app.infrastructure.db.column_types import EncryptedText
 from app.infrastructure.db.enums import (
     AppointmentStatus,
+    CancellationReason,
     FollowUpKind,
     FollowUpStatus,
     SessionMode,
@@ -88,12 +89,18 @@ class Appointment(UUIDPrimaryKeyMixin, TenantMixin, TimestampMixin, Base):
             "institution_id",
             name="uq_appointments_id_parties_tenant",
         ),
+        UniqueConstraint("id", "institution_id", name="uq_appointments_id_tenant"),
         CheckConstraint("ends_at > starts_at", name="period_valid"),
         CheckConstraint(
             "(status = 'cancelled') = (cancelled_at IS NOT NULL)",
             name="cancelled_at_matches_status",
         ),
         CheckConstraint("student_id <> therapist_id", name="distinct_parties"),
+        CheckConstraint("reschedule_count >= 0", name="reschedule_count_non_negative"),
+        CheckConstraint(
+            "cancel_reason IS NULL OR status = 'cancelled'",
+            name="cancel_reason_only_when_cancelled",
+        ),
         # One live appointment per availability slot.
         Index(
             "uq_appointments_live_slot",
@@ -153,6 +160,16 @@ class Appointment(UUIDPrimaryKeyMixin, TenantMixin, TimestampMixin, Base):
     cancelled_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     cancelled_by: Mapped[uuid.UUID | None] = fk_uuid(
         "iam.users.id", ondelete="SET NULL", nullable=True
+    )
+    cancel_reason: Mapped[CancellationReason | None] = mapped_column(
+        enum_col(CancellationReason, "cancellation_reason"), nullable=True
+    )
+    # Moving an appointment keeps its row (and history) and counts the moves.
+    rescheduled_at: Mapped[dt.datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    reschedule_count: Mapped[int] = mapped_column(
+        SmallInteger, nullable=False, server_default=text("0")
     )
 
 

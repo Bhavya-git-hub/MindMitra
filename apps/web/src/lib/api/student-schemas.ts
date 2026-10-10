@@ -144,9 +144,29 @@ export const appointmentSchema = z.object({
   status: z.string(),
   reason: z.string().nullable(),
   can_cancel: z.boolean(),
+  can_reschedule: z.boolean(),
   cancelled_at: z.string().nullable(),
+  cancel_reason: z.string().nullable(),
+  reschedule_count: z.number().int(),
+  rescheduled_at: z.string().nullable(),
+  /** The delivered session once the therapist starts it: in_progress, completed or abandoned. */
+  session_status: z.string().nullable(),
 });
 export type Appointment = z.infer<typeof appointmentSchema>;
+
+/** The reasons someone can give for cancelling: a fixed list, never free text. */
+export const CANCEL_REASONS = [
+  { value: "schedule_conflict", label: "Something else came up" },
+  { value: "feeling_better", label: "I'm feeling better" },
+  { value: "unwell", label: "I'm unwell" },
+  { value: "therapist_unavailable", label: "The therapist isn't available" },
+  { value: "other", label: "Another reason" },
+] as const;
+export type CancelReason = (typeof CANCEL_REASONS)[number]["value"];
+
+export function cancelReasonLabel(value: string | null): string | null {
+  return CANCEL_REASONS.find((r) => r.value === value)?.label ?? null;
+}
 
 export const dashboardSchema = wellnessSummarySchema.extend({
   upcoming_appointment: appointmentSchema.nullable(),

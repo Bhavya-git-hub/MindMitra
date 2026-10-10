@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_db, require_permission
 from app.api.schemas import student as s
-from app.application import booking, directory, messaging
+from app.application import booking, directory, messaging, rescheduling
 from app.domain.auth.permissions import Permission
 from app.domain.auth.policies import Principal
 from app.infrastructure.db import models as m
@@ -117,7 +117,15 @@ async def update_my_appointment(
     appointment_id: uuid.UUID, body: s.AppointmentPatchIn, db: Db, principal: Booker
 ) -> s.StudentAppointmentOut:
     assert body.status == "cancelled"  # the only student-side change; enforced by the schema
-    return s.appointment_view_out(await booking.cancel(db, principal, appointment_id))
+    return s.appointment_view_out(await booking.cancel(db, principal, appointment_id, body.reason))
+
+
+@router.post("/me/appointments/{appointment_id}/reschedule")
+async def reschedule_my_appointment(
+    appointment_id: uuid.UUID, body: s.RescheduleIn, db: Db, principal: Booker
+) -> s.StudentAppointmentOut:
+    view = await rescheduling.reschedule(db, principal, appointment_id, body.availability_id)
+    return s.appointment_view_out(view)
 
 
 # ---- messages -------------------------------------------------------------------------------

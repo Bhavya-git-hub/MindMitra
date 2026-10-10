@@ -106,7 +106,7 @@ page, a skip link on every page.
 | Check-in and tracking | `/check-in`, `/mood`, `/stress`, `/sleep`                                         | `POST /me/check-ins`, stress and sleep entries                                                                                     |
 | Wellness              | `/wellness`, `/trends`, `/assessment`, `/goals`, `/recommendations`               | summary, trends (7/30/90 days), WHO-5 check, goals, rule-based suggestions                                                         |
 | Companion             | `/assistant`                                                                      | Entry point only. The companion is not built; the page says so and links to what works                                             |
-| Care                  | `/therapists`, `/therapists/[id]`, `/appointments`, `/messages`, `/messages/[id]` | directory, slots, booking, cancellation, one-to-one messages                                                                       |
+| Care                  | `/therapists`, `/therapists/[id]`, `/appointments`, `/messages`, `/messages/[id]` | directory, slots, booking, moving, cancellation with a reason, session status, live one-to-one messages and history                |
 | Library               | `/resources`, `/resources/[id]`                                                   | published resources                                                                                                                |
 | Privacy and safety    | `/privacy`, `/privacy/consent`, `/emergency`                                      | access history, export, consent switches, crisis contacts, "ask someone to reach out"                                              |
 
@@ -123,7 +123,7 @@ dialable. Data loading uses the small `useQuery` hook in `src/lib/hooks`.
 | ------------------------- | -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
 | Dashboard                 | `/`                              | `GET /therapist/dashboard`: status, caseload, today, waiting requests, alerts, follow-ups, unread messages                   |
 | Profile and status        | `/profile`                       | profile, licence details and verification status; submit for verification                                                    |
-| Schedule                  | `/availability`, `/appointments` | bookable times; confirm, decline, cancel, mark no-show, start a session                                                      |
+| Schedule                  | `/availability`, `/appointments` | bookable times; confirm, decline, move, cancel (with an optional reason), mark no-show, start a session                      |
 | Students                  | `/students`, `/students/[id]`    | caseload and the authorized profile: trends and wellbeing checks (only what the student shares), recommendations, follow-ups |
 | Sessions and notes        | `/sessions`, `/sessions/[id]`    | start and close sessions; private, versioned notes only the author can read                                                  |
 | Safety and follow-through | `/alerts`, `/follow-ups`         | acknowledge, start, resolve alerts with a fixed outcome; private reminders                                                   |
@@ -133,6 +133,20 @@ Every page that touches students is wrapped in `RequireVerified`, which shows wh
 instead of the data. That is a courtesy: the API answers `403` or `404` for the same requests
 whatever the interface shows. Note text is only ever held in component state and sent in the
 body of one `PUT`; it is never put in a URL, `localStorage` or a log.
+
+## Live updates and notifications
+
+Every signed-in page sits inside `RealtimeProvider` (`src/lib/realtime/`), which keeps one
+WebSocket to the API. The access token is sent in the first frame, never the URL; the socket
+reconnects with backoff, refreshes the session once on a `4401`, and stops on sign-out. Events
+carry ids only. Views listen with `useRealtimeEvent` and simply reload through the API, so they
+also refresh after a reconnect and when the tab comes back into view (`resync`). Outside a
+provider the hook does nothing. The CSP allows the API's `ws(s)` origin.
+
+The header bell (`NotificationBell`) shows the unread count and a panel of the person's own
+notifications, linked to the page each one is about. Students and therapists can move an
+appointment to another open time and give an optional reason (from a fixed list) when
+cancelling; students see when their therapist has started the session.
 
 ## Adding a page to a portal
 

@@ -74,11 +74,11 @@ breach of the most sensitive data the product holds.
      against defaults and invariants in `domain/settings.py`; a missing key means the default.
 10. **What is live, and what is only stored.** `alert_ack_minutes` (the response time given to
     each new alert when it is raised, which the dashboard's "past the response time" count uses) and `recommendation_notifications` are
-    read by the code that acts on them. The **reminder hours, appointment-reminder switch, goal
-    reminders and email switch are validated and stored, but nothing consumes them yet**, because
-    there is no scheduler or email delivery in this phase. The interface says so ("saved now and
-    used once scheduled reminders are switched on") and the API documents it, so an administrator
-    is not led to believe reminders are being sent.
+    read by the code that acts on them. The **goal-reminder switch is validated and stored, but
+    nothing consumes it yet.** (Updated by [ADR 0009](0009-therapist-communication-real-time-and-notifications.md):
+    the appointment-reminder switch and hours are now used by the scheduler, and the email switch
+    creates deliveries that are sent once an email provider is configured.) The interface says
+    which is which, so an administrator is not led to believe something is sent when it is not.
 11. **The interface is a convenience, never the control.** Role guards in the web app only hide
     what a role cannot use. The API decides. The administrator UI avoids showing a button the API
     would refuse where it can (no actions on the signed-in administrator's own row, no edit for

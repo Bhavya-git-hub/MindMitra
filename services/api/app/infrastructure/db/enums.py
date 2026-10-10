@@ -274,6 +274,25 @@ class NotificationChannel(enum.StrEnum):
     PUSH = "push"
 
 
+class DeliveryStatus(enum.StrEnum):
+    """An external delivery (email, push) of one in-app notification."""
+
+    PENDING = "pending"
+    SENT = "sent"
+    FAILED = "failed"  # gave up after the retry limit
+    SKIPPED = "skipped"  # nothing to send it with, or the recipient can no longer receive it
+
+
+class CancellationReason(enum.StrEnum):
+    """Why an appointment was cancelled: a fixed list, never free text."""
+
+    SCHEDULE_CONFLICT = "schedule_conflict"
+    FEELING_BETTER = "feeling_better"
+    UNWELL = "unwell"
+    THERAPIST_UNAVAILABLE = "therapist_unavailable"
+    OTHER = "other"
+
+
 class AuditOutcome(enum.StrEnum):
     ALLOWED = "allowed"
     DENIED = "denied"

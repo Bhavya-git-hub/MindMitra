@@ -48,6 +48,10 @@ export const appointmentSchema = z.object({
   reason: z.string().nullable(),
   session_id: z.string().nullable(),
   can_start: z.boolean(),
+  can_reschedule: z.boolean(),
+  cancel_reason: z.string().nullable(),
+  reschedule_count: z.number().int(),
+  rescheduled_at: z.string().nullable(),
 });
 export type TherapistAppointment = z.infer<typeof appointmentSchema>;
 
