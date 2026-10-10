@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.application import institution_settings
 from app.application.directory import get_resource
 from app.application.errors import InvalidInput
+from app.application.notifications import notify
 from app.application.recommendations import OPEN_STATUSES
 from app.application.therapist_access import student_in_care
 from app.application.timeutil import now_utc
@@ -88,15 +89,13 @@ async def create(
     db.add(rec)
     config = await institution_settings.load(db, actor.institution_id)
     if config.notifications.recommendation_notifications:
-        db.add(
-            m.Notification(
-                id=uuid7(),
-                institution_id=actor.institution_id,
-                user_id=student_id,
-                type=NotificationType.RECOMMENDATION,
-                title="Your therapist shared a suggestion",
-                payload={"recommendation_id": str(rec.id)},
-            )
+        await notify(
+            db,
+            institution_id=actor.institution_id,
+            user_id=student_id,
+            type=NotificationType.RECOMMENDATION,
+            title="Your therapist shared a suggestion",
+            payload={"recommendation_id": str(rec.id)},
         )
     await db.flush()
     await append_audit_event(

@@ -20,6 +20,7 @@ from app.api.zone import Zone
 from app.application import (
     follow_ups,
     referrals,
+    rescheduling,
     risk_alerts,
     therapist_appointments,
     therapist_dashboard,
@@ -168,6 +169,18 @@ async def appointments(
         db, principal, scope=scope, status=status, limit=limit
     )
     return [s.appointment_row_out(r) for r in rows]
+
+
+@router.post("/appointments/{appointment_id}/reschedule")
+async def reschedule_appointment(
+    appointment_id: uuid.UUID, body: s.RescheduleIn, db: Db, principal: Appointments
+) -> s.TherapistAppointmentOut:
+    """Move to another of the therapist's own open times; the student is told."""
+    view = await rescheduling.reschedule(db, principal, appointment_id, body.availability_id)
+    rows = await therapist_appointments.rows_for(
+        db, principal, [(view.appointment, view.therapist_name)]
+    )
+    return s.appointment_row_out(rows[0])
 
 
 # ---- students -------------------------------------------------------------------------------

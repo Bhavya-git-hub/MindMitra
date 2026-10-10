@@ -13,6 +13,7 @@ from pydantic import AwareDatetime, BaseModel, Field, StringConstraints
 
 from app.api.schemas.student import TrendPointOut, trend_out
 from app.application import (
+    booking,
     follow_ups,
     risk_alerts,
     therapist_appointments,
@@ -25,6 +26,7 @@ from app.application import (
 from app.application.student_wellness import DailyPoint
 from app.application.therapist_access import VERIFICATION_LABELS, effective_verification
 from app.infrastructure.db import models as m
+from app.infrastructure.db.enums import CancellationReason
 
 Tag = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=80)]
 
@@ -191,6 +193,10 @@ class TherapistAppointmentOut(BaseModel):
     reason: str | None
     session_id: uuid.UUID | None
     can_start: bool
+    can_reschedule: bool
+    cancel_reason: CancellationReason | None
+    reschedule_count: int
+    rescheduled_at: dt.datetime | None
 
 
 def appointment_row_out(r: therapist_appointments.AppointmentRow) -> TherapistAppointmentOut:
@@ -207,7 +213,15 @@ def appointment_row_out(r: therapist_appointments.AppointmentRow) -> TherapistAp
         reason=a.reason,
         session_id=r.session_id,
         can_start=therapy_sessions.can_start(a, r.session_id is not None),
+        can_reschedule=booking.AppointmentView(a, r.student_name).can_reschedule,
+        cancel_reason=a.cancel_reason,
+        reschedule_count=a.reschedule_count,
+        rescheduled_at=a.rescheduled_at,
     )
+
+
+class RescheduleIn(BaseModel):
+    availability_id: uuid.UUID
 
 
 class SessionOut(BaseModel):
@@ -369,19 +383,7 @@ def student_profile_out(p: therapist_students.StudentProfile) -> StudentProfileO
         since=p.since,
         sharing=SharingOut(mood=p.sharing.mood, assessments=p.sharing.assessments),
         upcoming_appointments=[
-            TherapistAppointmentOut(
-                id=a.id,
-                student_id=a.student_id,
-                therapist_id=a.therapist_id,
-                student_name=p.name,
-                starts_at=a.starts_at,
-                ends_at=a.ends_at,
-                mode=a.mode.value,
-                status=a.status.value,
-                reason=a.reason,
-                session_id=None,
-                can_start=therapy_sessions.can_start(a, False),
-            )
+            appointment_row_out(therapist_appointments.AppointmentRow(a, p.name, None))
             for a in p.upcoming
         ],
         recent_sessions=[

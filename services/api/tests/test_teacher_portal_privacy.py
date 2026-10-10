@@ -54,6 +54,11 @@ FAKE = uuid.UUID(int=7)
 TEACHER_ROUTES = {
     ("POST", "/auth/logout"),
     ("GET", "/me"),
+    # their own notifications (never anyone else's)
+    ("GET", "/me/notifications"),
+    ("GET", "/me/notifications/unread-count"),
+    ("POST", "/me/notifications/{notification_id}/read"),
+    ("POST", "/me/notifications/read-all"),
     ("GET", "/insights/mood-summary"),
     ("GET", "/teacher/dashboard"),
     ("GET", "/teacher/classes"),

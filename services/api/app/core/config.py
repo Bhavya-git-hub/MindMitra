@@ -45,6 +45,15 @@ class Settings(BaseSettings):
     # Comma-separated browser origins allowed by CORS (no wildcard).
     cors_origins: str = ""
     terms_policy_version: str = "2026-10-01"
+    # Where e-mail notifications go. "none" records them as skipped; "log" writes one line per
+    # delivery (ids only, never an address or text) for development.
+    notification_email_provider: Literal["none", "log"] = "none"
+    # Run reminders and notification delivery inside the API process. Off by default; a
+    # deployment either turns it on or runs ``python -m app.workers.scheduler`` separately.
+    scheduler_enabled: bool = False
+    scheduler_interval_seconds: int = Field(default=60, ge=5, le=3600)
+    # Open real-time connections allowed per user (tabs and devices).
+    realtime_max_connections_per_user: int = Field(default=5, ge=1, le=50)
 
     @field_validator("database_url")
     @classmethod

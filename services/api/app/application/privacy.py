@@ -16,6 +16,7 @@ from app.application import cohort_stats, institution_settings
 from app.application.access import has_active_care_link
 from app.application.auth.errors import Conflict
 from app.application.errors import InvalidInput
+from app.application.notifications import notify
 from app.application.student_wellness import authorize_own
 from app.application.timeutil import now_utc
 from app.core.config import Settings
@@ -414,16 +415,14 @@ async def request_support(
     db.add(alert)
     await db.flush()
     if assigned is not None:
-        db.add(
-            m.Notification(
-                id=uuid7(),
-                institution_id=actor.institution_id,
-                user_id=assigned,
-                type=NotificationType.RISK_ALERT,
-                priority=NotificationPriority.CRITICAL,
-                title="A student has asked for support",
-                payload={"alert_id": str(alert.id)},
-            )
+        await notify(
+            db,
+            institution_id=actor.institution_id,
+            user_id=assigned,
+            type=NotificationType.RISK_ALERT,
+            priority=NotificationPriority.CRITICAL,
+            title="A student has asked for support",
+            payload={"alert_id": str(alert.id)},
         )
     await append_audit_event(
         db,

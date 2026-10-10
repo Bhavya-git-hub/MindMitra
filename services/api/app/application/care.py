@@ -12,6 +12,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.application.access import NotFound, enforce, has_active_care_link, has_active_consent
+from app.application.appointment_events import appointment_changed
+from app.application.notifications import notify
 from app.application.therapist_access import require_verified
 from app.domain.auth.policies import (
     Principal,
@@ -25,12 +27,12 @@ from app.infrastructure.db.audit import append_audit_event
 from app.infrastructure.db.enums import (
     AppointmentStatus,
     AuditOutcome,
+    CancellationReason,
     CareRole,
     ConsentScope,
     NotificationType,
     UserRole,
 )
-from app.infrastructure.db.ids import uuid7
 
 MAX_LIMIT = 200
 
@@ -313,7 +315,11 @@ async def _ensure_care_link(db: AsyncSession, appt: m.Appointment) -> None:
 
 
 async def update_appointment_status(
-    db: AsyncSession, actor: Principal, appointment_id: uuid.UUID, new_status: AppointmentStatus
+    db: AsyncSession,
+    actor: Principal,
+    appointment_id: uuid.UUID,
+    new_status: AppointmentStatus,
+    cancel_reason: CancellationReason | None = None,
 ) -> m.Appointment:
     await require_verified(db, actor, "appointment.update")
     appt = await db.get(m.Appointment, appointment_id, with_for_update=True)
@@ -337,19 +343,19 @@ async def update_appointment_status(
     if new_status is AppointmentStatus.CANCELLED:
         appt.cancelled_at = _now()
         appt.cancelled_by = actor.user_id
+        appt.cancel_reason = cancel_reason
     if new_status in (AppointmentStatus.CONFIRMED, AppointmentStatus.CANCELLED):
         # Identifiers only: no names, times or reasons (notify schema rules).
-        db.add(
-            m.Notification(
-                id=uuid7(),
-                institution_id=appt.institution_id,
-                user_id=appt.student_id,
-                type=NotificationType.APPOINTMENT_UPDATE,
-                title="Your appointment was "
-                + ("confirmed" if new_status is AppointmentStatus.CONFIRMED else "cancelled"),
-                payload={"appointment_id": str(appt.id), "event": new_status.value},
-            )
+        await notify(
+            db,
+            institution_id=appt.institution_id,
+            user_id=appt.student_id,
+            type=NotificationType.APPOINTMENT_UPDATE,
+            title="Your appointment was "
+            + ("confirmed" if new_status is AppointmentStatus.CONFIRMED else "cancelled"),
+            payload={"appointment_id": str(appt.id), "event": new_status.value},
         )
+    appointment_changed(db, appt, new_status.value)
     await append_audit_event(
         db,
         institution_id=actor.institution_id,

@@ -14,7 +14,9 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.application.access import NotFound, enforce, has_active_care_link
+from app.application.appointment_events import appointment_changed
 from app.application.errors import InvalidInput
+from app.application.notifications import notify
 from app.application.therapist_access import active_students, require_verified
 from app.application.timeutil import now_utc
 from app.domain.auth.policies import (
@@ -28,6 +30,7 @@ from app.infrastructure.db.audit import append_audit_event
 from app.infrastructure.db.enums import (
     AppointmentStatus,
     AuditOutcome,
+    NotificationType,
     TherapySessionStatus,
     UserRole,
 )
@@ -178,6 +181,15 @@ async def start_session(
     db.add(session)
     await db.flush()
     await _audit(db, actor, "therapy_session.start", session, "therapy_session")
+    await notify(
+        db,
+        institution_id=appt.institution_id,
+        user_id=appt.student_id,
+        type=NotificationType.APPOINTMENT_UPDATE,
+        title="Your therapist has started your session",
+        payload={"appointment_id": appt.id, "event": "session_started"},
+    )
+    appointment_changed(db, appt, "session_started")
     await db.commit()
     return await _view(db, session)
 
@@ -203,6 +215,9 @@ async def finish_session(
             appt.status = AppointmentStatus.COMPLETED
     else:
         session.status = TherapySessionStatus.ABANDONED
+        appt = await db.get(m.Appointment, session.appointment_id)
+    if appt is not None:
+        appointment_changed(db, appt, f"session_{outcome.value}")
     await _audit(db, actor, "therapy_session.update", session, "therapy_session", to=outcome.value)
     await db.commit()
     return await _view(db, session)

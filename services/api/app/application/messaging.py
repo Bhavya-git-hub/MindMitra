@@ -1,8 +1,10 @@
 """Private messages between a student and a therapist on the same care team.
 
 A conversation is the pair (student, therapist). Either participant may read and write it while
-the care-team link is active; nobody else can, whatever their role. Message bodies are encrypted
-at rest and are never written to the audit log.
+the care-team link is active; nobody else can, whatever their role (teachers and administrators
+included). After the link ends the student can still read their own history; nobody can write.
+Message bodies are encrypted at rest and are never written to the audit log. Real-time events
+carry only ids, so the content is always fetched through these checks.
 """
 
 import dataclasses
@@ -15,14 +17,20 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.application.access import NotFound, enforce, has_active_care_link
 from app.application.errors import InvalidInput
+from app.application.notifications import notify
 from app.application.therapist_access import require_verified
 from app.application.timeutil import now_utc
 from app.domain.auth.permissions import Role
-from app.domain.auth.policies import Principal, can_message_in_conversation
+from app.domain.auth.policies import (
+    Principal,
+    can_message_in_conversation,
+    can_read_conversation_history,
+)
 from app.domain.wellness.support_prompt import show_support_prompt
 from app.infrastructure.db import models as m
 from app.infrastructure.db.enums import NotificationType
 from app.infrastructure.db.ids import uuid7
+from app.infrastructure.events import queue_event
 
 MAX_BODY_LENGTH = 4000
 PREVIEW_LENGTH = 90
@@ -46,7 +54,7 @@ def _parties(actor: Principal, other_id: uuid.UUID) -> tuple[uuid.UUID, uuid.UUI
 
 
 async def _authorize(
-    db: AsyncSession, actor: Principal, other_id: uuid.UUID, action: str
+    db: AsyncSession, actor: Principal, other_id: uuid.UUID, action: str, *, write: bool
 ) -> tuple[uuid.UUID, uuid.UUID]:
     if actor.role is Role.THERAPIST:
         await require_verified(db, actor, action)
@@ -57,14 +65,40 @@ async def _authorize(
     linked = await has_active_care_link(
         db, therapist_id=therapist_id, student_id=student_id, now=now_utc()
     )
-    enforce(
+    history = False
+    if not write and not linked and actor.user_id == student_id:
+        history = (
+            await db.scalar(
+                select(m.Message.id)
+                .where(
+                    m.Message.student_id == student_id,
+                    m.Message.therapist_id == therapist_id,
+                    m.Message.institution_id == actor.institution_id,
+                )
+                .limit(1)
+            )
+            is not None
+        )
+    decision = (
         can_message_in_conversation(
             actor,
             conversation_institution_id=other.institution_id,
             student_id=student_id,
             therapist_id=therapist_id,
             has_active_care_link=linked,
-        ),
+        )
+        if write
+        else can_read_conversation_history(
+            actor,
+            conversation_institution_id=other.institution_id,
+            student_id=student_id,
+            therapist_id=therapist_id,
+            has_active_care_link=linked,
+            has_history=history,
+        )
+    )
+    enforce(
+        decision,
         action=action,
         resource_type="message",
         subject_student_id=student_id,
@@ -152,7 +186,7 @@ async def get_messages(
     limit: int,
     before: dt.datetime | None,
 ) -> list[m.Message]:
-    student_id, therapist_id = await _authorize(db, actor, other_id, "message.list")
+    student_id, therapist_id = await _authorize(db, actor, other_id, "message.list", write=False)
     stmt = select(m.Message).where(
         m.Message.student_id == student_id,
         m.Message.therapist_id == therapist_id,
@@ -178,7 +212,7 @@ async def send_message(
     body: str,
     client_msg_id: uuid.UUID | None,
 ) -> SentMessage:
-    student_id, therapist_id = await _authorize(db, actor, other_id, "message.create")
+    student_id, therapist_id = await _authorize(db, actor, other_id, "message.create", write=True)
     text = body.strip()
     if not text:
         raise InvalidInput("Please write a message first.")
@@ -213,15 +247,20 @@ async def send_message(
             await db.flush()
     except IntegrityError as exc:
         raise InvalidInput("That message id was already used.") from exc
-    db.add(
-        m.Notification(
-            id=uuid7(),
-            institution_id=actor.institution_id,
-            user_id=other_id,
-            type=NotificationType.NEW_MESSAGE,
-            title="You have a new message",
-            payload={"message_id": str(message.id)},
-        )
+    await notify(
+        db,
+        institution_id=actor.institution_id,
+        user_id=other_id,
+        type=NotificationType.NEW_MESSAGE,
+        title="You have a new message",
+        payload={"message_id": str(message.id)},
+    )
+    # The recipient's open tabs, and the sender's other tabs, pick the message up at once.
+    queue_event(
+        db, other_id, {"type": "message", "with": str(actor.user_id), "message_id": str(message.id)}
+    )
+    queue_event(
+        db, actor.user_id, {"type": "message", "with": str(other_id), "message_id": str(message.id)}
     )
     await db.commit()
     suggested = actor.role is Role.STUDENT and show_support_prompt(
@@ -231,7 +270,7 @@ async def send_message(
 
 
 async def mark_read(db: AsyncSession, actor: Principal, other_id: uuid.UUID) -> int:
-    student_id, therapist_id = await _authorize(db, actor, other_id, "message.read")
+    student_id, therapist_id = await _authorize(db, actor, other_id, "message.read", write=False)
     result = await db.execute(
         update(m.Message)
         .where(
@@ -243,5 +282,9 @@ async def mark_read(db: AsyncSession, actor: Principal, other_id: uuid.UUID) -> 
         )
         .values(read_at=now_utc())
     )
+    count = int(getattr(result, "rowcount", 0) or 0)
+    if count:  # read receipts for the sender, and the reader's other tabs clear their badge
+        queue_event(db, other_id, {"type": "message_read", "with": str(actor.user_id)})
+        queue_event(db, actor.user_id, {"type": "message_read", "with": str(other_id)})
     await db.commit()
-    return int(getattr(result, "rowcount", 0) or 0)
+    return count

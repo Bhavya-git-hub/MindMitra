@@ -11,7 +11,7 @@ from app.infrastructure.db.models.iam import (
     RefreshToken,
     User,
 )
-from app.infrastructure.db.models.notify import Notification
+from app.infrastructure.db.models.notify import AppointmentReminder, Delivery, Notification
 from app.infrastructure.db.models.org import (
     Administrator,
     CareTeamMember,
@@ -73,6 +73,8 @@ __all__ = [
     "JournalShare",
     "Message",
     "MoodEntry",
+    "AppointmentReminder",
+    "Delivery",
     "Notification",
     "OneTimeToken",
     "Recommendation",

@@ -27,6 +27,7 @@ from app.application.access import NotFound, enforce
 from app.application.auth.errors import Conflict
 from app.application.care import InvalidTransition
 from app.application.errors import InvalidInput
+from app.application.notifications import notify
 from app.application.teacher_portal import audit as teacher_audit
 from app.application.therapist_access import require_verified
 from app.application.timeutil import now_utc
@@ -453,16 +454,14 @@ async def claim(db: AsyncSession, actor: Principal, referral_id: uuid.UUID) -> T
     referral.status = ReferralStatus.IN_PROGRESS
     referral.claimed_by = actor.user_id
     referral.claimed_at = now
-    db.add(
-        m.Notification(
-            id=uuid7(),
-            institution_id=actor.institution_id,
-            user_id=referral.student_id,
-            type=NotificationType.SYSTEM,
-            priority=NotificationPriority.NORMAL,
-            title="The wellbeing team would like to check in",
-            payload={},
-        )
+    await notify(
+        db,
+        institution_id=actor.institution_id,
+        user_id=referral.student_id,
+        type=NotificationType.SYSTEM,
+        priority=NotificationPriority.NORMAL,
+        title="The wellbeing team would like to check in",
+        payload={},
     )
     await _therapist_audit(db, actor, "referral.claim", referral_id, referral.student_id)
     await db.commit()
