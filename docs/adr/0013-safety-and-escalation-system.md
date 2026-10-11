@@ -44,9 +44,10 @@ professionals.
 6. **Fail safe and honest.** Each step runs in a savepoint. If any step fails, the student
    still gets guidance and the built-in emergency entry, and is told that nobody could be
    reached. The product never says someone was told when they were not.
-7. **Known gaps are tested, not hidden.** False positives are pinned at their current level,
-   and false negatives the lexicon misses are strict expected failures that wait for clinical
-   review. See [SAFETY_SYSTEM.md](../SAFETY_SYSTEM.md), section 8.
+7. **Gaps are tested, not hidden.** False positives are pinned at their current level. The 13
+   false negatives found in the first version are caught by lexicon 2026.10.2, made on the
+   project owner's instruction before clinical review, and are must-catch tests. Clinical review
+   of the lexicon is still pending. See [SAFETY_SYSTEM.md](../SAFETY_SYSTEM.md), section 8.
 
 This replaces ADR 0005, item 7: the "support prompt" is now the `MODERATE` response, and
 automated escalation exists, within the consent rules above.

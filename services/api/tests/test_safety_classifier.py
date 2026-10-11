@@ -9,9 +9,9 @@ The corpus is synthetic and grouped by what must happen:
   shooting that students write all the time.
 - **Accepted false positives**: phrasings the rules flag on purpose because recall comes first
   (a person reviews and can dismiss every alert). They are pinned so a change is deliberate.
-- **Known gaps**: phrasings the rules still miss. Each is a strict ``xfail``, so the test
-  starts failing the day the lexicon learns it and the entry must move up. Lexicon changes
-  need clinical sign-off (``crisis_lexicon.json``), which is why they are listed, not patched.
+- **Closed gaps**: phrasings the rules used to miss, now caught by lexicon version 2026.10.2.
+  They are must-catch cases, so a regression fails the build. Clinical review of the lexicon
+  (``crisis_lexicon.json``) is still pending.
 """
 
 import dataclasses
@@ -252,9 +252,9 @@ def test_accepted_false_positives_are_pinned(text: str, expected: RiskLevel) -> 
     assert level(text) is expected
 
 
-# ---- known gaps: false negatives the lexicon does not catch yet -----------------------------
+# ---- closed gaps: false negatives fixed in lexicon 2026.10.2 (now must-catch) ---------------
 
-KNOWN_GAPS = [
+CLOSED_GAPS = [
     ("I've been saving pills and I'm going to take them all", IMMEDIATE),
     ("I have a gun at home and I'm thinking about using it on myself", IMMEDIATE),
     ("I've been thinking of ending things", HIGH),
@@ -271,9 +271,8 @@ KNOWN_GAPS = [
 ]
 
 
-@pytest.mark.parametrize(("text", "expected"), KNOWN_GAPS)
-@pytest.mark.xfail(strict=True, reason="known gap in the crisis lexicon; needs clinical review")
-def test_known_gaps(text: str, expected: RiskLevel) -> None:
+@pytest.mark.parametrize(("text", "expected"), CLOSED_GAPS)
+def test_closed_gaps_are_caught(text: str, expected: RiskLevel) -> None:
     assert level(text).at_least(expected)
 
 

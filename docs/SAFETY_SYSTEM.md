@@ -145,21 +145,26 @@ a false alarm, so the system is tuned to over-flag. Tests in
   Suicide Squad", "our lecture was about suicide prevention"), hyperbole and jokes ("this
   weather makes me want to die lol"), and word collisions ("I want to die my hair blue",
   "starving myself until dinner"). A counsellor dismissing these is the expected cost.
-- **Known false negatives (needs clinical review):** these are marked as strict expected
-  failures, so a fix will turn the test red and force the list to be updated.
-  - Indirect method or plan: "I've been saving pills and I'm going to take them all", "I have
-    a gun at home and I'm thinking about using it on myself".
+- **False negatives closed in lexicon 2026.10.2 (clinical review pending):** the owner asked for
+  these to be fixed before clinical review. They are now must-catch cases in
+  `test_safety_classifier.py`, so a regression fails the build.
+  - Indirect method or plan: "I've been saving pills and I'm going to take them all" (IMMEDIATE),
+    "I have a gun at home and I'm thinking about using it on myself" (IMMEDIATE).
   - Euphemisms: "thinking of ending things", "I want to sleep forever", "I'll be gone soon".
-  - Hopelessness and burden: "I'm a burden to everyone", "I don't see a future for myself".
+  - Hopelessness and burden (MODERATE): "I'm a burden to everyone", "I don't see a future for
+    myself".
   - Obfuscation: "killmyself" with no space, a zero-width joiner between words, every letter
     spaced out.
-  - Third person with "she" or "her": "my friend said she wants to kill herself".
+  - Third person: "my friend said she wants to kill herself", "she wants to end her life"
+    (MODERATE, about someone else).
   - Unsafe situations: "someone is stalking me".
+- **Still open:** phrasings outside these lists are still not guaranteed. The lexicon is a
+  word list, not an understanding of meaning.
 
-Changing the lexicon needs clinical sign-off, so these gaps are documented rather than patched
-in code. The web tests (`apps/web/tests/unit/student-safety.test.tsx`) check that every message
-the student sees avoids diagnostic and medication words, and never claims someone was told when
-they were not.
+Lexicon changes normally need clinical sign-off. These were made on the project owner's
+instruction, and the clinical review is still pending. The web tests
+(`apps/web/tests/unit/student-safety.test.tsx`) check that every message the student sees
+avoids diagnostic and medication words, and never claims someone was told when they were not.
 
 ## 9. Before real use
 
