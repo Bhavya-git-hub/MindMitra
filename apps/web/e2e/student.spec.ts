@@ -199,6 +199,23 @@ test.describe("student portal (real API)", () => {
     ).toBeVisible();
   });
 
+  test("a suggestion can be marked helpful, and the answer taken back", async ({ page }) => {
+    await signInAndWait(page, "student");
+    await open(page, "/student/recommendations", /^Suggestions$/);
+    await settled(page);
+    // The database is shared between runs, so start from "no answer" whatever was saved before.
+    const helpful = page.getByRole("button", { name: "Helpful", exact: true }).first();
+    await expect(helpful).toBeVisible();
+    if ((await helpful.getAttribute("aria-pressed")) === "true") {
+      await helpful.click();
+      await expect(helpful).toHaveAttribute("aria-pressed", "false");
+    }
+    await helpful.click();
+    await expect(helpful).toHaveAttribute("aria-pressed", "true");
+    await helpful.click();
+    await expect(helpful).toHaveAttribute("aria-pressed", "false");
+  });
+
   test("a malformed id is a 404, not an API call", async ({ page }) => {
     await signInAndWait(page, "student");
     const calls: string[] = [];

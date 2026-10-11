@@ -5,7 +5,6 @@ Suggestions are made by ``recommendation_engine``; ratings and preferences live 
 """
 
 import dataclasses
-import datetime as dt
 import uuid
 
 from sqlalchemy import Select, or_, select
@@ -53,10 +52,10 @@ async def list_recommendations(
     *,
     include_closed: bool = False,
     limit: int = 50,
-    before: dt.datetime | None = None,
+    offset: int = 0,
 ) -> list[RecommendationView]:
     """Open suggestions by default; with ``include_closed`` the whole history, newest first.
-    ``before`` pages back through it."""
+    Suggestions made in one refresh share a timestamp, so the order breaks ties on id."""
     authorize_own(db, actor, "recommendation.list", "recommendation")
     stmt = _query(actor)
     if not include_closed:
@@ -64,12 +63,10 @@ async def list_recommendations(
             m.Recommendation.status.in_(OPEN_STATUSES),
             or_(m.Recommendation.expires_at.is_(None), m.Recommendation.expires_at > now_utc()),
         )
-    if before is not None:
-        stmt = stmt.where(m.Recommendation.created_at < before)
     rows = await db.execute(
-        stmt.order_by(m.Recommendation.created_at.desc(), m.Recommendation.id.desc()).limit(
-            min(limit, MAX_HISTORY)
-        )
+        stmt.order_by(m.Recommendation.created_at.desc(), m.Recommendation.id.desc())
+        .offset(offset)
+        .limit(min(limit, MAX_HISTORY))
     )
     return [RecommendationView(rec, res, fb) for rec, res, fb in rows.all()]
 
@@ -83,12 +80,11 @@ async def get_view(
     return RecommendationView(row[0], row[1], row[2])
 
 
-async def respond(
-    db: AsyncSession,
-    actor: Principal,
-    recommendation_id: uuid.UUID,
-    new_status: RecommendationStatus,
-) -> RecommendationView:
+async def load_own(
+    db: AsyncSession, actor: Principal, recommendation_id: uuid.UUID, action: str
+) -> m.Recommendation:
+    """The suggestion, locked for update, if it belongs to the caller. Anything else is
+    indistinguishable from a missing one."""
     rec = await db.get(m.Recommendation, recommendation_id, with_for_update=True)
     if rec is None:
         raise NotFound
@@ -96,11 +92,21 @@ async def respond(
         can_use_own_student_record(
             actor, student_id=rec.student_id, institution_id=rec.institution_id
         ),
-        action="recommendation.update",
+        action=action,
         resource_type="recommendation",
         resource_id=rec.id,
         subject_student_id=rec.student_id,
     )
+    return rec
+
+
+async def respond(
+    db: AsyncSession,
+    actor: Principal,
+    recommendation_id: uuid.UUID,
+    new_status: RecommendationStatus,
+) -> RecommendationView:
+    rec = await load_own(db, actor, recommendation_id, "recommendation.update")
     rec.status = new_status
     await db.flush()
     view = await get_view(db, actor, rec.id)

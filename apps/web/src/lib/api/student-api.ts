@@ -39,6 +39,9 @@ import {
 } from "./student-schemas";
 import { qs } from "./query-string";
 
+/** How many past suggestions one history page holds. */
+export const RECOMMENDATION_PAGE = 50;
+
 export interface SleepInput {
   bedtime: string;
   wake_time: string;
@@ -157,10 +160,11 @@ export function createStudentApi(client: ApiClient, timeZone: () => string = bro
         body: { status },
         schema: recommendationSchema,
       }),
-    recommendationHistory: (before?: string) =>
-      client.request(`/me/recommendations/history${qs({ limit: 50, before })}`, {
-        schema: list(recommendationSchema),
-      }),
+    recommendationHistory: (offset = 0) =>
+      client.request(
+        `/me/recommendations/history${qs({ limit: RECOMMENDATION_PAGE, offset: offset || undefined })}`,
+        { schema: list(recommendationSchema) },
+      ),
     rateRecommendation: (id: string, rating: FeedbackRating, reason?: FeedbackReason) =>
       client.request(`/me/recommendations/${id}/feedback`, {
         method: "PUT",

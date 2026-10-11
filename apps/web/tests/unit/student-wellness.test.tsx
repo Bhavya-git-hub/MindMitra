@@ -310,6 +310,38 @@ describe("recommendations", () => {
     await waitFor(() => expect(calls.at(-1)).toBe("DELETE"));
   });
 
+  it("loads older suggestions a page at a time when there are more", async () => {
+    const offsets: string[] = [];
+    const page = (start: number, size: number) =>
+      Array.from({ length: size }, (_, i) =>
+        recommendation({
+          id: `old-${start + i}`,
+          title: `Old idea ${start + i}`,
+          rationale: "Earlier.",
+          status: "completed",
+        }),
+      );
+    renderWithApp(
+      <RecommendationsView />,
+      studentSession({
+        "GET /me/recommendations": () => json([]),
+        "GET /me/recommendations/history": ({ query }) => {
+          const offset = Number(query.get("offset") ?? 0);
+          offsets.push(String(offset));
+          return json(offset === 0 ? page(0, 50) : page(50, 3));
+        },
+        "GET /me/recommendations/preferences": () => json(preferences()),
+      }),
+    );
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: "Show older suggestions" }));
+    await waitFor(() => expect(offsets).toEqual(["0", "50"]));
+    expect(await screen.findByText("Old idea 52")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Show older suggestions" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("asks why when a suggestion was not helpful, and the reason is optional", async () => {
     const bodies: unknown[] = [];
     renderWithApp(

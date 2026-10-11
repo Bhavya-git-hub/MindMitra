@@ -9,13 +9,13 @@ import dataclasses
 import uuid
 
 from sqlalchemy import select
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.application import recommendations
-from app.application.access import NotFound, enforce
 from app.application.errors import InvalidInput
 from app.application.student_wellness import authorize_own
-from app.domain.auth.policies import Principal, can_use_own_student_record
+from app.domain.auth.policies import Principal
 from app.domain.wellness.recommender.catalog import MUTABLE_AREAS
 from app.domain.wellness.recommender.ranking import Preferences
 from app.infrastructure.db import models as m
@@ -25,6 +25,7 @@ from app.infrastructure.db.enums import (
     RecommendationStatus,
     ResourceType,
 )
+from app.infrastructure.db.ids import uuid7
 
 MAX_MINUTES = 180
 FORMATS = tuple(t.value for t in ResourceType)
@@ -92,16 +93,20 @@ async def update_preferences(
     db: AsyncSession, actor: Principal, patch: PreferencesPatch
 ) -> StoredPreferences:
     authorize_own(db, actor, "recommendation.preferences.update", "recommendation_preference")
-    row = await db.get(m.RecommendationPreference, actor.user_id, with_for_update=True)
-    if row is None:
-        row = m.RecommendationPreference(
+    await db.execute(
+        insert(m.RecommendationPreference)
+        .values(
             student_id=actor.user_id,
             institution_id=actor.institution_id,
             preferred_formats=[],
             muted_areas=[],
             use_indicators=True,
         )
-        db.add(row)
+        .on_conflict_do_nothing(index_elements=[m.RecommendationPreference.student_id])
+    )
+    row = await db.get(m.RecommendationPreference, actor.user_id, with_for_update=True)
+    if row is None:  # cannot happen: the row was just inserted or already exists
+        raise RuntimeError("preferences row missing after upsert")
     if patch.preferred_formats is not None:
         row.preferred_formats = list(_check(patch.preferred_formats, FORMATS, "format"))
     if patch.muted_areas is not None:
@@ -116,24 +121,6 @@ async def update_preferences(
     result = _stored(row)
     await db.commit()
     return result
-
-
-async def _own_recommendation(
-    db: AsyncSession, actor: Principal, recommendation_id: uuid.UUID, action: str
-) -> m.Recommendation:
-    rec = await db.get(m.Recommendation, recommendation_id, with_for_update=True)
-    if rec is None:
-        raise NotFound
-    enforce(
-        can_use_own_student_record(
-            actor, student_id=rec.student_id, institution_id=rec.institution_id
-        ),
-        action=action,
-        resource_type="recommendation",
-        resource_id=rec.id,
-        subject_student_id=rec.student_id,
-    )
-    return rec
 
 
 async def _existing(
@@ -157,21 +144,26 @@ async def rate(
     marked not helpful leaves the open list."""
     if reason is not None and rating != FeedbackRating.NOT_HELPFUL:
         raise InvalidInput("A reason can only be given with 'not helpful'")
-    rec = await _own_recommendation(db, actor, recommendation_id, "recommendation.feedback.write")
-    row = await _existing(db, rec.id)
-    if row is None:
-        db.add(
-            m.RecommendationFeedback(
-                institution_id=rec.institution_id,
-                student_id=rec.student_id,
-                recommendation_id=rec.id,
-                rating=rating,
-                reason=reason,
-            )
+    rec = await recommendations.load_own(
+        db, actor, recommendation_id, "recommendation.feedback.write"
+    )
+    # One answer per suggestion. Two quick taps must not race into a unique-key error, so the
+    # write is an upsert rather than a check followed by an insert.
+    await db.execute(
+        insert(m.RecommendationFeedback)
+        .values(
+            id=uuid7(),
+            institution_id=rec.institution_id,
+            student_id=rec.student_id,
+            recommendation_id=rec.id,
+            rating=rating,
+            reason=reason,
         )
-    else:
-        row.rating = rating
-        row.reason = reason
+        .on_conflict_do_update(
+            index_elements=[m.RecommendationFeedback.recommendation_id],
+            set_={"rating": rating, "reason": reason},
+        )
+    )
     if rating == FeedbackRating.NOT_HELPFUL and rec.status in recommendations.OPEN_STATUSES:
         rec.status = RecommendationStatus.DISMISSED
     await db.flush()
@@ -184,7 +176,9 @@ async def clear(
     db: AsyncSession, actor: Principal, recommendation_id: uuid.UUID
 ) -> recommendations.RecommendationView:
     """Take back a rating."""
-    rec = await _own_recommendation(db, actor, recommendation_id, "recommendation.feedback.write")
+    rec = await recommendations.load_own(
+        db, actor, recommendation_id, "recommendation.feedback.write"
+    )
     row = await _existing(db, rec.id)
     if row is not None:
         await db.delete(row)

@@ -6,7 +6,7 @@ The indicator service is replaced by ``FakeIndicators``. All records are synthet
 
 import asyncio
 import datetime as dt
-from collections.abc import AsyncIterator, Sequence
+from collections.abc import AsyncIterator
 from typing import Any
 
 import httpx
@@ -29,13 +29,8 @@ from app.infrastructure.db.enums import (
 )
 from app.infrastructure.db.ids import uuid7
 from app.infrastructure.db.session import create_session_factory
-from app.infrastructure.ml_client import (
-    DayRecord,
-    Indicator,
-    IndicatorReport,
-    IndicatorsUnavailable,
-)
 from tests.api_world import World
+from tests.indicator_fakes import FakeIndicators
 from tests.student_helpers import Session, new_student
 
 pytestmark = pytest.mark.asyncio
@@ -433,15 +428,18 @@ async def test_history_lists_everything_newest_first_and_pages(
 ) -> None:
     s, recs = await _burnt_out_student(client, api_db, world)
     await s.patch(f"{RECS}/{recs[0]['id']}", {"status": "dismissed"})
-    history = (await s.get(f"{RECS}/history")).json()
-    assert {r["id"] for r in history} == {r["id"] for r in recs}
-    stamps = [r["created_at"] for r in history]
-    assert stamps == sorted(stamps, reverse=True)
-    page = (await s.get(f"{RECS}/history?limit=2")).json()
-    assert len(page) == 2
-    rest = (await s.get(f"{RECS}/history?before={page[-1]['created_at']}")).json()
-    assert {r["id"] for r in page} | {r["id"] for r in rest} <= {r["id"] for r in recs}
+    everything = [r["id"] for r in (await s.get(f"{RECS}/history")).json()]
+    assert set(everything) == {r["id"] for r in recs}
+    # Suggestions made in one refresh share a timestamp; pages must still cover each one once.
+    paged: list[str] = []
+    for offset in range(0, len(everything), 1):
+        page = (await s.get(f"{RECS}/history?limit=1&offset={offset}")).json()
+        assert len(page) == 1
+        paged.append(page[0]["id"])
+    assert paged == everything
+    assert (await s.get(f"{RECS}/history?offset={len(everything)}")).json() == []
     assert (await s.get(f"{RECS}/history?limit=0")).status_code == 422
+    assert (await s.get(f"{RECS}/history?offset=-1")).status_code == 422
     assert (await s.get(f"{RECS}/history?limit=101")).status_code == 422
 
 
@@ -517,33 +515,10 @@ async def test_a_time_limit_steers_towards_shorter_resources(
 # ---- the indicator service ------------------------------------------------------------------
 
 
-def _ind(name: str, band: str) -> Indicator:
-    return Indicator(name, name.title(), "What it means.", "ok", band, band, {}, "v1")  # type: ignore[arg-type]
-
-
-class FakeIndicators:
-    def __init__(self) -> None:
-        self.down = False
-        self.bands: dict[str, str] = {}
-        self.calls: list[tuple[list[DayRecord], list[str]]] = []
-
-    async def indicators(
-        self, window_end: dt.date, days: Sequence[DayRecord], notes: Sequence[str]
-    ) -> IndicatorReport:
-        if self.down:
-            raise IndicatorsUnavailable("status 503")
-        self.calls.append((list(days), list(notes)))
-        return IndicatorReport(
-            tuple(_ind(k, v) for k, v in self.bands.items()),
-            len(days),
-            len(notes),
-            "Not a diagnosis.",
-        )
-
-
 @pytest.fixture
 def fake() -> FakeIndicators:
-    return FakeIndicators()
+    # No bands unless a test sets them, so the default student's suggestions come from check-ins.
+    return FakeIndicators(bands={})
 
 
 @pytest_asyncio.fixture
@@ -581,7 +556,7 @@ async def test_indicators_can_shape_suggestions_and_no_note_is_ever_sent(
     recs = await refresh(s)
     assert by_area(recs, "social_isolation")
     assert fake.calls
-    assert all(notes == [] for _, notes in fake.calls)
+    assert all(call.notes == [] for call in fake.calls)
 
 
 async def test_suggestions_still_work_when_the_indicator_service_is_down(
@@ -641,3 +616,29 @@ async def test_my_export_includes_my_ratings_and_settings(
     assert [f["rating"] for f in data["recommendation_feedback"]] == ["helpful"]
     assert data["recommendation_preferences"][0]["max_minutes"] == 15
     assert all("problem_area" in r for r in data["recommendations"])
+
+
+async def test_quick_repeat_taps_and_first_saves_in_parallel_never_fail(
+    client: httpx.AsyncClient, api_db: AsyncSession, world: World
+) -> None:
+    """Two taps on the same answer, or two first saves of preferences, must both succeed and
+    leave exactly one row each."""
+    s, recs = await _burnt_out_student(client, api_db, world)
+    url = f"{RECS}/{recs[0]['id']}/feedback"
+    results = await asyncio.gather(
+        *(s.put(url, {"rating": "helpful"}) for _ in range(4)),
+        *(s.patch(f"{RECS}/preferences", {"max_minutes": 15}) for _ in range(4)),
+    )
+    assert all(r.status_code == 200 for r in results), [r.text for r in results]
+    count = await api_db.scalar(
+        select(func.count())
+        .select_from(m.RecommendationFeedback)
+        .where(m.RecommendationFeedback.recommendation_id == recs[0]["id"])
+    )
+    assert count == 1
+    prefs = await api_db.scalar(
+        select(func.count())
+        .select_from(m.RecommendationPreference)
+        .where(m.RecommendationPreference.student_id == s.id)
+    )
+    assert prefs == 1

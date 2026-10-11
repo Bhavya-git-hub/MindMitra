@@ -37,7 +37,7 @@ Interactive docs at `/docs` in development and test only.
 | `GET /me/wellness/assessment`, `GET`, `POST /me/wellness/assessments` | `wellness:read:own` / `wellness:write:own` | The WHO-5 well-being instrument, own results, and submitting answers (scored on the server; wording is "Doing well / Mixed / Lower lately", never diagnostic) |
 | `GET`, `POST /me/goals`, `PATCH /me/goals/{id}` | `goal:manage:own` | Own wellness goals: progress, pause, complete, let go |
 | `GET /me/recommendations?include_closed=`, `POST /me/recommendations/refresh?tz=`, `PATCH /me/recommendations/{id}` | `recommendation:manage:own` | Personalised, non-medical suggestions with a stated reason, problem area and next step (`resource`, `book_counselling`, `set_goal`, `check_in`); mark viewed, done or dismissed ([ADR 0012](adr/0012-personalised-recommendation-engine.md)) |
-| `GET /me/recommendations/history?limit=&before=` | `recommendation:manage:own` | Every suggestion so far, newest first, with the student's own rating |
+| `GET /me/recommendations/history?limit=&offset=` | `recommendation:manage:own` | Every suggestion so far, newest first, with the student's own rating |
 | `PUT`, `DELETE /me/recommendations/{id}/feedback` | `recommendation:manage:own` | Say `helpful` or `not_helpful` (optional `reason` from a fixed list, only with `not_helpful`); saying it again replaces it, DELETE takes it back. Student only: no other role can read it |
 | `GET`, `PATCH /me/recommendations/preferences` | `recommendation:manage:own` | Preferred formats, longest time, topics to switch off, and whether indicators may be used |
 | `GET /resources`, `GET /resources/{id}` | `resource:read` | Published resources of the institution |
