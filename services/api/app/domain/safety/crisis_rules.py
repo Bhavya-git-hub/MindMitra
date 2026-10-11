@@ -80,20 +80,60 @@ _DASHES = re.compile("[‐-―−]")
 _STRETCHED = re.compile(r"(.)\1{2,}")  # three or more of one character
 _SPACED_LETTERS = re.compile(r"\b(?:[a-z][ ._-]){2,}[a-z]\b")  # "k i l l", "k.i.l.l"
 _WHITESPACE = re.compile(r"\s+")
+# Marks that change nothing a reader sees but split a word for a regex: combining accents
+# (after NFKD), variation selectors and the combining grapheme joiner. Format characters
+# (category Cf: direction marks, invisible operators, tag characters) are dropped separately.
+_INVISIBLE_MARKS = re.compile("[\u0300-\u036f\u034f\ufe00-\ufe0f]|[\U000e0100-\U000e01ef]")
+# Cyrillic and Greek letters that look like Latin ones ("kіll" with a Cyrillic i). Only
+# lower-case forms are needed because the text is folded to lower case first.
+_LOOKALIKES = str.maketrans(
+    {
+        "а": "a",
+        "в": "b",
+        "е": "e",
+        "ѕ": "s",
+        "і": "i",
+        "ј": "j",
+        "к": "k",
+        "м": "m",
+        "н": "h",
+        "о": "o",
+        "р": "p",
+        "с": "c",
+        "т": "t",
+        "у": "y",
+        "х": "x",
+        "ԁ": "d",
+        "ӏ": "l",
+        "α": "a",
+        "ε": "e",
+        "ι": "i",
+        "κ": "k",
+        "ν": "v",
+        "ο": "o",
+        "ρ": "p",
+        "τ": "t",
+        "υ": "u",
+        "χ": "x",
+    }
+)
 _LEET = str.maketrans(
     {"0": "o", "1": "i", "3": "e", "4": "a", "5": "s", "7": "t", "@": "a", "$": "s"}
 )
 
 
 def normalise(text: str, *, stretch: int = 2) -> str:
-    """Lower case, NFKC, no zero-width characters or apostrophes, runs of three or more of a
-    letter cut to ``stretch`` ("killll" -> "kill"), and spaced-out letters joined. "Don't" and
-    "dont" read the same."""
-    t = unicodedata.normalize("NFKC", text)
+    """Lower case, NFKC, no invisible characters, accents, look-alike letters or apostrophes,
+    runs of three or more of a letter cut to ``stretch`` ("killll" -> "kill"), and spaced-out
+    letters joined. "Don't" and "dont" read the same."""
+    t = unicodedata.normalize("NFKD", text)
+    t = "".join(c for c in t if unicodedata.category(c) != "Cf")
+    t = _INVISIBLE_MARKS.sub("", t)
+    t = unicodedata.normalize("NFKC", t)
     t = _ZERO_WIDTH.sub("", t)
     t = _APOSTROPHES.sub("", t)
     t = _DASHES.sub("-", t)
-    t = t.lower()
+    t = t.lower().translate(_LOOKALIKES)
     t = _STRETCHED.sub(lambda m: m.group(1) * stretch, t)
     t = _SPACED_LETTERS.sub(lambda m: re.sub(r"[ ._-]", "", m.group(0)), t)
     return _WHITESPACE.sub(" ", t).strip()

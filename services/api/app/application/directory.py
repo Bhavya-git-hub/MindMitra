@@ -13,6 +13,7 @@ from sqlalchemy import ColumnElement, and_, exists, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.application.access import NotFound, has_active_care_link
+from app.application.admin_common import LIKE_ESCAPE, like
 from app.application.timeutil import now_utc
 from app.domain.auth.policies import Principal
 from app.infrastructure.db import models as m
@@ -66,8 +67,13 @@ async def list_resources(
     if tag:
         stmt = stmt.where(m.Resource.tags.contains([tag.strip().lower()]))
     if query and query.strip():
-        like = f"%{query.strip()[:80]}%"
-        stmt = stmt.where(or_(m.Resource.title.ilike(like), m.Resource.summary.ilike(like)))
+        pattern = like(query)
+        stmt = stmt.where(
+            or_(
+                m.Resource.title.ilike(pattern, escape=LIKE_ESCAPE),
+                m.Resource.summary.ilike(pattern, escape=LIKE_ESCAPE),
+            )
+        )
     rows = await db.scalars(stmt.order_by(m.Resource.title).limit(min(limit, MAX_LIMIT)))
     return list(rows)
 

@@ -137,13 +137,18 @@ async def list_conversations(db: AsyncSession, actor: Principal) -> list[Convers
             )
         )
     )
-    talked = set(
-        await db.scalars(
-            select(msg_other)
-            .where(msg_mine == actor.user_id, m.Message.institution_id == actor.institution_id)
-            .distinct()
+    # A student keeps their own history after a care team ends. A therapist's access ends with
+    # the link (ADR 0006), so an ended conversation is not listed for them: not its name, its
+    # last-message preview or its unread count.
+    talked: set[uuid.UUID] = set()
+    if actor.role is Role.STUDENT:
+        talked = set(
+            await db.scalars(
+                select(msg_other)
+                .where(msg_mine == actor.user_id, m.Message.institution_id == actor.institution_id)
+                .distinct()
+            )
         )
-    )
     out: list[Conversation] = []
     for other_id in active_ids | talked:
         name = await db.scalar(select(m.User.full_name).where(m.User.id == other_id)) or ""

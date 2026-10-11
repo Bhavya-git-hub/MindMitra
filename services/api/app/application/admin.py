@@ -5,6 +5,7 @@ journals, AI conversations or wellness records (CLAUDE.md section 3).
 """
 
 import dataclasses
+import re
 import uuid
 
 from sqlalchemy import func, or_, select
@@ -17,6 +18,7 @@ from app.application.admin_common import LIKE_ESCAPE, MAX_LIMIT, audit, like
 from app.application.auth.delivery import TokenDelivery
 from app.application.auth.errors import Conflict, RegistrationRejected
 from app.application.auth.service import EMAIL_RE, AuthService, normalise_email
+from app.application.errors import InvalidInput
 from app.domain.auth.policies import Principal, can_manage_user
 from app.infrastructure.db import models as m
 from app.infrastructure.db.enums import (
@@ -255,6 +257,34 @@ async def set_user_status(
     return user
 
 
+# A full domain name (at least one dot): a bare suffix such as "edu" or "com" would match every
+# address under it.
+DOMAIN_RE = re.compile(
+    r"^(?=.{4,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z][a-z0-9-]{0,61}[a-z0-9]$"
+)
+
+
+def _overlaps(a: str, b: str) -> bool:
+    """Registration matches a domain and its subdomains, so these two would catch the same
+    addresses."""
+    return a == b or a.endswith("." + b) or b.endswith("." + a)
+
+
+async def _check_domains(db: AsyncSession, actor: Principal, domains: list[str]) -> None:
+    """Students register into the one institution whose domains match their e-mail address, and
+    a domain two institutions match is refused for both. So an administrator may claim only full
+    domain names that no other institution already covers: otherwise one institution could
+    block, or capture, another institution's sign-ups."""
+    if any(not DOMAIN_RE.match(d) for d in domains):
+        raise InvalidInput("Each e-mail domain must be a full domain name, such as college.edu.")
+    others = await db.scalars(
+        select(m.Institution.email_domains).where(m.Institution.id != actor.institution_id)
+    )
+    taken = {d for listed in others for d in listed}
+    if any(_overlaps(d, t) for d in domains for t in taken):
+        raise Conflict("That e-mail domain is already used by another institution.")
+
+
 async def get_institution(db: AsyncSession, actor: Principal) -> m.Institution:
     inst = await db.get(m.Institution, actor.institution_id)
     if inst is None:
@@ -273,7 +303,9 @@ async def update_institution(
         inst.name = name.strip()
         changed.append("name")
     if email_domains is not None:
-        inst.email_domains = sorted({d.strip().lower() for d in email_domains if d.strip()})
+        domains = sorted({d.strip().lower() for d in email_domains if d.strip()})
+        await _check_domains(db, actor, domains)
+        inst.email_domains = domains
         changed.append("email_domains")
     await audit(
         db,

@@ -10,7 +10,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.application.access import NotFound, enforce
 from app.application.errors import InvalidInput
-from app.application.therapist_access import active_students, require_verified, student_in_care
+from app.application.therapist_access import (
+    active_students,
+    require_care_link,
+    require_verified,
+    student_in_care,
+)
 from app.application.timeutil import local_today, now_utc
 from app.domain.auth.policies import Principal, can_manage_own_therapist_record
 from app.infrastructure.db import models as m
@@ -165,6 +170,15 @@ async def update_follow_up(
         resource_type="follow_up",
         resource_id=row.id,
         subject_student_id=row.student_id,
+    )
+    await require_care_link(
+        db,
+        actor,
+        student_id=row.student_id,
+        institution_id=row.institution_id,
+        action="follow_up.update",
+        resource_type="follow_up",
+        resource_id=row.id,
     )
     changed: list[str] = []
     if due_on is not None and due_on != row.due_on:

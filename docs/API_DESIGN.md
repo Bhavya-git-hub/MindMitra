@@ -17,7 +17,7 @@ Interactive docs at `/docs` in development and test only.
 |---------------|-------|---------|
 | `GET /health/live` **PUBLIC** | none | Liveness probe |
 | `POST /auth/register` **PUBLIC** | rate limit | Student self-registration (institutional e-mail, `accept_terms: true`); always `202` |
-| `POST /auth/verify-email` **PUBLIC** (token) | rate limit | Activates a registered account |
+| `POST /auth/verify-email` **PUBLIC** (token + password) | rate limit | Activates a self-registered account. Needs the e-mailed token and the password chosen at registration; a wrong password answers like a bad link and leaves the link usable ([ADR 0015](adr/0015-security-audit-2026-10.md)) |
 | `POST /auth/login` **PUBLIC** | rate limit | Returns `{access_token, token_type, expires_in, csrf_token, user}` and sets the refresh cookie |
 | `POST /auth/refresh` **PUBLIC** (refresh cookie + `X-CSRF-Token`) | rate limit | Rotates the refresh token, returns a new token pair |
 | `POST /auth/logout` | `authenticated` | Revokes this session, clears the cookie; `204` |
@@ -104,7 +104,7 @@ Interactive docs at `/docs` in development and test only.
 | `GET`, `PATCH /admin/settings/notifications` | `notification_config:manage` | Reminder switch and hours (1 to 3 values of 1 to 168), therapist-suggestion notifications, goal reminders, email. Also returns the `fixed_rules` that cannot be changed. Appointment reminders are sent by the scheduler when it runs (`SCHEDULER_ENABLED`); email deliveries are created when switched on and sent once a provider is configured (`skipped` until then); goal reminders are stored but not yet used |
 | `GET`, `PATCH /admin/settings/safety` | `safety_config:manage` | `alert_ack_minutes` (5 to 1 440): the response time given to new alerts. Used when an alert is raised |
 | `GET`, `POST /admin/settings/crisis-contacts`, `PATCH`, `DELETE .../{id}` | `safety_config:manage` | The institution's crisis contacts. Shipped contacts are read only; the last active emergency contact cannot be hidden or removed (`409`) |
-| `GET /admin/audit?action=&outcome=&actor_id=&resource_type=&since=&until=&before_seq=&limit=` | `audit:read` | Audit metadata for the institution, newest first. A range is at most 366 days. Reading the log is audited |
+| `GET /admin/audit?action=&outcome=&actor_id=&resource_type=&since=&until=&before_seq=&limit=` | `audit:read` | Audit metadata for the institution, newest first. A range is at most 366 days. Reading the log is audited. On care records (appointments, notes, sessions, alerts, safety events, messages, wellness and similar) the student, record id and details are left out, and a student's own actions on care records are not listed ([ADR 0015](adr/0015-security-audit-2026-10.md)) |
 | `GET /admin/audit/actions`, `POST /admin/audit/verify`, `GET /admin/audit/export` | `audit:read` | Distinct action names; verify the hash chain; CSV of the filtered log (at most 5 000 rows, metadata only) |
 
 Status codes as built: `401` missing, invalid, expired or revoked token (with

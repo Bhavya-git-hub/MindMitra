@@ -1,8 +1,12 @@
 """The audit log as administrators see it: who did what and when, never what was said.
 
 Rows carry actions, outcomes and identifiers only (``append_audit_event`` rejects content-bearing
-keys), so showing them does not widen what an administrator can learn about a student. Reading the
-log is itself recorded, so a reviewer of the log can be reviewed too.
+keys). Identifiers alone can still tell a story, though: "therapist T read student S" is a care
+relationship, and "student S created a safety event" is a crisis. So on care records (the
+``CARE_RECORDS`` resource types) an administrator sees the action, when, the outcome and the staff
+member, but no student, record id or details, and a student's own actions on care records are not
+listed at all (ADR 0008 as amended by the 2026-10 security audit). Reading the log is itself
+recorded, so a reviewer of the log can be reviewed too.
 """
 
 import csv
@@ -10,8 +14,9 @@ import dataclasses
 import datetime as dt
 import io
 import uuid
+from typing import Any
 
-from sqlalchemy import Select, func, select
+from sqlalchemy import Select, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.application.admin_common import MAX_LIMIT, audit
@@ -23,6 +28,67 @@ from app.infrastructure.db.enums import AuditOutcome, UserRole
 
 EXPORT_LIMIT = 5000
 MAX_RANGE = dt.timedelta(days=366)
+
+# Resource types whose rows describe someone's care, wellbeing or safety. The full rows stay in
+# the log (and in the hash chain) for investigations; only the administrator's view is reduced.
+CARE_RECORDS = frozenset(
+    {
+        "ai_conversation",
+        "appointment",
+        "appointments",
+        "consent",
+        "follow_up",
+        "message",
+        "mood_entry",
+        "recommendation",
+        "referral",
+        "risk_alert",
+        "safety_event",
+        "student",
+        "student_data",
+        "teacher_support_request",
+        "therapy_note",
+        "therapy_session",
+        "wellness_assessment",
+        "wellness_goal",
+        "wellness_indicator",
+        "wellness_trend",
+    }
+)
+
+
+@dataclasses.dataclass(frozen=True)
+class ShownEvent:
+    """One audit row as an administrator may see it."""
+
+    seq: int
+    occurred_at: dt.datetime
+    actor_id: uuid.UUID | None
+    actor_role: str | None
+    action: str
+    outcome: str
+    resource_type: str | None
+    resource_id: uuid.UUID | None
+    subject_student_id: uuid.UUID | None
+    reason: str | None
+    details: dict[str, Any]
+
+
+def shown(r: m.AuditLog) -> ShownEvent:
+    care = r.resource_type in CARE_RECORDS
+    return ShownEvent(
+        seq=r.seq,
+        occurred_at=r.occurred_at,
+        actor_id=r.actor_id,
+        actor_role=r.actor_role.value if isinstance(r.actor_role, UserRole) else None,
+        action=r.action,
+        outcome=r.outcome.value,
+        resource_type=r.resource_type,
+        resource_id=None if care else r.resource_id,
+        subject_student_id=None if care else r.subject_student_id,
+        reason=r.reason,
+        details={} if care else r.details,
+    )
 
 
 @dataclasses.dataclass(frozen=True)
@@ -38,7 +104,16 @@ class AuditFilter:
 def _select(actor: Principal, f: AuditFilter) -> Select[m.AuditLog]:
     if f.since and f.until and f.until - f.since > MAX_RANGE:
         raise InvalidInput("Please choose a range of a year or less.")
-    stmt = select(m.AuditLog).where(m.AuditLog.institution_id == actor.institution_id)
+    stmt = select(m.AuditLog).where(
+        m.AuditLog.institution_id == actor.institution_id,
+        # A student's own actions on care records would name the student, so they are not listed.
+        or_(
+            m.AuditLog.resource_type.is_(None),
+            m.AuditLog.resource_type.not_in(CARE_RECORDS),
+            m.AuditLog.actor_role.is_(None),
+            m.AuditLog.actor_role != UserRole.STUDENT,
+        ),
+    )
     if f.action:
         # A trailing dot means "this family" (for example "user." covers every user action).
         if f.action.endswith("."):
@@ -143,16 +218,16 @@ async def export_csv(db: AsyncSession, actor: Principal, f: AuditFilter) -> str:
         ["seq", "occurred_at", "actor_id", "actor_role", "action", "outcome", "resource_type",
          "resource_id", "subject_student_id", "reason"]
     )  # fmt: skip
-    for r in rows:
+    for r in map(shown, rows):
         writer.writerow(
             _cell(v)
             for v in (
                 r.seq,
                 r.occurred_at.isoformat(),
                 r.actor_id,
-                r.actor_role.value if isinstance(r.actor_role, UserRole) else None,
+                r.actor_role,
                 r.action,
-                r.outcome.value,
+                r.outcome,
                 r.resource_type,
                 r.resource_id,
                 r.subject_student_id,

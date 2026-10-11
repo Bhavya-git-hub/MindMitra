@@ -415,12 +415,11 @@ async def test_register_verify_then_login(
 
     token = outbox.latest(email, OneTimeTokenPurpose.EMAIL_VERIFICATION)
     assert token is not None
-    assert (
-        await call(client, "POST", "/auth/verify-email", json={"token": token})
-    ).status_code == 200
-    assert (
-        await call(client, "POST", "/auth/verify-email", json={"token": token})
-    ).status_code == 401
+    verify = {"token": token, "password": NEW_PASSWORD}
+    wrong = {"token": token, "password": "Not-the-registered-passphrase-1"}
+    assert (await call(client, "POST", "/auth/verify-email", json=wrong)).status_code == 401
+    assert (await call(client, "POST", "/auth/verify-email", json=verify)).status_code == 200
+    assert (await call(client, "POST", "/auth/verify-email", json=verify)).status_code == 401
 
     r = await login(client, email, NEW_PASSWORD)
     assert r.status_code == 200 and r.json()["user"]["role"] == "student"

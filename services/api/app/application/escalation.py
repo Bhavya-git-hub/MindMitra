@@ -55,7 +55,9 @@ class Escalation:
 async def primary_care_therapist(
     db: AsyncSession, *, institution_id: uuid.UUID, student_id: uuid.UUID, now: dt.datetime
 ) -> uuid.UUID | None:
-    """The student's primary therapist, if the care link is live right now."""
+    """The student's primary therapist, if the care link is live right now and the therapist can
+    act on an alert (active and currently verified). Otherwise the alert goes to the whole
+    counselling team rather than to someone who cannot open it."""
     therapist_id = await db.scalar(
         select(m.CareTeamMember.therapist_id)
         .where(
@@ -72,6 +74,8 @@ async def primary_care_therapist(
     if not await has_active_care_link(
         db, therapist_id=therapist_id, student_id=student_id, now=now
     ):
+        return None
+    if therapist_id not in await counselling_team(db, institution_id):
         return None
     return therapist_id
 

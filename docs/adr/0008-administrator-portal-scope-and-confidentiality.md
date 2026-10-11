@@ -55,7 +55,9 @@ breach of the most sensitive data the product holds.
    drafts until published, and publishing records the reviewing administrator and time (the
    database refuses a published item without a review). Links must be `https://`. A `faculty` tag
    keeps an item in the staff library.
-8. **The audit log is readable by administrators and records that it was read.** `GET /admin/audit`
+8. **The audit log is readable by administrators and records that it was read.** (Amended by
+   [ADR 0015](0015-security-audit-2026-10.md): on care records the administrator's view leaves
+   out the student, the record id and details.) `GET /admin/audit`
    and its CSV export are themselves audited. Events hold actions and identifiers, never text:
    the audit helper rejects forbidden detail keys (body, content, note, message, journal, email,
    name and similar) and values over 200 characters. Verification of the hash chain is available
