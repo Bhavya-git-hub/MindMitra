@@ -7,9 +7,8 @@ The AI service is replaced by ``FakeIndicators``; the models have their own test
 """
 
 import datetime as dt
-from collections.abc import AsyncIterator, Sequence
+from collections.abc import AsyncIterator
 from decimal import Decimal
-from typing import Literal
 
 import httpx
 import pytest
@@ -26,44 +25,15 @@ from app.infrastructure.db import models as m
 from app.infrastructure.db.enums import AuditOutcome
 from app.infrastructure.db.ids import uuid7
 from app.infrastructure.db.session import create_session_factory
-from app.infrastructure.ml_client import (
-    DayRecord,
-    Indicator,
-    IndicatorReport,
-    IndicatorsUnavailable,
-)
 from tests.api_helpers import call, token_for
 from tests.api_world import World
+from tests.indicator_fakes import DISCLAIMER, FakeIndicators
 from tests.student_helpers import Session, new_student, sleep_body
 from tests.therapist_helpers import care_pair, fresh_therapist
 
 pytestmark = pytest.mark.asyncio
 
-DISCLAIMER = "These are wellness indicators. They are not a diagnosis."
 AI_CONSENT = "/me/consents/share_ai_signals_with_care_team"
-
-
-def _ind(name: str, band: Literal["low", "moderate", "elevated"] = "moderate") -> Indicator:
-    return Indicator(name, name.title(), "What it means.", "ok", band, band, {"x": 0.4}, "v1")
-
-
-class FakeIndicators:
-    def __init__(self) -> None:
-        self.down = False
-        self.calls: list[tuple[dt.date, list[DayRecord], list[str]]] = []
-
-    async def indicators(
-        self, window_end: dt.date, days: Sequence[DayRecord], notes: Sequence[str]
-    ) -> IndicatorReport:
-        if self.down:
-            raise IndicatorsUnavailable("status 503")
-        self.calls.append((window_end, list(days), list(notes)))
-        return IndicatorReport(
-            (_ind("stress_level"), _ind("burnout_risk", "low"), _ind("sentiment", "elevated")),
-            checkin_days=len(days),
-            notes_considered=len(notes),
-            disclaimer=DISCLAIMER,
-        )
 
 
 @pytest.fixture
@@ -159,7 +129,8 @@ async def test_a_student_sees_their_own_indicators_from_their_own_check_ins(
     assert window.days == 27
     assert "probabilities" not in body["indicators"][0]  # bands only, no raw scores
 
-    window_end, days, notes = fake.calls[-1]
+    last = fake.calls[-1]
+    window_end, days, notes = last.window_end, last.days, last.notes
     assert notes == ["Worried about the viva"]
     by_day = {d.day: d for d in days}
     assert all(window_end - dt.timedelta(days=27) <= d <= window_end for d in by_day)
@@ -192,7 +163,7 @@ async def test_a_therapist_needs_the_ai_signals_consent_and_never_gets_note_tone
     assert [i["indicator"] for i in body["indicators"]] == ["stress_level", "burnout_risk"]
     assert body["notes_considered"] == 0
     assert "PRIVATE-NOTE" not in r.text
-    assert fake.calls[-1][2] == []  # the notes were not even sent
+    assert fake.calls[-1].notes == []  # the notes were not even sent
 
     audit = (
         await api_db.scalars(

@@ -3,7 +3,6 @@ settings that shape what they are offered. Every route is the caller's own; ther
 id in any path.
 """
 
-import datetime as dt
 import uuid
 from typing import Annotated
 
@@ -38,11 +37,12 @@ async def recommendation_history(
     db: Db,
     principal: RecManager,
     limit: Annotated[int, Query(ge=1, le=100)] = 50,
-    before: dt.datetime | None = None,
+    offset: Annotated[int, Query(ge=0, le=100_000)] = 0,
 ) -> list[s.RecommendationOut]:
-    """Everything suggested so far, newest first, with the student's own ratings."""
+    """Everything suggested so far, newest first, with the student's own ratings. Page with
+    ``offset``."""
     rows = await recommendations.list_recommendations(
-        db, principal, include_closed=True, limit=limit, before=before
+        db, principal, include_closed=True, limit=limit, offset=offset
     )
     return [s.recommendation_out(r) for r in rows]
 
