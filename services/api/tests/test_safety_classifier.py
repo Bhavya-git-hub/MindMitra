@@ -49,6 +49,8 @@ MUST_BE_IMMEDIATE = [
     ("I wrote a note. I want to die", Concern.SUICIDAL_LANGUAGE),
     ("I'm going to jump off the hostel roof tonight", Concern.SUICIDAL_LANGUAGE),
     ("kms tonight", Concern.SUICIDAL_LANGUAGE),
+    # a time word right after "take them all" must not hide the plan
+    ("I've been saving pills and I'm going to take them all tonight", Concern.SUICIDAL_LANGUAGE),
     ("going to end my life after everyone sleeps", Concern.SUICIDAL_LANGUAGE),
     ("I bought a rope, I'm going to hang myself", Concern.SUICIDAL_LANGUAGE),
     ("I've stockpiled tablets and I'm ready to die", Concern.SUICIDAL_LANGUAGE),
@@ -191,6 +193,7 @@ def test_distress_language_is_moderate(text: str, concern: Concern, other: bool)
 # ---- false positives: everyday words that must stay LOW -------------------------------------
 
 MUST_STAY_LOW = [
+    "I'm going to take them all to the library",
     "this assignment is killing me",
     "the deadline is going to kill me",
     "I could kill for a coffee right now",
