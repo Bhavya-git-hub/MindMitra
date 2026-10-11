@@ -208,6 +208,82 @@ export const oversightSchema = z.object({
 });
 export type Oversight = z.infer<typeof oversightSchema>;
 
+// ---- service analytics: usage, counselling utilisation, intervention engagement ----
+/** `null` is "fewer than 5". The API never sends a number from 1 to 4. */
+const hiddenCount = z.number().int().nullable();
+
+const shareStateSchema = z.object({
+  state: z.enum(["shown", "few", "most", "hidden"]),
+  percent: z.number().int().nullable(),
+});
+export type ShareState = z.infer<typeof shareStateSchema>;
+
+const usageFigures = {
+  check_ins: hiddenCount,
+  active_students: hiddenCount,
+  companion_messages: hiddenCount,
+  therapist_messages: hiddenCount,
+  sign_ins: hiddenCount,
+};
+const usageWeekSchema = z.object({ week_start: z.string(), ...usageFigures });
+export type UsageWeek = z.infer<typeof usageWeekSchema>;
+
+const utilisationWeekSchema = z.object({
+  week_start: z.string(),
+  capacity_hours: z.number(),
+  booked_hours: z.number().nullable(),
+  utilisation_percent: z.number().int().nullable(),
+});
+export type UtilisationWeek = z.infer<typeof utilisationWeekSchema>;
+
+const utilisationFiguresSchema = z.object({
+  capacity_hours: z.number(),
+  booked_hours: z.number().nullable(),
+  utilisation_percent: z.number().int().nullable(),
+  no_show_share: shareStateSchema,
+  cancellation_share: shareStateSchema,
+});
+
+/** A suppressed group (fewer than 5 different students) has only `null` counts. */
+const engagementGroupSchema = z.object({
+  key: z.string(),
+  suppressed: z.boolean(),
+  suggestions: hiddenCount,
+  viewed: hiddenCount,
+  completed: hiddenCount,
+  dismissed: hiddenCount,
+  helpful: hiddenCount,
+  not_helpful: hiddenCount,
+});
+export type EngagementGroup = z.infer<typeof engagementGroupSchema>;
+
+export const serviceAnalyticsSchema = z.object({
+  window_weeks: z.number().int(),
+  window_start: z.string(),
+  window_end: z.string(),
+  usage: z.object({
+    weekly: z.array(usageWeekSchema),
+    totals: z.object(usageFigures),
+  }),
+  utilisation: z.object({
+    overall: utilisationFiguresSchema,
+    weekly: z.array(utilisationWeekSchema),
+    by_mode: z.array(utilisationFiguresSchema.extend({ mode: z.string() })),
+  }),
+  engagement: z.object({
+    by_source: z.array(engagementGroupSchema),
+    by_problem_area: z.array(engagementGroupSchema),
+    completion_share: shareStateSchema,
+    helpful_share: shareStateSchema,
+    top_interventions: z.array(
+      z.object({ intervention_key: z.string(), students: z.number().int() }),
+    ),
+  }),
+  disclaimer: z.string(),
+  generated_at: z.string(),
+});
+export type ServiceAnalytics = z.infer<typeof serviceAnalyticsSchema>;
+
 // ---- audit ----
 export const auditEventSchema = z.object({
   seq: z.number().int(),

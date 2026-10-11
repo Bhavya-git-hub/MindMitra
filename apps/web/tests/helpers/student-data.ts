@@ -14,6 +14,7 @@ import type {
   Slot,
   Therapist,
   TrendPoint,
+  WellnessAnalytics,
 } from "@/lib/api/student-schemas";
 
 import { json, makeSession, type TestSession } from "./render";
@@ -310,3 +311,36 @@ export const instrument = (): Instrument => ({
 });
 
 export { json };
+
+export const analyticsWeek = (
+  offsetWeeks: number,
+  extra: Partial<WellnessAnalytics["weeks"][number]> = {},
+): WellnessAnalytics["weeks"][number] => ({
+  week_start: day(offsetWeeks * 7 - 5), // `day(0)` is Saturday 10 Oct 2026, so -5 is its Monday
+  wellness_index: null,
+  mood_avg: null,
+  stress_avg: null,
+  sleep_quality_avg: null,
+  sleep_hours_avg: null,
+  days_reported: 0,
+  partial: false,
+  ...extra,
+});
+
+/** An analytics response with nothing in it, as a brand-new student would get. */
+export const emptyAnalytics = (): WellnessAnalytics => ({
+  weeks: [-3, -2, -1, 0].map((n) => analyticsWeek(n, { partial: n === 0 })),
+  wellbeing_checks: [],
+  goals: {
+    active: 0,
+    completed: 0,
+    other: 0,
+    average_progress_percent: null,
+    by_category: [],
+    completed_by_week: [-3, -2, -1, 0].map((n) => ({
+      week_start: analyticsWeek(n).week_start,
+      completed: 0,
+    })),
+  },
+  disclaimer: "These figures describe what you reported. They are not a diagnosis.",
+});

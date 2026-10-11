@@ -172,7 +172,7 @@ before any real use.
 
 **Exit:** faculty/admin dashboards show only aggregate data; leakage tests pass.
 
-*Status: the teacher portal (class and department aggregates, referrals, faculty resources) is built; see [ADR 0007](docs/adr/0007-teacher-portal-aggregation-thresholds-and-referrals.md). Admin analytics, the audit viewer UI and institution settings remain.*
+*Status: the teacher portal (class and department aggregates, referrals, faculty resources) is built; see [ADR 0007](docs/adr/0007-teacher-portal-aggregation-thresholds-and-referrals.md). Administrator analytics and appointment oversight are built ([ADR 0008](docs/adr/0008-administrator-portal-scope-and-confidentiality.md)), and student, therapist and administrator service analytics with charts are built ([ADR 0014](docs/adr/0014-portal-analytics.md)). Differential-privacy noise, pre-aggregated `analytics` tables and system-health metrics remain.*
 
 ---
 

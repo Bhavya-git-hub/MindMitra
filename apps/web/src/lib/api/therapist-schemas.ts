@@ -227,3 +227,72 @@ export const dashboardSchema = z.object({
   unread_messages: z.number().int(),
 });
 export type TherapistDashboard = z.infer<typeof dashboardSchema>;
+
+// ---- analytics (GET /therapist/analytics): counts and averages only, never a person ---------
+
+const counts = z.record(z.string(), z.number().int());
+const weekCount = z.object({ week_start: z.string(), count: z.number().int() });
+
+export const therapistAnalyticsSchema = z.object({
+  weeks: z.number().int(),
+  window_start: z.string(),
+  window_end: z.string(),
+  caseload: z.object({
+    caseload_size: z.number().int(),
+    sharing_count: z.number().int(),
+    weekly: z.array(
+      z.object({
+        week_start: z.string(),
+        students_reporting: z.number().int(),
+        mood_avg: z.number().nullable(),
+        stress_avg: z.number().nullable(),
+        sleep_hours_avg: z.number().nullable(),
+      }),
+    ),
+  }),
+  appointments: z.object({
+    by_status: counts,
+    weekly: z.array(
+      z.object({
+        week_start: z.string(),
+        scheduled: z.number().int(),
+        completed: z.number().int(),
+        no_show: z.number().int(),
+        cancelled: z.number().int(),
+      }),
+    ),
+    rates: z.object({
+      completion: z.number().int().nullable(),
+      no_show: z.number().int().nullable(),
+      cancellation: z.number().int().nullable(),
+    }),
+    by_mode: counts,
+  }),
+  interventions: z.object({
+    recommendations: z.object({
+      total: z.number().int(),
+      by_status: counts,
+      completion_rate: z.number().int().nullable(),
+      weekly: z.array(weekCount),
+    }),
+    follow_ups: z.object({
+      total: z.number().int(),
+      by_status: counts,
+      overdue: z.number().int(),
+      done_on_time_rate: z.number().int().nullable(),
+      by_kind: counts,
+    }),
+  }),
+  alerts: z.object({
+    total: z.number().int(),
+    by_severity: counts,
+    by_status: counts,
+    weekly: z.array(weekCount),
+    acknowledged_median_minutes: z.number().nullable(),
+    overdue_open: z.number().int(),
+    resolved_count: z.number().int(),
+  }),
+  generated_at: z.string(),
+  disclaimer: z.string(),
+});
+export type TherapistAnalytics = z.infer<typeof therapistAnalyticsSchema>;

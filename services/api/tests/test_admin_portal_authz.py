@@ -105,6 +105,7 @@ ADMIN_ROUTES = {
     # aggregates only
     ("GET", "/admin/dashboard"),
     ("GET", "/admin/analytics"),
+    ("GET", "/admin/analytics/services"),
     ("GET", "/admin/appointments/oversight"),
     # settings
     ("GET", "/admin/settings/notifications"),

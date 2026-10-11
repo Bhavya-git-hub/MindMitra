@@ -25,6 +25,7 @@ from app.application import (
     recommendation_engine,
     recommendations,
     safety_workflow,
+    student_analytics,
     student_wellness,
     wellness_indicators,
 )
@@ -188,6 +189,19 @@ async def wellness_trends(
 ) -> s.TrendsOut:
     series = await student_wellness.daily_series(db, principal, days, zone)
     return s.TrendsOut(days=days, points=[s.trend_out(p) for p in series])
+
+
+@router.get("/wellness/analytics")
+async def wellness_analytics(
+    db: Db,
+    principal: Reader,
+    zone: Zone,
+    weeks: Annotated[
+        int, Query(ge=student_analytics.MIN_WEEKS, le=student_analytics.MAX_WEEKS)
+    ] = student_analytics.DEFAULT_WEEKS,
+) -> s.WellnessAnalyticsOut:
+    """Weekly self-reported figures, recent wellbeing checks and goal progress: own data only."""
+    return s.analytics_out(await student_analytics.student_analytics(db, principal, weeks, zone))
 
 
 @router.get("/wellness/indicators")

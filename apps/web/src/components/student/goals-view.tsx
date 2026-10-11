@@ -7,6 +7,7 @@ import { SectionCard } from "@/components/cards/section-card";
 import { PageHeader } from "@/components/layout/page-header";
 import { EmptyState } from "@/components/states/empty-state";
 import { InlineAlert } from "@/components/states/inline-alert";
+import { GoalProgress, useWellnessAnalytics } from "@/components/student/analytics-sections";
 import { DataView } from "@/components/student/data-view";
 import { NativeSelect, SaveButton, useSubmit } from "@/components/student/form-bits";
 import { Badge } from "@/components/ui/badge";
@@ -274,6 +275,11 @@ function GoalCard({ goal, onChange }: { goal: Goal; onChange: () => Promise<void
 export function GoalsView() {
   const api = useStudentApi();
   const goals = useQuery("goals", () => api.goals());
+  const analytics = useWellnessAnalytics();
+  // Changing a goal changes its figures too, so both are reloaded together.
+  const reload = async () => {
+    await Promise.all([goals.reload(), analytics.reload()]);
+  };
 
   return (
     <>
@@ -282,7 +288,7 @@ export function GoalsView() {
         description="Small, kind goals for the things that help you feel well. Change them any time."
       />
       <SectionCard title="Add a goal">
-        <NewGoalForm onCreated={goals.reload} />
+        <NewGoalForm onCreated={reload} />
       </SectionCard>
       <DataView query={goals}>
         {(rows) => {
@@ -300,7 +306,7 @@ export function GoalsView() {
                 <SectionCard title="In progress">
                   <ul className="grid gap-3">
                     {open.map((g) => (
-                      <GoalCard key={g.id} goal={g} onChange={goals.reload} />
+                      <GoalCard key={g.id} goal={g} onChange={reload} />
                     ))}
                   </ul>
                 </SectionCard>
@@ -309,11 +315,12 @@ export function GoalsView() {
                 <SectionCard title="Finished">
                   <ul className="grid gap-3">
                     {closed.map((g) => (
-                      <GoalCard key={g.id} goal={g} onChange={goals.reload} />
+                      <GoalCard key={g.id} goal={g} onChange={reload} />
                     ))}
                   </ul>
                 </SectionCard>
               )}
+              <GoalProgress query={analytics} />
             </>
           );
         }}

@@ -103,16 +103,20 @@ export const GRID_PROPS = {
   vertical: false,
 } as const;
 
-/** The screen-reader table for a chart with one row per x value and one column per series. */
+/**
+ * The screen-reader table for a chart with one row per x value and one column per series.
+ * `blank` is what a missing value reads as (for example "Fewer than 5" for a hidden count).
+ */
 export function seriesTable(
   title: string,
   data: Record<string, string | number>[],
   xKey: string,
   series: { key: string; label: string }[],
+  blank = "",
 ): ChartTable {
   return {
     caption: title,
     columns: [xKey, ...series.map((s) => s.label)],
-    rows: data.map((d) => [d[xKey] ?? "", ...series.map((s) => d[s.key] ?? "")]),
+    rows: data.map((d) => [d[xKey] ?? "", ...series.map((s) => d[s.key] ?? blank)]),
   };
 }

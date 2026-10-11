@@ -150,6 +150,50 @@ export const trendsSchema = z.object({
 });
 export type Trends = z.infer<typeof trendsSchema>;
 
+export const analyticsWeekSchema = z.object({
+  week_start: z.string(),
+  wellness_index: z.number().int().nullable(),
+  mood_avg: nullableNumber,
+  stress_avg: nullableNumber,
+  sleep_quality_avg: nullableNumber,
+  sleep_hours_avg: nullableNumber,
+  days_reported: z.number().int(),
+  partial: z.boolean(),
+});
+export type AnalyticsWeek = z.infer<typeof analyticsWeekSchema>;
+
+export const analyticsGoalsSchema = z.object({
+  active: z.number().int(),
+  completed: z.number().int(),
+  other: z.number().int(),
+  average_progress_percent: nullableNumber,
+  by_category: z.array(
+    z.object({
+      category: z.string(),
+      active: z.number().int(),
+      completed: z.number().int(),
+      average_progress_percent: nullableNumber,
+    }),
+  ),
+  completed_by_week: z.array(z.object({ week_start: z.string(), completed: z.number().int() })),
+});
+export type AnalyticsGoals = z.infer<typeof analyticsGoalsSchema>;
+
+/** `GET /me/wellness/analytics`: the student's own weekly figures, checks and goal progress. */
+export const wellnessAnalyticsSchema = z.object({
+  weeks: z.array(analyticsWeekSchema),
+  wellbeing_checks: z.array(
+    z.object({
+      completed_at: z.string(),
+      percent: z.number(),
+      band: z.object({ key: z.string(), label: z.string(), message: z.string() }),
+    }),
+  ),
+  goals: analyticsGoalsSchema,
+  disclaimer: z.string(),
+});
+export type WellnessAnalytics = z.infer<typeof wellnessAnalyticsSchema>;
+
 export const resourceSchema = z.object({
   id: z.string(),
   title: z.string(),

@@ -19,6 +19,7 @@ const THERAPIST_PAGES: [path: string, heading: RegExp][] = [
   ["/therapist/availability", /^Availability$/],
   ["/therapist/sessions", /^Sessions$/],
   ["/therapist/alerts", /^Risk alerts$/],
+  ["/therapist/analytics", /^Analytics$/],
   ["/therapist/follow-ups", /^Follow-ups$/],
   ["/therapist/messages", /^Messages$/],
   ["/therapist/profile", /^Profile$/],

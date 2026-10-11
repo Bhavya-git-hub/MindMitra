@@ -231,7 +231,7 @@ erDiagram
 | Enum storage | Not specified | `VARCHAR(32)` + named CHECK constraint instead of native PostgreSQL enums | Values can be added by a normal migration without `ALTER TYPE` |
 | Audit | Append-only, hash-chained | Implemented: BEFORE UPDATE/DELETE/TRUNCATE triggers reject changes; `hash = SHA256(prev_hash + canonical fields)` per institution; advisory lock serialises appends; `verify_chain()` finds the first altered row | As designed; S3 Object Lock checkpoints are a deployment task |
 | Retention | Sweep jobs | Companion conversations are swept by the scheduler once `expires_at` passes (migration `0010`); other soft-delete columns have no job yet | The rest belongs to the background-worker phase |
-| Not yet built | `resource_interaction`, `video_session`, `referral*`, `notification_preference`, `delivery_log`, `outbox_event`, `push_subscription`, `analytics.*`, resource embeddings | Deferred | Each belongs to a later feature phase |
+| Not yet built | `resource_interaction`, `video_session`, `referral*`, `notification_preference`, `delivery_log`, `outbox_event`, `push_subscription`, `analytics.*` (all portal analytics are computed live from the OLTP tables, [ADR 0014](adr/0014-portal-analytics.md)), resource embeddings | Deferred | Each belongs to a later feature phase |
 
 ### 0.5 Running it
 
