@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # End-to-end run: real PostgreSQL + real API + the internal AI service (with its offline fake
-# model, so no API key is needed) + production build of the web app + Playwright.
+# model, so no API key is needed, and freshly trained indicator models) + production build of
+# the web app + Playwright.
 #
 #   E2E_DATABASE_URL=postgresql+asyncpg://user:pass@localhost:5432/mm_e2e scripts/e2e/run.sh [playwright args]
 #
@@ -25,9 +26,15 @@ ML_SERVICE_TOKEN="$(python3 -c 'import secrets; print(secrets.token_urlsafe(48))
 export ML_SERVICE_TOKEN ML_SERVICE_URL="http://localhost:${ML_PORT}" LLM_PROVIDER=fake
 
 cd "$ML"
+# Wellness-indicator models, quickly trained on synthetic data into a throwaway directory (the
+# committed evaluation reports are left alone).
+E2E_MODELS="$(mktemp -d)"
+uv run --quiet python -m training.train --quick --no-transformer --students 1500 \
+  --out "$E2E_MODELS/models" --reports "$E2E_MODELS/reports" >/dev/null
+export ML_MODEL_DIR="$E2E_MODELS/models"
 uv run --quiet uvicorn app.main:create_app --factory --port "$ML_PORT" --log-level warning &
 ML_PID=$!
-trap 'kill "$ML_PID" 2>/dev/null || true' EXIT
+trap 'kill "$ML_PID" 2>/dev/null || true; rm -rf "$E2E_MODELS"' EXIT
 
 cd "$API"
 export DATABASE_URL="$E2E_DATABASE_URL"
@@ -45,7 +52,7 @@ uv run --quiet python "$ROOT/scripts/e2e/prepare_backend.py" "$WEB/e2e/.auth/use
 
 uv run --quiet uvicorn app.api.main:create_app --factory --port "$API_PORT" --log-level warning &
 API_PID=$!
-trap 'kill "$API_PID" "$ML_PID" 2>/dev/null || true' EXIT
+trap 'kill "$API_PID" "$ML_PID" 2>/dev/null || true; rm -rf "$E2E_MODELS"' EXIT
 
 for _ in $(seq 1 60); do
   curl -fsS "http://localhost:${API_PORT}/api/v1/health/live" >/dev/null 2>&1 && break

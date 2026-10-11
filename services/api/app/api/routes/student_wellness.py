@@ -10,15 +10,22 @@ import uuid
 from typing import Annotated
 from zoneinfo import ZoneInfo
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_db, require_permission
+from app.api.deps import app_state, get_db, require_permission
 from app.api.routes.me import MoodEntryOut
 from app.api.schemas import student as s
+from app.api.schemas.indicators import IndicatorsOut, indicators_out
 from app.api.zone import Zone, since_days
-from app.application import booking, goals, recommendations, student_wellness
+from app.application import (
+    booking,
+    goals,
+    recommendations,
+    student_wellness,
+    wellness_indicators,
+)
 from app.application.timeutil import local_today
 from app.domain.auth.permissions import Permission
 from app.domain.auth.policies import Principal
@@ -174,6 +181,15 @@ async def wellness_trends(
 ) -> s.TrendsOut:
     series = await student_wellness.daily_series(db, principal, days, zone)
     return s.TrendsOut(days=days, points=[s.trend_out(p) for p in series])
+
+
+@router.get("/wellness/indicators")
+async def wellness_indicators_own(
+    request: Request, db: Db, principal: Reader, zone: Zone
+) -> IndicatorsOut:
+    """Wellness indicators from the last 28 days of check-ins. Estimates, not a diagnosis."""
+    client = app_state(request).indicators
+    return indicators_out(await wellness_indicators.own(db, principal, zone, client))
 
 
 class DashboardOut(s.WellnessSummaryOut):

@@ -34,6 +34,7 @@ ROUTES: list[tuple[str, str, Any, set[str]]] = [
     ("GET", "/therapist/students", None, THERAPIST),
     ("GET", f"/therapist/students/{FAKE}", None, THERAPIST),
     ("GET", f"/therapist/students/{FAKE}/trends", None, THERAPIST),
+    ("GET", f"/therapist/students/{FAKE}/indicators", None, THERAPIST),
     ("GET", f"/therapist/students/{FAKE}/assessments", None, THERAPIST),
     ("GET", f"/therapist/students/{FAKE}/recommendations", None, THERAPIST),
     (

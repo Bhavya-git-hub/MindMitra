@@ -38,7 +38,7 @@ from app.domain.auth.policies import Principal
 from app.infrastructure.db import models as m
 from app.infrastructure.db.audit import append_audit_event
 from app.infrastructure.db.enums import AuditOutcome, UserRole, UserStatus
-from app.infrastructure.ml_client import CompanionClient
+from app.infrastructure.ml_client import CompanionClient, IndicatorClient
 from app.infrastructure.notifications.providers import Providers
 from app.infrastructure.realtime_hub import Hub
 
@@ -59,6 +59,8 @@ class AppState:
     providers: Providers
     # The AI service client, or None when ML_SERVICE_URL is not set (companion unavailable).
     companion: CompanionClient | None = None
+    # The same service's wellness indicators (None when not configured: answered with 503).
+    indicators: IndicatorClient | None = None
     companion_limiter: SlidingWindowRateLimiter = dataclasses.field(
         default_factory=lambda: SlidingWindowRateLimiter(8)
     )

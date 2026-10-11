@@ -139,6 +139,12 @@ the model is called, enforces limits and retention, and lets students delete con
 Still to do: reporting a reply, retrieval of vetted resources, and a trained crisis classifier
 alongside the rules.
 
+Wellness-indicator models are built too ([ADR 0011](docs/adr/0011-wellness-indicator-models.md)):
+stress level, burnout risk, social isolation, sleep and lifestyle, career worry and note tone,
+trained and evaluated on synthetic data only, served to the student and, with consent, to their
+care-team therapist. Still to do: a web page for them, a pretrained text model, and calibration
+and fairness work on real, consented data before any real use.
+
 ---
 
 ## Phase 7: Faculty & admin insights

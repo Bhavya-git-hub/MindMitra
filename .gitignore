@@ -22,8 +22,10 @@ venv/
 htmlcov/
 .coverage
 
-# ML artifacts (store in S3 / model registry, not git)
+# ML artifacts (store in S3 / model registry, not git). Rebuild with: python -m training.train
 services/ml/artifacts/
+services/ml/models/*
+!services/ml/models/README.md
 *.pt
 *.bin
 *.safetensors

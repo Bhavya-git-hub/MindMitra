@@ -54,12 +54,13 @@ from app.application.auth.errors import (
 from app.application.care import InvalidTransition
 from app.application.companion import CompanionLimited, CompanionOff
 from app.application.errors import InvalidInput
+from app.application.wellness_indicators import IndicatorsOff
 from app.core.access_tokens import AccessTokenCodec, load_private_key
 from app.core.config import Settings, get_settings
 from app.domain.auth.policies import Principal
 from app.infrastructure.db.session import create_engine, create_session_factory
 from app.infrastructure.events import set_broker
-from app.infrastructure.ml_client import CompanionClient, HttpCompanionClient
+from app.infrastructure.ml_client import CompanionClient, HttpCompanionClient, IndicatorClient
 from app.infrastructure.notifications.providers import Providers, build_providers
 from app.infrastructure.realtime_hub import Hub
 from app.workers.scheduler import run_forever
@@ -144,6 +145,7 @@ def create_app(
     providers: Providers | None = None,
     companion_client: CompanionClient | None = None,
     companion_limiter: SlidingWindowRateLimiter | None = None,
+    indicator_client: IndicatorClient | None = None,
 ) -> FastAPI:
     s = settings or get_settings()
     engine: AsyncEngine | None = None
@@ -158,6 +160,10 @@ def create_app(
     )
     factory = session_factory
     ml = companion_client if companion_client is not None else _default_companion(s)
+    # The default HTTP client also serves the wellness indicators; a test can pass its own.
+    indicators: IndicatorClient | None = indicator_client
+    if indicators is None and isinstance(ml, HttpCompanionClient):
+        indicators = ml
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
@@ -199,6 +205,7 @@ def create_app(
         hub=hub,
         providers=chosen_providers,
         companion=ml,
+        indicators=indicators,
         companion_limiter=companion_limiter
         or SlidingWindowRateLimiter(s.companion_rate_limit_per_minute),
     )
@@ -296,6 +303,10 @@ def _install_domain_handlers(app: FastAPI) -> None:
             else "The companion isn't available right now."
         )
         return problem(request, 503, detail)
+
+    @app.exception_handler(IndicatorsOff)
+    async def _indicators_off(request: Request, exc: IndicatorsOff) -> JSONResponse:
+        return problem(request, 503, "Wellness indicators aren't available right now.")
 
     @app.exception_handler(CompanionLimited)
     async def _companion_limited(request: Request, exc: CompanionLimited) -> JSONResponse:

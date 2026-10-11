@@ -1,6 +1,7 @@
 """Typed settings for the AI service. Every secret comes from an environment variable."""
 
 from functools import lru_cache
+from pathlib import Path
 from typing import Literal, Self
 
 from pydantic import Field, SecretStr, model_validator
@@ -20,6 +21,8 @@ class Settings(BaseSettings):
     anthropic_base_url: str = "https://api.anthropic.com"
     llm_timeout_seconds: float = Field(default=20.0, gt=0, le=120)
     llm_max_tokens: int = Field(default=400, ge=50, le=2000)
+    # Trained wellness indicator models (python -m training.train writes them here).
+    ml_model_dir: Path = Path(__file__).resolve().parent.parent / "models"
 
     @model_validator(mode="after")
     def _provider_is_usable(self) -> Self:

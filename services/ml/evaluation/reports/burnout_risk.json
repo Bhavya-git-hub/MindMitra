@@ -1,0 +1,172 @@
+{
+  "baseline": {
+    "always_not_elevated_accuracy": 0.7469,
+    "random_roc_auc": 0.5
+  },
+  "candidates": {
+    "logistic_regression": {
+      "accuracy": {
+        "mean": 0.8813,
+        "sd": 0.0114
+      },
+      "f1": {
+        "mean": 0.741,
+        "sd": 0.0246
+      },
+      "precision": {
+        "mean": 0.8254,
+        "sd": 0.0388
+      },
+      "recall": {
+        "mean": 0.6735,
+        "sd": 0.031
+      },
+      "roc_auc": {
+        "mean": 0.8914,
+        "sd": 0.0185
+      }
+    },
+    "random_forest": {
+      "accuracy": {
+        "mean": 0.8788,
+        "sd": 0.0111
+      },
+      "f1": {
+        "mean": 0.7325,
+        "sd": 0.027
+      },
+      "precision": {
+        "mean": 0.8262,
+        "sd": 0.0246
+      },
+      "recall": {
+        "mean": 0.6584,
+        "sd": 0.0333
+      },
+      "roc_auc": {
+        "mean": 0.8854,
+        "sd": 0.0159
+      }
+    },
+    "xgboost": {
+      "accuracy": {
+        "mean": 0.8819,
+        "sd": 0.0072
+      },
+      "f1": {
+        "mean": 0.7417,
+        "sd": 0.0207
+      },
+      "precision": {
+        "mean": 0.8282,
+        "sd": 0.0263
+      },
+      "recall": {
+        "mean": 0.6736,
+        "sd": 0.0408
+      },
+      "roc_auc": {
+        "mean": 0.885,
+        "sd": 0.0125
+      }
+    }
+  },
+  "classes": [
+    "not elevated",
+    "elevated"
+  ],
+  "cv_folds": 5,
+  "indicator": "burnout_risk",
+  "kind": "binary",
+  "n_test": 723,
+  "n_train": 2889,
+  "run": {
+    "corpus": "synthetic-notes-2026.10.1",
+    "excluded_low_data": 388,
+    "generator": "synthetic-cohort-2026.10.1",
+    "libraries": {
+      "numpy": "2.5.3",
+      "scikit-learn": "1.9.1",
+      "xgboost": "3.4.1"
+    },
+    "min_checkin_days": 7,
+    "quick": false,
+    "seed": 20261010,
+    "students": 4000,
+    "trained_at": "2026-10-10T17:02:10+00:00"
+  },
+  "selected": "logistic_regression",
+  "selection_metric": "cv_roc_auc",
+  "test": {
+    "accuracy": 0.8645,
+    "average_precision": 0.7666,
+    "band_shares": {
+      "elevated": 0.242,
+      "low": 0.7165,
+      "moderate": 0.0415
+    },
+    "brier": 0.1061,
+    "confusion_matrix": [
+      [
+        495,
+        45
+      ],
+      [
+        53,
+        130
+      ]
+    ],
+    "confusion_matrix_labels": [
+      "not elevated",
+      "elevated"
+    ],
+    "f1": 0.7263,
+    "n": 723,
+    "precision": 0.7429,
+    "prevalence": 0.2531,
+    "recall": 0.7104,
+    "recall_at_moderate": 0.7705,
+    "roc_auc": 0.8654,
+    "threshold": 0.3956
+  },
+  "thresholds": {
+    "elevated": 0.3956,
+    "moderate": 0.3305
+  },
+  "title": "Academic burnout risk",
+  "top_features": [
+    {
+      "feature": "energy_mean",
+      "importance": 0.1121
+    },
+    {
+      "feature": "emotion_overwhelmed_share",
+      "importance": 0.0062
+    },
+    {
+      "feature": "stress_high_share",
+      "importance": 0.0061
+    },
+    {
+      "feature": "mood_mean",
+      "importance": 0.005
+    },
+    {
+      "feature": "emotion_lonely_share",
+      "importance": 0.0046
+    },
+    {
+      "feature": "short_sleep_share",
+      "importance": 0.0045
+    },
+    {
+      "feature": "sleep_hours_mean",
+      "importance": 0.0038
+    },
+    {
+      "feature": "emotion_tired_share",
+      "importance": 0.0035
+    }
+  ],
+  "version": "burnout_risk-logistic_regression-20261010-4bfda67d"
+}

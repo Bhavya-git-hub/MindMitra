@@ -32,6 +32,7 @@ Interactive docs at `/docs` in development and test only.
 | `GET`, `PUT /me/wellness/sleep-entries` | `wellness:read:own` / `wellness:write:own` | Own sleep entries; `PUT` upserts one entry per wake date |
 | `GET /me/wellness/summary?tz=` | `wellness:read:own` | Today's mood, stress and sleep with plain-language indicators and week-on-week direction; check-in streak |
 | `GET /me/wellness/trends?days=&tz=` | `wellness:read:own` | Daily points for 7 to 90 days (days with nothing logged are `null`) |
+| `GET /me/wellness/indicators?tz=` | `wellness:read:own` | AI wellness indicators from the last 28 days of check-ins: stress level, burnout risk, social isolation, sleep and lifestyle, career worry and the tone of own notes. Each is a band (`low`/`moderate`/`elevated`) or `not_enough_data`, with `model_version` and a disclaimer; no raw scores. `503` when the AI service or its models are unavailable. Models trained on synthetic data, not a diagnosis ([ADR 0011](adr/0011-wellness-indicator-models.md)) |
 | `GET /me/dashboard?tz=` | `wellness:read:own` | Summary + next appointment + last 7 days + current recommendations in one call |
 | `GET /me/wellness/assessment`, `GET`, `POST /me/wellness/assessments` | `wellness:read:own` / `wellness:write:own` | The WHO-5 well-being instrument, own results, and submitting answers (scored on the server; wording is "Doing well / Mixed / Lower lately", never diagnostic) |
 | `GET`, `POST /me/goals`, `PATCH /me/goals/{id}` | `goal:manage:own` | Own wellness goals: progress, pause, complete, let go |
@@ -60,6 +61,7 @@ Interactive docs at `/docs` in development and test only.
 | `PATCH /appointments/{id}` | `appointment:manage` | Confirm, cancel (optional `cancel_reason`, only with `cancelled`, `422` otherwise), complete or mark no-show. Confirming a first appointment creates the care-team link; the student is notified (ids-only payload). Starting a session notifies the student too |
 | `GET /therapist/students`, `GET /therapist/students/{id}` | `student:read:assigned` | Caseload and the authorized profile. **Verified therapist and active care link required** (`404` otherwise). The profile reports which consents are active |
 | `GET /therapist/students/{id}/trends?days=&tz=` | `wellness:read:assigned` | Mood, stress and sleep points; needs the `share_mood_with_care_team` consent (`403` without it); no private notes |
+| `GET /therapist/students/{id}/indicators?tz=` | `wellness:read:assigned` | The same indicators without the tone of notes (notes are not read or sent); needs a care link (`404`) and the `share_ai_signals_with_care_team` consent (`403`); audited with counts only; `503` when the AI service is unavailable |
 | `GET /therapist/students/{id}/assessments` | `wellness:read:assigned` | WHO-5 results; needs the `share_assessments_with_care_team` consent |
 | `GET`, `POST /therapist/students/{id}/recommendations` | `recommendation:create:assigned` | Suggestions this therapist made; creating one shows it to the student as "From your therapist" and notifies them |
 | `GET /therapist/sessions?status=` | `session:manage` | Own sessions (only for students currently on the care team) |
@@ -316,9 +318,10 @@ Teachers, therapists and admins have **no** companion access.
 |---------------|--------|---------|
 | `POST /internal/v1/crisis/detect` | api | Text → `{crisis, category, confidence, requires_human, rules_hit}` |
 | `POST /internal/v1/signals/support-need` | worker | Feature vector → band + factors |
-| `POST /internal/v1/sentiment` | worker | Text → score |
+| `POST /internal/v1/indicators` | api | **Built.** `{window_end, days[], notes[]}` → five check-in indicators plus note tone, each `{indicator, title, meaning, status, band, level, probabilities, model_version}`, with `checkin_days`, `notes_considered` and the disclaimer. `503` when models are missing or fail verification |
+| `POST /internal/v1/sentiment` | api | **Built.** `{texts[]}` (1 to 50, 2,000 characters each) → `{label, probabilities}` per text, `model_version`, disclaimer |
 | `POST /internal/v1/companion/respond` | api | **Built.** `{message, history}` → `{kind, reply, crisis, topic, flags, model_version}`; `kind` is `reply`, `crisis` (no reply: the API answers), `redirect`, `fallback` or `unavailable`. Not streamed |
-| `GET /internal/v1/models` | api | **Built.** Model, prompt and crisis-rules versions |
+| `GET /internal/v1/models` | api | **Built.** Model, prompt and crisis-rules versions, and indicator model versions (or why they are unavailable) |
 | `GET /internal/v1/health` | infra | **Built.** Liveness, no authentication, no details |
 
 Auth: signed service token (HS256 JWT with `aud=mindmitra-ml`, `iss=mindmitra-api`, 5 min, secret `ML_SERVICE_TOKEN`) + private network only. The ML service

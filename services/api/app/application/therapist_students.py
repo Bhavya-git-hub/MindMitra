@@ -4,8 +4,9 @@ Two separate gates apply, and both are checked here and again in the route guard
 
 * the care team (the student is "mine") lets a therapist see that a student exists, their
   course context, appointments with this therapist, sessions, alerts and follow-ups;
-* the student's consent (``share_mood_with_care_team`` / ``share_assessments_with_care_team``)
-  is additionally needed to read their check-in trends or wellbeing questionnaires.
+* the student's consent (``share_mood_with_care_team`` / ``share_assessments_with_care_team``
+  / ``share_ai_signals_with_care_team``) is additionally needed to read their check-in trends,
+  wellbeing questionnaires or AI wellness indicators.
 
 Without consent the profile says so (``sharing``) instead of silently showing nothing, and the
 consent-gated endpoints answer 403. Every profile, trend and assessment read is audited with
@@ -20,7 +21,7 @@ from zoneinfo import ZoneInfo
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.application import student_wellness
+from app.application import student_wellness, wellness_indicators
 from app.application.access import enforce, has_active_consent
 from app.application.errors import InvalidInput
 from app.application.risk_alerts import OPEN_STATUSES
@@ -37,6 +38,7 @@ from app.infrastructure.db.enums import (
     FollowUpStatus,
     UserRole,
 )
+from app.infrastructure.ml_client import IndicatorClient
 
 LIVE = (AppointmentStatus.REQUESTED, AppointmentStatus.CONFIRMED)
 MAX_CASELOAD_ROWS = 200
@@ -416,6 +418,43 @@ async def trends(
     await _audit(db, actor, "wellness_trend.read", "wellness_trend", student_id, days=days)
     await db.commit()
     return series
+
+
+async def indicators(
+    db: AsyncSession,
+    actor: Principal,
+    student_id: uuid.UUID,
+    zone: ZoneInfo,
+    client: IndicatorClient | None,
+) -> wellness_indicators.Result:
+    """The AI wellness indicators, for a student who shares them with their care team. The
+    student's private notes are not read or sent, so the note-tone indicator is left out."""
+    student = await _consented_student(
+        db,
+        actor,
+        student_id,
+        ConsentScope.SHARE_AI_SIGNALS_WITH_CARE_TEAM,
+        action="wellness_indicator.read",
+        resource_type="wellness_indicator",
+    )
+    if client is None:
+        raise wellness_indicators.IndicatorsOff("not configured")
+    window_end, days, _ = await wellness_indicators.collect(
+        db, student_id, student.institution_id, zone, with_notes=False
+    )
+    report = await wellness_indicators.score(client, window_end, days, [])
+    out = wellness_indicators.result(window_end, report, include_note_tone=False)
+    await _audit(
+        db,
+        actor,
+        "wellness_indicator.read",
+        "wellness_indicator",
+        student_id,
+        checkin_days=out.checkin_days,
+        indicators=len(out.indicators),
+    )
+    await db.commit()
+    return out
 
 
 async def assessments(

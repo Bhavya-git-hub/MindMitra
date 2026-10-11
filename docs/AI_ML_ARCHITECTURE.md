@@ -215,6 +215,27 @@ with synthetic conversations only.
 
 ## 5. Predictive models
 
+### 5.0 What is built today
+
+[ADR 0011](adr/0011-wellness-indicator-models.md) adds the first trained models, in
+`services/ml`, trained on synthetic data only:
+
+- Five check-in indicators (stress level, burnout risk, social isolation, sleep and lifestyle,
+  career worry) from 31 features over 28 days. Logistic regression, random forest and XGBoost
+  are compared by five-fold cross-validation; the best per indicator is served.
+- Tone of check-in notes: TF-IDF with naive Bayes or logistic regression. Pretrained
+  transformers could not be evaluated in development (no access to the weights); a small
+  encoder trained from scratch was compared and is not served.
+- Served by `POST /internal/v1/indicators` and `POST /internal/v1/sentiment`, and to people
+  through `GET /api/v1/me/wellness/indicators` and, with the `share_ai_signals_with_care_team`
+  consent and a care link, `GET /api/v1/therapist/students/{id}/indicators`.
+- Scored on request, not after each check-in. Bands only, with no calibrated confidence and no
+  per-student explanations yet. Indicators never raise alerts.
+
+Metrics are in `services/ml/evaluation/reports/REPORT.md`; limitations in
+`services/ml/model_cards/wellness-indicators.md` and `services/ml/model_cards/sentiment.md`.
+The designs below are the target.
+
 ### 5.1 Support-need signal
 
 | Aspect | Design |

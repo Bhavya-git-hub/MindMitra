@@ -1,0 +1,244 @@
+{
+  "baseline": {
+    "majority_class_accuracy": 0.3333
+  },
+  "candidates": {
+    "tfidf_logistic_regression": {
+      "accuracy": {
+        "mean": 0.6365,
+        "sd": 0.1514
+      },
+      "f1": {
+        "mean": 0.6356,
+        "sd": 0.1495
+      },
+      "precision": {
+        "mean": 0.6898,
+        "sd": 0.1577
+      },
+      "recall": {
+        "mean": 0.6404,
+        "sd": 0.1513
+      },
+      "roc_auc": {
+        "mean": 0.8067,
+        "sd": 0.0933
+      },
+      "seen_patterns_f1": {
+        "mean": 1.0,
+        "sd": 0.0
+      }
+    },
+    "tfidf_naive_bayes": {
+      "accuracy": {
+        "mean": 0.6599,
+        "sd": 0.1209
+      },
+      "f1": {
+        "mean": 0.6566,
+        "sd": 0.1175
+      },
+      "precision": {
+        "mean": 0.7103,
+        "sd": 0.1332
+      },
+      "recall": {
+        "mean": 0.662,
+        "sd": 0.1191
+      },
+      "roc_auc": {
+        "mean": 0.8383,
+        "sd": 0.0753
+      },
+      "seen_patterns_f1": {
+        "mean": 1.0,
+        "sd": 0.0
+      }
+    }
+  },
+  "classes": [
+    "negative",
+    "neutral",
+    "positive"
+  ],
+  "cv_folds": 5,
+  "hard_case_accuracy": 0.4583,
+  "hard_cases": 24,
+  "held_out_families": 12,
+  "indicator": "sentiment",
+  "kind": "multiclass",
+  "n_test": 2040,
+  "n_train": 8160,
+  "other_models_on_test": {
+    "tfidf_logistic_regression": {
+      "hard_case_accuracy": 0.5,
+      "test": {
+        "accuracy": 0.8,
+        "confusion_matrix": [
+          [
+            510,
+            0,
+            170
+          ],
+          [
+            1,
+            530,
+            149
+          ],
+          [
+            5,
+            83,
+            592
+          ]
+        ],
+        "confusion_matrix_labels": [
+          "negative",
+          "neutral",
+          "positive"
+        ],
+        "f1": 0.8056,
+        "n": 2040,
+        "per_class": {
+          "negative": {
+            "f1": 0.8528,
+            "precision": 0.9884,
+            "recall": 0.75
+          },
+          "neutral": {
+            "f1": 0.8198,
+            "precision": 0.8646,
+            "recall": 0.7794
+          },
+          "positive": {
+            "f1": 0.7442,
+            "precision": 0.6498,
+            "recall": 0.8706
+          }
+        },
+        "precision": 0.8343,
+        "recall": 0.8,
+        "roc_auc": 0.9299
+      }
+    },
+    "transformer_from_scratch": {
+      "hard_case_accuracy": 0.5417,
+      "note": "2-layer encoder trained from scratch on this corpus; not served.",
+      "parameters": 81923,
+      "test": {
+        "accuracy": 0.551,
+        "confusion_matrix": [
+          [
+            440,
+            169,
+            71
+          ],
+          [
+            109,
+            570,
+            1
+          ],
+          [
+            289,
+            277,
+            114
+          ]
+        ],
+        "confusion_matrix_labels": [
+          "negative",
+          "neutral",
+          "positive"
+        ],
+        "f1": 0.5051,
+        "n": 2040,
+        "per_class": {
+          "negative": {
+            "f1": 0.5797,
+            "precision": 0.5251,
+            "recall": 0.6471
+          },
+          "neutral": {
+            "f1": 0.6722,
+            "precision": 0.561,
+            "recall": 0.8382
+          },
+          "positive": {
+            "f1": 0.2633,
+            "precision": 0.6129,
+            "recall": 0.1676
+          }
+        },
+        "precision": 0.5663,
+        "recall": 0.551,
+        "roc_auc": 0.7006
+      },
+      "train_seconds": 30.0
+    }
+  },
+  "run": {
+    "corpus": "synthetic-notes-2026.10.1",
+    "excluded_low_data": 388,
+    "generator": "synthetic-cohort-2026.10.1",
+    "libraries": {
+      "numpy": "2.5.3",
+      "scikit-learn": "1.9.1",
+      "xgboost": "3.4.1"
+    },
+    "min_checkin_days": 7,
+    "quick": false,
+    "seed": 20261010,
+    "students": 4000,
+    "trained_at": "2026-10-10T17:02:10+00:00"
+  },
+  "selected": "tfidf_naive_bayes",
+  "selection_metric": "grouped_cv_f1",
+  "test": {
+    "accuracy": 0.8167,
+    "confusion_matrix": [
+      [
+        584,
+        10,
+        86
+      ],
+      [
+        12,
+        498,
+        170
+      ],
+      [
+        0,
+        96,
+        584
+      ]
+    ],
+    "confusion_matrix_labels": [
+      "negative",
+      "neutral",
+      "positive"
+    ],
+    "f1": 0.8198,
+    "n": 2040,
+    "per_class": {
+      "negative": {
+        "f1": 0.9154,
+        "precision": 0.9799,
+        "recall": 0.8588
+      },
+      "neutral": {
+        "f1": 0.7757,
+        "precision": 0.8245,
+        "recall": 0.7324
+      },
+      "positive": {
+        "f1": 0.7684,
+        "precision": 0.6952,
+        "recall": 0.8588
+      }
+    },
+    "precision": 0.8332,
+    "recall": 0.8167,
+    "roc_auc": 0.9575
+  },
+  "thresholds": {},
+  "title": "Sentiment of check-in notes",
+  "version": "sentiment-tfidf_naive_bayes-20261010-026.10.1"
+}

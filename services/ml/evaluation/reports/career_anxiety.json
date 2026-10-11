@@ -1,0 +1,172 @@
+{
+  "baseline": {
+    "always_not_elevated_accuracy": 0.7676,
+    "random_roc_auc": 0.5
+  },
+  "candidates": {
+    "logistic_regression": {
+      "accuracy": {
+        "mean": 0.8792,
+        "sd": 0.0054
+      },
+      "f1": {
+        "mean": 0.713,
+        "sd": 0.0148
+      },
+      "precision": {
+        "mean": 0.7944,
+        "sd": 0.0216
+      },
+      "recall": {
+        "mean": 0.6478,
+        "sd": 0.0264
+      },
+      "roc_auc": {
+        "mean": 0.8897,
+        "sd": 0.0101
+      }
+    },
+    "random_forest": {
+      "accuracy": {
+        "mean": 0.8754,
+        "sd": 0.0067
+      },
+      "f1": {
+        "mean": 0.6949,
+        "sd": 0.0134
+      },
+      "precision": {
+        "mean": 0.8066,
+        "sd": 0.0369
+      },
+      "recall": {
+        "mean": 0.612,
+        "sd": 0.025
+      },
+      "roc_auc": {
+        "mean": 0.8833,
+        "sd": 0.0124
+      }
+    },
+    "xgboost": {
+      "accuracy": {
+        "mean": 0.874,
+        "sd": 0.0104
+      },
+      "f1": {
+        "mean": 0.7066,
+        "sd": 0.0198
+      },
+      "precision": {
+        "mean": 0.7714,
+        "sd": 0.043
+      },
+      "recall": {
+        "mean": 0.6537,
+        "sd": 0.0277
+      },
+      "roc_auc": {
+        "mean": 0.8818,
+        "sd": 0.0136
+      }
+    }
+  },
+  "classes": [
+    "not elevated",
+    "elevated"
+  ],
+  "cv_folds": 5,
+  "indicator": "career_anxiety",
+  "kind": "binary",
+  "n_test": 723,
+  "n_train": 2889,
+  "run": {
+    "corpus": "synthetic-notes-2026.10.1",
+    "excluded_low_data": 388,
+    "generator": "synthetic-cohort-2026.10.1",
+    "libraries": {
+      "numpy": "2.5.3",
+      "scikit-learn": "1.9.1",
+      "xgboost": "3.4.1"
+    },
+    "min_checkin_days": 7,
+    "quick": false,
+    "seed": 20261010,
+    "students": 4000,
+    "trained_at": "2026-10-10T17:02:10+00:00"
+  },
+  "selected": "logistic_regression",
+  "selection_metric": "cv_roc_auc",
+  "test": {
+    "accuracy": 0.8714,
+    "average_precision": 0.7054,
+    "band_shares": {
+      "elevated": 0.2227,
+      "low": 0.7261,
+      "moderate": 0.0512
+    },
+    "brier": 0.1067,
+    "confusion_matrix": [
+      [
+        512,
+        43
+      ],
+      [
+        50,
+        118
+      ]
+    ],
+    "confusion_matrix_labels": [
+      "not elevated",
+      "elevated"
+    ],
+    "f1": 0.7173,
+    "n": 723,
+    "precision": 0.7329,
+    "prevalence": 0.2324,
+    "recall": 0.7024,
+    "recall_at_moderate": 0.7381,
+    "roc_auc": 0.8489,
+    "threshold": 0.3668
+  },
+  "thresholds": {
+    "elevated": 0.3668,
+    "moderate": 0.2719
+  },
+  "title": "Career worries",
+  "top_features": [
+    {
+      "feature": "stressor_career_share",
+      "importance": 0.266
+    },
+    {
+      "feature": "emotion_anxious_share",
+      "importance": 0.0194
+    },
+    {
+      "feature": "stress_high_share",
+      "importance": 0.007
+    },
+    {
+      "feature": "emotion_hopeful_share",
+      "importance": 0.0049
+    },
+    {
+      "feature": "stressor_workload_share",
+      "importance": 0.0026
+    },
+    {
+      "feature": "sleep_hours_sd",
+      "importance": 0.0021
+    },
+    {
+      "feature": "longest_gap_days",
+      "importance": 0.0016
+    },
+    {
+      "feature": "stressor_deadlines_share",
+      "importance": 0.0011
+    }
+  ],
+  "version": "career_anxiety-logistic_regression-20261010-4bfda67d"
+}

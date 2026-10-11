@@ -1,0 +1,172 @@
+{
+  "baseline": {
+    "always_not_elevated_accuracy": 0.7455,
+    "random_roc_auc": 0.5
+  },
+  "candidates": {
+    "logistic_regression": {
+      "accuracy": {
+        "mean": 0.9062,
+        "sd": 0.0107
+      },
+      "f1": {
+        "mean": 0.7967,
+        "sd": 0.0275
+      },
+      "precision": {
+        "mean": 0.8827,
+        "sd": 0.0149
+      },
+      "recall": {
+        "mean": 0.7273,
+        "sd": 0.0447
+      },
+      "roc_auc": {
+        "mean": 0.9173,
+        "sd": 0.0113
+      }
+    },
+    "random_forest": {
+      "accuracy": {
+        "mean": 0.9062,
+        "sd": 0.013
+      },
+      "f1": {
+        "mean": 0.798,
+        "sd": 0.0285
+      },
+      "precision": {
+        "mean": 0.8789,
+        "sd": 0.0281
+      },
+      "recall": {
+        "mean": 0.7313,
+        "sd": 0.0345
+      },
+      "roc_auc": {
+        "mean": 0.9158,
+        "sd": 0.0168
+      }
+    },
+    "xgboost": {
+      "accuracy": {
+        "mean": 0.9093,
+        "sd": 0.0144
+      },
+      "f1": {
+        "mean": 0.8086,
+        "sd": 0.0293
+      },
+      "precision": {
+        "mean": 0.8719,
+        "sd": 0.0375
+      },
+      "recall": {
+        "mean": 0.7545,
+        "sd": 0.0307
+      },
+      "roc_auc": {
+        "mean": 0.9112,
+        "sd": 0.0127
+      }
+    }
+  },
+  "classes": [
+    "not elevated",
+    "elevated"
+  ],
+  "cv_folds": 5,
+  "indicator": "sleep_lifestyle_risk",
+  "kind": "binary",
+  "n_test": 723,
+  "n_train": 2889,
+  "run": {
+    "corpus": "synthetic-notes-2026.10.1",
+    "excluded_low_data": 388,
+    "generator": "synthetic-cohort-2026.10.1",
+    "libraries": {
+      "numpy": "2.5.3",
+      "scikit-learn": "1.9.1",
+      "xgboost": "3.4.1"
+    },
+    "min_checkin_days": 7,
+    "quick": false,
+    "seed": 20261010,
+    "students": 4000,
+    "trained_at": "2026-10-10T17:02:10+00:00"
+  },
+  "selected": "logistic_regression",
+  "selection_metric": "cv_roc_auc",
+  "test": {
+    "accuracy": 0.899,
+    "average_precision": 0.8467,
+    "band_shares": {
+      "elevated": 0.2199,
+      "low": 0.7497,
+      "moderate": 0.0304
+    },
+    "brier": 0.0816,
+    "confusion_matrix": [
+      [
+        515,
+        24
+      ],
+      [
+        49,
+        135
+      ]
+    ],
+    "confusion_matrix_labels": [
+      "not elevated",
+      "elevated"
+    ],
+    "f1": 0.7872,
+    "n": 723,
+    "precision": 0.8491,
+    "prevalence": 0.2545,
+    "recall": 0.7337,
+    "recall_at_moderate": 0.7826,
+    "roc_auc": 0.912,
+    "threshold": 0.4214
+  },
+  "thresholds": {
+    "elevated": 0.4214,
+    "moderate": 0.3549
+  },
+  "title": "Sleep and lifestyle",
+  "top_features": [
+    {
+      "feature": "late_bedtime_share",
+      "importance": 0.0539
+    },
+    {
+      "feature": "short_sleep_share",
+      "importance": 0.0311
+    },
+    {
+      "feature": "emotion_tired_share",
+      "importance": 0.0234
+    },
+    {
+      "feature": "energy_mean",
+      "importance": 0.0178
+    },
+    {
+      "feature": "stressor_sleep_share",
+      "importance": 0.0173
+    },
+    {
+      "feature": "sleep_hours_mean",
+      "importance": 0.0052
+    },
+    {
+      "feature": "stress_mean",
+      "importance": 0.0046
+    },
+    {
+      "feature": "emotion_hopeful_share",
+      "importance": 0.003
+    }
+  ],
+  "version": "sleep_lifestyle_risk-logistic_regression-20261010-4bfda67d"
+}
