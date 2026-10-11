@@ -8,7 +8,8 @@ What the API owns, so it holds whatever the AI service does:
 - **Crisis first.** The API's own copy of the crisis rules runs on every message before
   anything else, including the rate limits. A crisis is answered here with a fixed reply and
   the institution's crisis contacts, the model is never asked, and a person is alerted
-  (``escalation.raise_alert``). Open companion alerts are not duplicated: a later, more urgent
+  through the safety workflow (``safety_workflow``, ADR 0013), which also pauses normal
+  suggestions. Open companion alerts are not duplicated: a later, more urgent
   message raises the existing alert instead. The AI service runs the same rules (and, later, a
   classifier); if it reports a crisis the API missed, the same escalation happens.
 - **Fail safe.** If the AI service is not configured, down or slow, the student gets a fixed
@@ -26,6 +27,7 @@ What the API owns, so it holds whatever the AI service does:
 
 import dataclasses
 import datetime as dt
+import logging
 import uuid
 from typing import Final
 
@@ -33,27 +35,24 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.rate_limit import SlidingWindowRateLimiter
-from app.application import institution_settings
+from app.application import institution_settings, safety_workflow
 from app.application.access import NotFound, enforce, has_active_consent
 from app.application.auth.errors import Conflict
 from app.application.errors import InvalidInput
-from app.application.escalation import raise_alert, raise_severity
 from app.application.safety import crisis_contacts
+from app.application.safety_workflow import EscalationStatus
 from app.application.timeutil import now_utc
 from app.core.config import Settings
 from app.domain.auth.policies import Principal, can_read_ai_conversation
 from app.domain.safety import crisis_rules
+from app.domain.safety.classifier import CLASSIFIER, SafetyAssessment
+from app.domain.safety.risk import Concern, RiskLevel, Source
 from app.infrastructure.db import models as m
 from app.infrastructure.db.audit import append_audit_event
 from app.infrastructure.db.enums import (
     AIConversationStatus,
     AIMessageRole,
     AIReplyKind,
-    AlertCategory,
-    AlertDetector,
-    AlertSeverity,
-    AlertSource,
-    AlertStatus,
     AuditOutcome,
     ConsentScope,
     UserRole,
@@ -66,6 +65,8 @@ from app.infrastructure.ml_client import (
     HistoryTurn,
 )
 
+log = logging.getLogger("mindmitra.companion")
+
 MAX_MESSAGE: Final = 2000
 HISTORY_SENT: Final = 24  # the AI service trims further to its own context budget
 RETENTION_DEFAULT: Final = dt.timedelta(hours=24)
@@ -73,8 +74,6 @@ RETENTION_WITH_HISTORY: Final = dt.timedelta(days=90)
 DAY: Final = dt.timedelta(hours=24)
 # While a reply is on its way, a second message in the same conversation waits.
 REPLY_PENDING: Final = dt.timedelta(seconds=60)
-# An open companion alert from the last day is raised again rather than duplicated.
-ALERT_REUSE_WINDOW: Final = dt.timedelta(hours=24)
 MAX_LIST: Final = 100
 
 DISCLAIMER: Final = (
@@ -82,19 +81,7 @@ DISCLAIMER: Final = (
     "and I can make mistakes. If you're in danger, use Get help now."
 )
 
-_CATEGORY = {
-    "suicidal_ideation": AlertCategory.SUICIDAL_LANGUAGE,
-    "self_harm": AlertCategory.SELF_HARM_LANGUAGE,
-    "harm_to_others": AlertCategory.HARM_TO_OTHERS,
-    "abuse_or_unsafe_situation": AlertCategory.UNSAFE_SITUATION,
-    "acute_distress": AlertCategory.ACUTE_DISTRESS,
-}
-_SEVERITY = {
-    "moderate": AlertSeverity.MODERATE,
-    "high": AlertSeverity.HIGH,
-    "imminent": AlertSeverity.IMMINENT,
-}
-ALERT_TITLE: Final = "A student may need support now"
+ALERT_TITLE: Final = safety_workflow.ALERT_TITLE
 
 # ---- fixed crisis replies (written once, reviewed, never generated) --------------------------
 
@@ -119,6 +106,10 @@ _CRISIS_CONTACTS = (
 _TOLD_CARE_TEAM = "I've let your counsellor know, so a person can reach out to you."
 _TOLD_TEAM = "I've let your institution's counselling team know, so a person can reach out to you."
 _ALREADY_TOLD = "Your counsellor or the counselling team already knows and will reach out."
+_NOT_TOLD = (
+    "I couldn't reach the counselling team just now, so please contact one of the people below "
+    "yourself."
+)
 _THIRD_PERSON = (
     "It sounds like you're worried about someone. If they might be in danger, contact "
     "emergency services or campus support for them now. The contacts below can help, and "
@@ -126,9 +117,27 @@ _THIRD_PERSON = (
 )
 
 
-def crisis_reply(category: str | None, *, told_care_team: bool, already_open: bool) -> str:
+# The companion's openings are keyed by the crisis rules' own category names.
+_RULE_CATEGORY: Final = {
+    Concern.UNSAFE_SITUATION: "abuse_or_unsafe_situation",
+    Concern.HARM_TO_OTHERS: "harm_to_others",
+}
+
+
+def _rule_category(found: SafetyAssessment) -> str | None:
+    return _RULE_CATEGORY.get(found.concern) if found.concern else None
+
+
+def crisis_reply(
+    category: str | None, *, told_care_team: bool, already_open: bool, failed: bool = False
+) -> str:
     opening = _CRISIS_OPENING.get(category or "", _CRISIS_DEFAULT_OPENING)
-    told = _ALREADY_TOLD if already_open else (_TOLD_CARE_TEAM if told_care_team else _TOLD_TEAM)
+    if failed:
+        told = _NOT_TOLD
+    elif already_open:
+        told = _ALREADY_TOLD
+    else:
+        told = _TOLD_CARE_TEAM if told_care_team else _TOLD_TEAM
     return f"{opening} {_CRISIS_CONTACTS} {told}"
 
 
@@ -387,71 +396,51 @@ async def _history(db: AsyncSession, conv_id: uuid.UUID, before_seq: int) -> lis
     return out
 
 
+@dataclasses.dataclass(frozen=True)
+class _Escalated:
+    already_open: bool
+    care_team_notified: bool
+    failed: bool
+
+
 async def _escalate(
     db: AsyncSession,
     actor: Principal,
     conv: m.AIConversation,
+    found: SafetyAssessment,
     *,
-    category: str | None,
-    severity: str | None,
-    detector: AlertDetector,
     model_version: str | None,
     now: dt.datetime,
-) -> tuple[bool, bool]:
-    """Raise (or re-raise) the companion alert. Returns (already_open, care_team_notified)."""
-    alert_category = _CATEGORY.get(category or "", AlertCategory.ACUTE_DISTRESS)
-    alert_severity = _SEVERITY.get(severity or "", AlertSeverity.HIGH)
-    existing = await db.scalar(
-        select(m.RiskAlert)
-        .where(
-            m.RiskAlert.student_id == actor.user_id,
-            m.RiskAlert.institution_id == actor.institution_id,
-            m.RiskAlert.source == AlertSource.AI_CHAT,
-            m.RiskAlert.status.in_(
-                (AlertStatus.OPEN, AlertStatus.ACKNOWLEDGED, AlertStatus.IN_PROGRESS)
-            ),
-            m.RiskAlert.created_at > now - ALERT_REUSE_WINDOW,
-        )
-        .order_by(m.RiskAlert.created_at.desc())
-        .limit(1)
-        .with_for_update()
-    )
-    if existing is not None:
-        await raise_severity(db, existing, alert_severity, title=ALERT_TITLE, now=now)
-        await _audit(
+) -> _Escalated:
+    """Hand a crisis to the safety workflow: an alert (or the open one raised again), the
+    pause on suggestions and the safety event. The caller commits."""
+    try:
+        outcome = await safety_workflow.WORKFLOW.handle(
             db,
             actor,
-            "ai_conversation.crisis",
-            conv.id,
-            category=alert_category.value,
-            severity=alert_severity.value,
-            alert="existing",
+            found,
+            source=Source.COMPANION,
+            now=now,
+            source_type="ai_conversation",
+            source_id=conv.id,
+            model_version=model_version,
         )
-        return True, existing.assigned_to is not None
-    escalation = await raise_alert(
-        db,
-        institution_id=actor.institution_id,
-        student_id=actor.user_id,
-        source=AlertSource.AI_CHAT,
-        detector=detector,
-        category=alert_category,
-        severity=alert_severity,
-        title=ALERT_TITLE,
-        now=now,
-        source_type="ai_conversation",
-        source_id=conv.id,
-        model_version=model_version,
-    )
+    except Exception:
+        log.exception("the safety workflow failed for a companion crisis")
+        outcome = None
+    escalation = outcome.escalation if outcome else None
+    already = escalation is not None and escalation.status is EscalationStatus.ALREADY_OPEN
+    failed = escalation is None or not escalation.requested
     await _audit(
         db,
         actor,
         "ai_conversation.crisis",
         conv.id,
-        category=alert_category.value,
-        severity=alert_severity.value,
-        alert="new",
+        category=(found.concern.value if found.concern else "acute_distress"),
+        severity=found.alert_severity or "high",
+        alert="failed" if failed else ("existing" if already else "new"),
     )
-    return False, escalation.assigned_to_care_team
+    return _Escalated(already, escalation is not None and escalation.care_team_notified, failed)
 
 
 async def _next_seq(db: AsyncSession, conv_id: uuid.UUID) -> tuple[int, m.AIMessage | None]:
@@ -482,9 +471,10 @@ async def send_message(
 
     # 1. Ownership, then the API's own crisis rules, before any switch or limit.
     conv = await _own(db, actor, conv_id, "ai_conversation.message", lock=True)
-    rules = crisis_rules.detect(text)
+    found = CLASSIFIER.assess_text(text)
+    crisis = found.level.at_least(RiskLevel.HIGH)
     on, reason, daily_limit = await _switches(db, actor, settings)
-    if not rules.crisis:
+    if not crisis:
         if not on or client is None:
             raise CompanionOff(reason or "not_configured")
         wait = limiter.hit(str(actor.user_id))
@@ -510,8 +500,8 @@ async def send_message(
         seq=seq,
         role=AIMessageRole.USER,
         content=text,
-        crisis_flag=rules.crisis,
-        safety_flags=["crisis_rules"] if rules.crisis else [],
+        crisis_flag=crisis,
+        safety_flags=["crisis_rules"] if crisis else [],
         created_at=now,
     )
     db.add(message)
@@ -519,29 +509,32 @@ async def send_message(
     conv.expires_at = now + retention
 
     # 2. A crisis is answered here and handed to a person; the model is never asked.
-    if rules.crisis:
-        already, told = await _escalate(
-            db,
-            actor,
-            conv,
-            category=rules.category,
-            severity=rules.severity.value if rules.severity else None,
-            detector=AlertDetector.RULES,
-            model_version=crisis_rules.rules_version(),
-            now=now,
+    if crisis:
+        done = await _escalate(
+            db, actor, conv, found, model_version=crisis_rules.rules_version(), now=now
         )
         reply = _reply(
             conv,
             seq + 1,
             AIReplyKind.CRISIS,
-            crisis_reply(rules.category, told_care_team=told, already_open=already),
+            crisis_reply(
+                _rule_category(found),
+                told_care_team=done.care_team_notified,
+                already_open=done.already_open,
+                failed=done.failed,
+            ),
             ["crisis_rules"],
         )
         conv.status = AIConversationStatus.CRISIS_HANDOFF
         db.add(reply)
         await db.commit()
         contacts = await crisis_contacts(db, actor)
-        return Exchange(conv, message, reply, Support("crisis", True, told, False, contacts))
+        return Exchange(
+            conv,
+            message,
+            reply,
+            Support("crisis", not done.failed, done.care_team_notified, False, contacts),
+        )
 
     # 3. Commit the student's message, then ask the AI service outside the transaction.
     await db.flush()
@@ -565,30 +558,32 @@ async def send_message(
     elif result.crisis.action == "escalate" or result.kind == "crisis":
         message.crisis_flag = True
         message.safety_flags = ["crisis_service"]
-        already, told = await _escalate(
-            db,
-            actor,
-            conv,
+        reported = CLASSIFIER.from_ai_service(
+            action="escalate",
             category=result.crisis.category,
             severity=result.crisis.severity,
-            detector=AlertDetector.CLASSIFIER
-            if "classifier" in result.flags
-            else AlertDetector.RULES,
-            model_version=result.model_version,
-            now=now,
+            classifier="classifier" in result.flags,
+        )
+        done = await _escalate(
+            db, actor, conv, reported, model_version=result.model_version, now=now
         )
         reply = _reply(
             conv,
             seq + 1,
             AIReplyKind.CRISIS,
-            crisis_reply(result.crisis.category, told_care_team=told, already_open=already),
+            crisis_reply(
+                result.crisis.category,
+                told_care_team=done.care_team_notified,
+                already_open=done.already_open,
+                failed=done.failed,
+            ),
             ["crisis_service"],
         )
         conv.status = AIConversationStatus.CRISIS_HANDOFF
-        support = Support("crisis", True, told, False, [])
+        support = Support("crisis", not done.failed, done.care_team_notified, False, [])
     else:
         flags = [f[:40] for f in result.flags][:10]
-        gentle = result.crisis.action == "review" or rules.show_resources
+        gentle = result.crisis.action == "review" or found.level.at_least(RiskLevel.MODERATE)
         if gentle:
             flags.append("support_resources")
         reply = _reply(
@@ -597,7 +592,7 @@ async def send_message(
         conv.model_version = result.model_version
         if gentle:
             support = Support(
-                "gentle", False, False, result.crisis.third_person or rules.third_person, []
+                "gentle", False, False, result.crisis.third_person or found.about_someone_else, []
             )
             if support.about_someone_else:
                 reply.content = f"{_THIRD_PERSON} {reply.content}"

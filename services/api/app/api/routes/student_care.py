@@ -168,6 +168,7 @@ async def send_message(
     return s.SentMessageOut(
         message=_message_out(sent.message, principal),
         support=s.SUPPORT_INFO if sent.support_suggested else None,
+        safety=s.safety_out(sent.safety) if sent.safety else None,
     )
 
 

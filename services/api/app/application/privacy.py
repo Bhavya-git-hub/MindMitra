@@ -326,6 +326,23 @@ async def export_data(db: AsyncSession, actor: Principal) -> dict[str, Any]:
                 db, m.RecommendationPreference, actor, m.RecommendationPreference.created_at
             )
         ],
+        # What the safety system did about a serious concern: no text was ever kept.
+        "safety_events": [
+            _row(
+                r,
+                (
+                    "created_at",
+                    "source",
+                    "risk_level",
+                    "concern",
+                    "escalated",
+                    "basis",
+                    "recommendations_paused",
+                    "hold_until",
+                ),
+            )  # fmt: skip
+            for r in await _all(db, m.SafetyEvent, actor, m.SafetyEvent.created_at)
+        ],
         "journal_entries": [_row(r, ("created_at", "title", "body", "mood_tag")) for r in journals],
         "appointments": [
             _row(r, ("starts_at", "ends_at", "mode", "status", "reason", "cancelled_at"))

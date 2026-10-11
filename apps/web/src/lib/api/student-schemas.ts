@@ -7,6 +7,49 @@ const direction = z.enum(["up", "steady", "down"]).nullable();
 export const supportInfoSchema = z.object({ message: z.string(), help_path: z.string() });
 export type SupportInfo = z.infer<typeof supportInfoSchema>;
 
+/** A place to get help now. `id` is null for the built-in "local emergency services" entry. */
+export const emergencyResourceSchema = z.object({
+  id: z.string().nullable(),
+  label: z.string(),
+  kind: z.string(),
+  phone: z.string().nullable(),
+  url: z.string().nullable(),
+  description: z.string().nullable(),
+  hours: z.string().nullable(),
+});
+export type EmergencyResource = z.infer<typeof emergencyResourceSchema>;
+
+/** What the safety system found and did (ADR 0013). Never a diagnosis. */
+export const safetySchema = z.object({
+  level: z.enum(["moderate", "high", "immediate"]),
+  about_someone_else: z.boolean(),
+  emergency_first: z.boolean(),
+  offer_outreach: z.boolean(),
+  guidance: z.object({ title: z.string(), message: z.string(), steps: z.array(z.string()) }),
+  resources: z.array(emergencyResourceSchema),
+  counselling: z.object({
+    has_care_team: z.boolean(),
+    message_path: z.string().nullable(),
+    booking_path: z.string(),
+  }),
+  escalation: z.object({
+    status: z.enum(["requested", "already_open", "not_requested", "failed"]),
+    basis: z.string(),
+    care_team_notified: z.boolean(),
+  }),
+  recommendations_paused: z.boolean(),
+  paused_until: z.string().nullable(),
+  disclaimer: z.string(),
+});
+export type Safety = z.infer<typeof safetySchema>;
+
+export const safetyStatusSchema = z.object({
+  recommendations_paused: z.boolean(),
+  support: safetySchema.nullable(),
+  disclaimer: z.string(),
+});
+export type SafetyStatus = z.infer<typeof safetyStatusSchema>;
+
 export const moodEntrySchema = z.object({
   id: z.string(),
   mood_score: z.number().int(),
@@ -40,6 +83,7 @@ export const checkInResultSchema = z.object({
   stress: stressEntrySchema.nullable(),
   sleep: sleepEntrySchema.nullable(),
   support: supportInfoSchema.nullable(),
+  safety: safetySchema.nullish(),
 });
 export type CheckInResult = z.infer<typeof checkInResultSchema>;
 
@@ -211,6 +255,7 @@ export const dashboardSchema = wellnessSummarySchema.extend({
   upcoming_appointment: appointmentSchema.nullable(),
   recent_trends: z.array(trendPointSchema),
   recommendations: z.array(recommendationSchema),
+  safety: safetySchema.nullish(),
 });
 export type Dashboard = z.infer<typeof dashboardSchema>;
 
@@ -300,6 +345,7 @@ export type Message = z.infer<typeof messageSchema>;
 export const sentMessageSchema = z.object({
   message: messageSchema,
   support: supportInfoSchema.nullable(),
+  safety: safetySchema.nullish(),
 });
 
 export const consentSchema = z.object({

@@ -48,9 +48,12 @@ SCOPES: tuple[ScopeInfo, ...] = (
     ),
     ScopeInfo(
         ConsentScope.JOURNAL_SAFETY_SCANNING,
-        "Check my journal for safety concerns",
-        "Allows a safety check of journal text so a person can reach out if you may be in "
-        "danger. Journals stay private to you either way.",
+        "Check my journal and check-in notes for safety concerns",
+        "If something you write suggests you may not be safe, your counselling team is asked to "
+        "reach out. They are told only that you may need support, never what you wrote, and "
+        "your notes stay private either way. Whatever you choose, you always see support "
+        "contacts, and if your words suggest you may be in immediate danger (a plan, or "
+        "tonight), the counselling team is asked to reach out anyway.",
     ),
     ScopeInfo(
         ConsentScope.AI_COMPANION_HISTORY,

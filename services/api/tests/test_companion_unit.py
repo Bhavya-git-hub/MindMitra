@@ -310,3 +310,10 @@ async def test_missing_indicator_models_never_open_the_companion_circuit(
     assert (await client.respond("hi", [])).kind == "reply"
     assert "PRIVATE" not in caplog.text
     await client.aclose()
+
+
+def test_a_failed_escalation_never_claims_someone_was_told() -> None:
+    text = crisis_reply("suicidal_ideation", told_care_team=True, already_open=False, failed=True)
+    assert "yourself" in text
+    assert "emergency number" in text
+    assert "let your counsellor know" not in text and "team know" not in text

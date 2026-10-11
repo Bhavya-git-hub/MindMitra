@@ -21,6 +21,7 @@ import {
   recommendationSchema,
   resourceDetailSchema,
   resourceSchema,
+  safetyStatusSchema,
   sentMessageSchema,
   sleepEntrySchema,
   slotSchema,
@@ -263,6 +264,8 @@ export function createStudentApi(client: ApiClient, timeZone: () => string = bro
       }),
     crisisContacts: () =>
       client.request("/me/safety/resources", { schema: list(crisisContactSchema) }),
+    /** Whether normal suggestions are paused for safety, and the support to show meanwhile. */
+    safetyStatus: () => client.request("/me/safety/status", { schema: safetyStatusSchema }),
 
     aiConversations: () =>
       client.request("/me/ai-conversations", { schema: list(aiConversationSchema) }),

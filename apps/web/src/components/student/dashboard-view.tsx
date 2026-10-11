@@ -22,6 +22,7 @@ import { EmptyState } from "@/components/states/empty-state";
 import { DataView } from "@/components/student/data-view";
 import { MetricCard } from "@/components/student/metric-card";
 import { RecommendationList } from "@/components/student/recommendation-list";
+import { SafetyPanel } from "@/components/student/safety-panel";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { Dashboard } from "@/lib/api/student-schemas";
@@ -162,6 +163,7 @@ function DashboardBody({ data }: { data: Dashboard }) {
   const trendFields = (["mood", "stress"] as const).filter((f) => hasAny(data.recent_trends, f));
   return (
     <div className="space-y-6">
+      {data.safety && <SafetyPanel safety={data.safety} />}
       <CheckInCard data={data} />
 
       <section aria-labelledby="indicators-heading" className="space-y-3">
@@ -248,7 +250,9 @@ function DashboardBody({ data }: { data: Dashboard }) {
           <RecommendationList items={data.recommendations} compact />
         ) : (
           <p className="text-sm text-muted-foreground">
-            No suggestions right now. They appear as you check in.
+            {data.safety?.recommendations_paused
+              ? "Suggestions are paused for now, so support comes first."
+              : "No suggestions right now. They appear as you check in."}
           </p>
         )}
       </SectionCard>

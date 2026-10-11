@@ -7,7 +7,7 @@ from typing import Annotated, Literal
 
 from pydantic import AwareDatetime, BaseModel, Field, StringConstraints
 
-from app.application import booking, recommendation_feedback, recommendations
+from app.application import booking, recommendation_feedback, recommendations, safety_workflow
 from app.application.student_wellness import DailyPoint, Summary
 from app.domain.wellness import indicators, instruments
 from app.domain.wellness.recommender.catalog import BY_KEY, MUTABLE_AREAS
@@ -101,6 +101,101 @@ SUPPORT_INFO = SupportInfo(
     ),
     help_path="/student/emergency",
 )
+
+
+# ---- safety (ADR 0013) ----------------------------------------------------------------------
+
+
+class EmergencyResourceOut(BaseModel):
+    id: uuid.UUID | None  # null for the built-in "local emergency services" entry
+    label: str
+    kind: str  # "emergency" | "helpline" | "campus"
+    phone: str | None
+    url: str | None
+    description: str | None
+    hours: str | None
+
+
+class GuidanceOut(BaseModel):
+    title: str
+    message: str
+    steps: list[str]
+
+
+class CounsellingAccessOut(BaseModel):
+    has_care_team: bool
+    message_path: str | None
+    booking_path: str
+
+
+class HumanEscalationOut(BaseModel):
+    # "requested" | "already_open" | "not_requested" | "failed"
+    status: str
+    # "consent" | "vital_interest" | "care_team_message" | "companion_notice" | "no_consent"
+    # | "not_needed"
+    basis: str
+    care_team_notified: bool
+
+
+class SafetyOut(BaseModel):
+    """What to show when words or numbers suggest a student may need support. Never a
+    diagnosis; never a replacement for emergency services or qualified professionals."""
+
+    level: str  # "moderate" | "high" | "immediate"
+    about_someone_else: bool
+    emergency_first: bool
+    offer_outreach: bool  # nobody was asked automatically: offer "ask someone to reach out"
+    guidance: GuidanceOut
+    resources: list[EmergencyResourceOut]
+    counselling: CounsellingAccessOut
+    escalation: HumanEscalationOut
+    recommendations_paused: bool
+    paused_until: dt.datetime | None
+    disclaimer: str
+
+
+class SafetyStatusOut(BaseModel):
+    recommendations_paused: bool
+    support: SafetyOut | None  # present while suggestions are paused
+    disclaimer: str
+
+
+def safety_out(o: safety_workflow.SafetyOutcome) -> SafetyOut:
+    failed = o.escalation.status is safety_workflow.EscalationStatus.FAILED
+    return SafetyOut(
+        level=o.level.value,
+        about_someone_else=o.about_someone_else,
+        emergency_first=o.decision.emergency_first,
+        offer_outreach=o.decision.offer_outreach or failed,
+        guidance=GuidanceOut(
+            title=o.guidance.title, message=o.guidance.message, steps=list(o.guidance.steps)
+        ),
+        resources=[
+            EmergencyResourceOut(
+                id=r.id,
+                label=r.label,
+                kind=r.kind,
+                phone=r.phone,
+                url=r.url,
+                description=r.description,
+                hours=r.hours,
+            )
+            for r in o.resources
+        ],
+        counselling=CounsellingAccessOut(
+            has_care_team=o.counselling.has_care_team,
+            message_path=o.counselling.message_path,
+            booking_path=o.counselling.booking_path,
+        ),
+        escalation=HumanEscalationOut(
+            status=o.escalation.status.value,
+            basis=o.escalation.basis.value,
+            care_team_notified=o.escalation.care_team_notified,
+        ),
+        recommendations_paused=o.recommendations_paused,
+        paused_until=o.hold_until,
+        disclaimer=o.disclaimer,
+    )
 
 
 # ---- indicators, summary, trends ------------------------------------------------------------
@@ -573,6 +668,7 @@ class MessageIn(BaseModel):
 class SentMessageOut(BaseModel):
     message: MessageOut
     support: SupportInfo | None = None
+    safety: SafetyOut | None = None
 
 
 # ---- privacy --------------------------------------------------------------------------------

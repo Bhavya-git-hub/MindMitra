@@ -7,6 +7,7 @@ institution are the caller's. Nothing here reads another person's data.
 
 import dataclasses
 import datetime as dt
+import logging
 import uuid
 from collections import defaultdict
 from decimal import Decimal
@@ -16,15 +17,19 @@ from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.application import safety_workflow
 from app.application.access import enforce
 from app.application.errors import InvalidInput
 from app.application.timeutil import day_bounds, local_today, now_utc
 from app.domain.auth.policies import Principal, can_use_own_student_record
+from app.domain.safety import classifier
+from app.domain.safety.risk import RiskLevel, Source
 from app.domain.wellness import indicators, instruments
-from app.domain.wellness.support_prompt import show_support_prompt
 from app.infrastructure.db import models as m
 from app.infrastructure.db.enums import GoalStatus
 from app.infrastructure.db.ids import uuid7
+
+log = logging.getLogger("mindmitra.wellness")
 
 DAILY_STRESS_SCALE = "daily_stress_check"
 MAX_LIMIT = 200
@@ -72,6 +77,8 @@ class CheckInResult:
     stress: m.StressAssessment | None
     sleep: m.SleepEntry | None
     support_suggested: bool
+    # What the safety system found and did (MODERATE and above), see ADR 0013.
+    safety: safety_workflow.SafetyOutcome | None = None
 
 
 def _clean_tags(values: tuple[str, ...], limit: int, length: int) -> list[str]:
@@ -183,14 +190,56 @@ async def record_check_in(
     sleep = await _upsert_sleep(db, actor, data.sleep, zone, now) if data.sleep else None
     await db.flush()
     await db.commit()
+    # The check-in is saved first, so nothing below can lose it, and set apart from the
+    # session so a rollback in the safety step cannot expire what is returned.
+    for saved in (mood, stress, sleep):
+        if saved is not None:
+            db.expunge(saved)
+
+    found = classifier.CLASSIFIER.assess(
+        text=note,
+        behaviour=await _behaviour(db, actor, data.mood_score, data.stress_level, zone, now),
+    )
+    safety = await safety_workflow.act(db, actor, found, source=Source.CHECK_IN, now=now)
     return CheckInResult(
         mood=mood,
         stress=stress,
         sleep=sleep,
-        support_suggested=show_support_prompt(
-            mood_score=data.mood_score, stress_level=data.stress_level, note=note
-        ),
+        support_suggested=found.level.at_least(RiskLevel.MODERATE),
+        safety=safety,
     )
+
+
+async def _behaviour(
+    db: AsyncSession,
+    actor: Principal,
+    mood_today: int,
+    stress_today: int | None,
+    zone: ZoneInfo,
+    now: dt.datetime,
+) -> classifier.BehaviourSnapshot:
+    """Today's numbers and how many of the last seven local days had a low mood."""
+    low_days = 0
+    try:
+        first_day = local_today(zone, now) - dt.timedelta(days=classifier.SUSTAINED_WINDOW_DAYS - 1)
+        rows = await db.execute(
+            select(m.MoodEntry.mood_score, m.MoodEntry.logged_at).where(
+                m.MoodEntry.student_id == actor.user_id,
+                m.MoodEntry.institution_id == actor.institution_id,
+                m.MoodEntry.logged_at
+                >= now - dt.timedelta(days=classifier.SUSTAINED_WINDOW_DAYS + 1),
+            )
+        )
+        lowest: dict[dt.date, int] = {}
+        for score, at in rows.all():
+            day = at.astimezone(zone).date()
+            if day >= first_day:
+                lowest[day] = min(score, lowest.get(day, score))
+        low_days = sum(1 for v in lowest.values() if v <= classifier.SUSTAINED_LOW_MOOD_MAX)
+    except Exception:  # today's numbers still count
+        log.exception("could not read recent check-ins for the safety check")
+        await db.rollback()
+    return classifier.BehaviourSnapshot(mood_today, stress_today, low_days)
 
 
 # ---- single-kind logging and history --------------------------------------------------------

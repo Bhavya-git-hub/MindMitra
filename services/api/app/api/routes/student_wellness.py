@@ -24,6 +24,7 @@ from app.application import (
     goals,
     recommendation_engine,
     recommendations,
+    safety_workflow,
     student_wellness,
     wellness_indicators,
 )
@@ -70,6 +71,7 @@ class CheckInOut(BaseModel):
     stress: s.StressEntryOut | None
     sleep: s.SleepEntryOut | None
     support: s.SupportInfo | None
+    safety: s.SafetyOut | None  # MODERATE and above (ADR 0013)
 
 
 async def _refresh_recommendations_quietly(
@@ -107,6 +109,7 @@ async def create_check_in(
         stress=s.stress_out(result.stress) if result.stress else None,
         sleep=s.sleep_out(result.sleep) if result.sleep else None,
         support=s.SUPPORT_INFO if result.support_suggested else None,
+        safety=s.safety_out(result.safety) if result.safety else None,
     )
     await _refresh_recommendations_quietly(db, principal, zone, indicators)
     return out
@@ -200,6 +203,7 @@ class DashboardOut(s.WellnessSummaryOut):
     upcoming_appointment: s.StudentAppointmentOut | None
     recent_trends: list[s.TrendPointOut]
     recommendations: list[s.RecommendationOut]
+    safety: s.SafetyOut | None  # while normal suggestions are paused (ADR 0013)
 
 
 @router.get("/dashboard")
@@ -208,12 +212,16 @@ async def dashboard(db: Db, principal: Reader, zone: Zone) -> DashboardOut:
     series = await student_wellness.daily_series(db, principal, 7, zone)
     recs = await recommendations.list_recommendations(db, principal, limit=3)
     upcoming = await booking.next_upcoming(db, principal)
+    hold = await safety_workflow.active_hold(db, principal)
     base = s.summary_out(summary)
     return DashboardOut(
         **base.model_dump(),
         upcoming_appointment=s.appointment_view_out(upcoming) if upcoming else None,
         recent_trends=[s.trend_out(p) for p in series],
         recommendations=[s.recommendation_out(r) for r in recs],
+        safety=s.safety_out(await safety_workflow.hold_outcome(db, principal, hold))
+        if hold
+        else None,
     )
 
 
