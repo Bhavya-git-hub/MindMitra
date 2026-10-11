@@ -98,6 +98,13 @@ says otherwise. Each phase ends with tests run and passing (rule 20).
 **Exit:** a crisis phrase in synthetic data always produces resources for the student and a
 notified, auditable escalation, even with workers degraded.
 
+**Status:** the safety and escalation system is built
+([ADR 0013](docs/adr/0013-safety-and-escalation-system.md),
+[SAFETY_SYSTEM.md](docs/SAFETY_SYSTEM.md)): four risk levels across check-ins, messages and the
+companion, consent-aware escalation, a suggestion pause, minimal text-free event records and
+false positive and negative suites. Still to do: on-call rotas, acknowledgement timers with
+automatic re-escalation, email and SMS, and clinical review of the lexicon's known gaps.
+
 ---
 
 ## Phase 5: ML service: assistive insights

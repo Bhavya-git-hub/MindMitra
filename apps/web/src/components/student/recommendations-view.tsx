@@ -10,6 +10,7 @@ import { InlineAlert } from "@/components/states/inline-alert";
 import { DataView } from "@/components/student/data-view";
 import { useSubmit } from "@/components/student/form-bits";
 import { RecommendationPreferencesCard } from "@/components/student/recommendation-preferences";
+import { SafetyPanel } from "@/components/student/safety-panel";
 import {
   RecommendationList,
   type RecommendationAction,
@@ -25,6 +26,8 @@ export function RecommendationsView() {
   const api = useStudentApi();
   const open = useQuery("recommendations", () => api.recommendations());
   const history = useQuery("recommendation-history", () => api.recommendationHistory());
+  const safety = useQuery("safety-status", () => api.safetyStatus());
+  const paused = safety.state.data?.recommendations_paused ?? false;
   // Pages after the first one, loaded on request and dropped whenever the lists reload.
   const [older, setOlder] = React.useState<Recommendation[]>([]);
   const [moreAvailable, setMoreAvailable] = React.useState(true);
@@ -101,6 +104,7 @@ export function RecommendationsView() {
           </Button>
         }
       />
+      {paused && safety.state.data?.support && <SafetyPanel safety={safety.state.data.support} />}
       {refresh.error && <InlineAlert tone="destructive">{refresh.error}</InlineAlert>}
       {respond.error && <InlineAlert tone="destructive">{respond.error}</InlineAlert>}
       <DataView query={open}>
@@ -108,8 +112,12 @@ export function RecommendationsView() {
           items.length === 0 ? (
             <EmptyState
               icon={Sparkles}
-              title="No suggestions right now"
-              description="Check in for a few days and ideas will appear here."
+              title={paused ? "Suggestions are paused for now" : "No suggestions right now"}
+              description={
+                paused
+                  ? "Support comes first. Your usual suggestions will come back in a few days, or sooner once someone from the counselling team has been in touch."
+                  : "Check in for a few days and ideas will appear here."
+              }
             />
           ) : (
             <RecommendationList

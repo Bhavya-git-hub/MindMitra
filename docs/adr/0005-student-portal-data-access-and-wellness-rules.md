@@ -47,6 +47,9 @@ when a check-in suggests the student is struggling.
    only way a person is alerted is the student asking: `POST /me/support-requests`, which
    creates a high-priority, human-handled alert (one open request at a time).
    Automated detection and escalation belong to the safety phase and need clinical review.
+   *Amended by [ADR 0013](0013-safety-and-escalation-system.md): the support prompt is now the
+   `MODERATE` response of the safety system, and `HIGH` and `IMMEDIATE` concerns can ask a
+   person to reach out, within consent rules.*
 8. **"Today" is the student's today.** The browser sends its IANA time zone as `?tz=`; the API
    validates it and falls back to UTC. Sleep is stored as two exact instants plus the wake date.
 9. **Crisis contacts are data, not code.** They live in `safety.crisis_contacts`, per institution
@@ -62,7 +65,7 @@ when a check-in suggests the student is struggling.
   care-link checks above are reused, and tests that a teacher or another therapist cannot read
   therapy notes or unshared mood data come with it.
 - Because the support prompt is informational, a student in distress who does not reach out
-  will not be noticed by the software. This is a known limitation and is stated in the product
+  will not be noticed by the software (superseded by ADR 0013). This is a known limitation and is stated in the product
   copy and README, not hidden.
 - Suggestions are limited by the rules we wrote; they are explainable and cheap to test, and a
   learned model can be added behind the same endpoint later.

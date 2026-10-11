@@ -15,6 +15,7 @@ from sqlalchemy import func, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.application import safety_workflow
 from app.application.access import NotFound, enforce, has_active_care_link
 from app.application.errors import InvalidInput
 from app.application.notifications import notify
@@ -26,7 +27,8 @@ from app.domain.auth.policies import (
     can_message_in_conversation,
     can_read_conversation_history,
 )
-from app.domain.wellness.support_prompt import show_support_prompt
+from app.domain.safety.classifier import CLASSIFIER
+from app.domain.safety.risk import RiskLevel, Source
 from app.infrastructure.db import models as m
 from app.infrastructure.db.enums import NotificationType
 from app.infrastructure.db.ids import uuid7
@@ -203,6 +205,9 @@ async def get_messages(
 class SentMessage:
     message: m.Message
     support_suggested: bool
+    # A student's words that suggest they may not be safe (ADR 0013): guidance, contacts, and
+    # an alert so a person on their care team sees it in time, not only when they next read.
+    safety: safety_workflow.SafetyOutcome | None = None
 
 
 async def send_message(
@@ -263,10 +268,20 @@ async def send_message(
         db, actor.user_id, {"type": "message", "with": str(other_id), "message_id": str(message.id)}
     )
     await db.commit()
-    suggested = actor.role is Role.STUDENT and show_support_prompt(
-        mood_score=3, stress_level=None, note=text
+    if actor.role is not Role.STUDENT:
+        return SentMessage(message, False)
+    db.expunge(message)  # a rollback in the safety step must not expire what is returned
+    found = CLASSIFIER.assess_text(text)
+    safety = await safety_workflow.act(
+        db,
+        actor,
+        found,
+        source=Source.MESSAGE,
+        now=now,
+        source_type="message",
+        source_id=message.id,
     )
-    return SentMessage(message, suggested)
+    return SentMessage(message, found.level.at_least(RiskLevel.MODERATE), safety)
 
 
 async def mark_read(db: AsyncSession, actor: Principal, other_id: uuid.UUID) -> int:

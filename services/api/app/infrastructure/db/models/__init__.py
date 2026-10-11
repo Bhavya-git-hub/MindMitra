@@ -35,6 +35,7 @@ from app.infrastructure.db.models.safety import (
     CrisisContact,
     Referral,
     RiskAlert,
+    SafetyEvent,
     TeacherSupportRequest,
 )
 from app.infrastructure.db.models.therapy import (
@@ -90,6 +91,7 @@ __all__ = [
     "Resource",
     "Referral",
     "RiskAlert",
+    "SafetyEvent",
     "SleepEntry",
     "Student",
     "StressAssessment",

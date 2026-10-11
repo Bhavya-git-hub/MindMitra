@@ -10,12 +10,13 @@ import { EmptyState } from "@/components/states/empty-state";
 import { InlineAlert } from "@/components/states/inline-alert";
 import { DataView } from "@/components/student/data-view";
 import { SaveButton, useSubmit } from "@/components/student/form-bits";
+import { SafetyPanel } from "@/components/student/safety-panel";
 import { SupportCallout } from "@/components/student/support-callout";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import type { SupportInfo } from "@/lib/api/student-schemas";
+import type { Safety, SupportInfo } from "@/lib/api/student-schemas";
 import { formatDateTime } from "@/lib/format";
 import { useQuery } from "@/lib/hooks/use-query";
 import { useStudentApi } from "@/lib/hooks/use-student-api";
@@ -124,6 +125,7 @@ export function ConversationView({
   const thread = useQuery(`messages-${otherId}`, () => api.messages(otherId));
   const [text, setText] = React.useState("");
   const [support, setSupport] = React.useState<SupportInfo | null>(null);
+  const [safety, setSafety] = React.useState<Safety | null>(null);
   // One id per message the student writes, so a retry after a dropped connection can't duplicate it.
   const clientId = React.useRef<string | null>(null);
   const { pending, error, run } = useSubmit();
@@ -171,6 +173,7 @@ export function ConversationView({
       clientId.current = null;
       setText("");
       setSupport(sent.support);
+      setSafety(sent.safety ?? null);
       await Promise.all([reload(), reloadConversations()]);
     }, "Your message wasn't sent. Please try again.");
   }
@@ -185,7 +188,12 @@ export function ConversationView({
           </Button>
         }
       />
-      {!isTherapist && support && <SupportCallout message={support.message} />}
+      {!isTherapist &&
+        (safety ? (
+          <SafetyPanel safety={safety} />
+        ) : (
+          support && <SupportCallout message={support.message} />
+        ))}
       <SectionCard
         title="Messages"
         description={

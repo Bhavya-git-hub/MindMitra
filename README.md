@@ -23,6 +23,7 @@ AI-assisted, privacy-preserving student wellness and therapist support platform 
 
 - [`CLAUDE.md`](CLAUDE.md): permanent project rules (read first)
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md): full technical architecture (16 areas + risks)
+- [`docs/SAFETY_SYSTEM.md`](docs/SAFETY_SYSTEM.md): risk levels, escalation, consent and logging rules, known gaps. The safety system is not a replacement for emergency services or qualified professionals
 - [`docs/DATABASE_DESIGN.md`](docs/DATABASE_DESIGN.md), [`docs/API_DESIGN.md`](docs/API_DESIGN.md), [`docs/SECURITY_ARCHITECTURE.md`](docs/SECURITY_ARCHITECTURE.md), [`docs/AI_ML_ARCHITECTURE.md`](docs/AI_ML_ARCHITECTURE.md), [`docs/USER_FLOWS.md`](docs/USER_FLOWS.md)
 - [`DEVELOPMENT_ROADMAP.md`](DEVELOPMENT_ROADMAP.md): phase-by-phase plan
 

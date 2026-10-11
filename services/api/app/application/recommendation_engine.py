@@ -20,7 +20,7 @@ from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.application import recommendation_feedback as prefs_service
-from app.application import wellness_indicators
+from app.application import safety_workflow, wellness_indicators
 from app.application.directory import visible_resource_filters
 from app.application.recommendations import RecommendationView, list_recommendations
 from app.application.student_wellness import authorize_own
@@ -232,8 +232,11 @@ def _reasons(pick: Pick) -> dict[str, Any]:
 async def refresh_recommendations(
     db: AsyncSession, actor: Principal, zone: ZoneInfo, client: IndicatorClient | None = None
 ) -> list[RecommendationView]:
-    """Work out what is worth suggesting now, add it, and return the student's open list."""
+    """Work out what is worth suggesting now, add it, and return the student's open list.
+    Nothing new is suggested while the safety system has paused suggestions."""
     authorize_own(db, actor, "recommendation.refresh", "recommendation")
+    if await safety_workflow.active_hold(db, actor) is not None:
+        return await list_recommendations(db, actor)
     prefs = await prefs_service.load_preferences(db, actor)
 
     today, records, _ = await wellness_indicators.collect(

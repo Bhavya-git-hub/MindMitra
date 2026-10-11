@@ -13,11 +13,14 @@ from sqlalchemy import (
     Numeric,
     SmallInteger,
     String,
+    UniqueConstraint,
     text,
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
+from app.domain.safety.policy import EscalationBasis
+from app.domain.safety.risk import Concern, Detector, RiskLevel, Source
 from app.infrastructure.db.base import (
     Base,
     TenantMixin,
@@ -83,6 +86,8 @@ class RiskAlert(UUIDPrimaryKeyMixin, TenantMixin, TimestampMixin, Base):
         ),
         Index("ix_risk_alerts_student_created", "student_id", text("created_at DESC")),
         Index("ix_risk_alerts_assigned_status", "assigned_to", "status"),
+        # Lets a safety event point at an alert of the same institution only.
+        UniqueConstraint("id", "institution_id", name="uq_risk_alerts_link_tenant"),
         {"schema": "safety"},
     )
 
@@ -123,6 +128,56 @@ class RiskAlert(UUIDPrimaryKeyMixin, TenantMixin, TimestampMixin, Base):
     )
     resolved_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     outcome: Mapped[str | None] = mapped_column(String(60), nullable=True)
+
+
+class SafetyEvent(UUIDPrimaryKeyMixin, TenantMixin, TimestampMixin, Base):
+    """What the safety system did about a HIGH or IMMEDIATE concern, and nothing more (ADR 0013).
+
+    The minimum needed to pause suggestions, to account for every escalation (and every one
+    the student's consent held back) and to measure the rules: level, kind of concern, where
+    it came from, the rules version, and what was done. No text, no excerpt, no matched rule
+    ids and no link to the check-in or message. Moderate and low concerns are not stored at
+    all. Kept for 90 days (``sweep_safety_events``); the alert, if any, is the safety record.
+    """
+
+    __tablename__ = "safety_events"
+    __table_args__ = (
+        tenant_fk("student_id", "org.students", ondelete="CASCADE"),
+        tenant_fk("alert_id", "safety.risk_alerts", ondelete="RESTRICT", target_column="id"),
+        CheckConstraint("risk_level IN ('high','immediate')", name="only_high_or_immediate"),
+        CheckConstraint(
+            "NOT escalated OR basis IN ('consent','vital_interest','care_team_message',"
+            "'companion_notice')",
+            name="escalated_needs_basis",
+        ),
+        CheckConstraint("alert_id IS NULL OR escalated", name="alert_only_when_escalated"),
+        CheckConstraint(
+            "recommendations_paused = (hold_until IS NOT NULL)", name="hold_until_when_paused"
+        ),
+        Index("ix_safety_events_student_created", "student_id", text("created_at DESC")),
+        Index("ix_safety_events_created", "created_at"),
+        Index(
+            "ix_safety_events_alert_id", "alert_id", postgresql_where=text("alert_id IS NOT NULL")
+        ),
+        {"schema": "safety"},
+    )
+
+    student_id: Mapped[uuid.UUID] = uuid_col()
+    source: Mapped[Source] = mapped_column(enum_col(Source, "safety_event_source"), nullable=False)
+    risk_level: Mapped[RiskLevel] = mapped_column(enum_col(RiskLevel, "risk_level"), nullable=False)
+    concern: Mapped[Concern] = mapped_column(enum_col(Concern, "safety_concern"), nullable=False)
+    detector: Mapped[Detector] = mapped_column(
+        enum_col(Detector, "safety_detector"), nullable=False
+    )
+    rules_version: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    # A person was asked to reach out (false when the policy did not allow it, or asking failed).
+    escalated: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    basis: Mapped[EscalationBasis] = mapped_column(
+        enum_col(EscalationBasis, "escalation_basis"), nullable=False
+    )
+    alert_id: Mapped[uuid.UUID | None] = uuid_col(nullable=True)
+    recommendations_paused: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    hold_until: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class CrisisContact(UUIDPrimaryKeyMixin, TimestampMixin, Base):

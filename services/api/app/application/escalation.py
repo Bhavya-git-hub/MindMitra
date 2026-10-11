@@ -49,6 +49,7 @@ class Escalation:
     alert: m.RiskAlert
     assigned_to_care_team: bool
     notified: int  # how many people were told
+    already_open: bool = False  # an open alert from the same place was raised again instead
 
 
 async def primary_care_therapist(
@@ -174,3 +175,57 @@ async def raise_severity(
         alert.sla_ack_due_at = due
     await db.flush()
     return await _notify_people(db, alert, title, alert.assigned_to)
+
+
+async def raise_or_reuse(
+    db: AsyncSession,
+    *,
+    institution_id: uuid.UUID,
+    student_id: uuid.UUID,
+    source: AlertSource,
+    detector: AlertDetector,
+    category: AlertCategory,
+    severity: AlertSeverity,
+    title: str,
+    now: dt.datetime,
+    reuse_window: dt.timedelta,
+    source_type: str | None = None,
+    source_id: uuid.UUID | None = None,
+    model_version: str | None = None,
+) -> Escalation:
+    """Raise an alert, unless one from the same place is still open from within
+    ``reuse_window``: then that one is raised in urgency (and its people told again) instead,
+    so a student writing several worried messages does not flood the team. The caller
+    commits."""
+    existing = await db.scalar(
+        select(m.RiskAlert)
+        .where(
+            m.RiskAlert.student_id == student_id,
+            m.RiskAlert.institution_id == institution_id,
+            m.RiskAlert.source == source,
+            m.RiskAlert.status.in_(
+                (AlertStatus.OPEN, AlertStatus.ACKNOWLEDGED, AlertStatus.IN_PROGRESS)
+            ),
+            m.RiskAlert.created_at > now - reuse_window,
+        )
+        .order_by(m.RiskAlert.created_at.desc())
+        .limit(1)
+        .with_for_update()
+    )
+    if existing is not None:
+        notified = await raise_severity(db, existing, severity, title=title, now=now)
+        return Escalation(existing, existing.assigned_to is not None, notified, already_open=True)
+    return await raise_alert(
+        db,
+        institution_id=institution_id,
+        student_id=student_id,
+        source=source,
+        detector=detector,
+        category=category,
+        severity=severity,
+        title=title,
+        now=now,
+        source_type=source_type,
+        source_id=source_id,
+        model_version=model_version,
+    )

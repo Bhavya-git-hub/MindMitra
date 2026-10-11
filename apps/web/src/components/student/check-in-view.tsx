@@ -9,6 +9,7 @@ import { PageHeader } from "@/components/layout/page-header";
 import { InlineAlert } from "@/components/states/inline-alert";
 import { ChipGroup } from "@/components/student/chip-group";
 import { RatingScale } from "@/components/student/rating-scale";
+import { SafetyPanel } from "@/components/student/safety-panel";
 import { SupportCallout } from "@/components/student/support-callout";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -95,7 +96,11 @@ export function CheckInView() {
           <p className="text-muted-foreground">
             Your check-in is saved. Noticing how you feel is a good habit, whatever the number.
           </p>
-          {result.support && <SupportCallout message={result.support.message} />}
+          {result.safety ? (
+            <SafetyPanel safety={result.safety} />
+          ) : (
+            result.support && <SupportCallout message={result.support.message} />
+          )}
           <div className="flex flex-wrap gap-2">
             <Button asChild>
               <Link href="/student">Back to my dashboard</Link>

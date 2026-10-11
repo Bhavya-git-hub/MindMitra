@@ -10,6 +10,7 @@ import type {
   Message,
   Recommendation,
   Resource,
+  Safety,
   Slot,
   Therapist,
   TrendPoint,
@@ -213,6 +214,49 @@ export const contact = (extra: Partial<CrisisContact> = {}): CrisisContact => ({
   url: "https://example.org/help",
   description: "Synthetic demo entry.",
   hours: "24 hours",
+  ...extra,
+});
+
+/** A HIGH concern from a check-in note, where the student allowed safety checks. */
+export const safety = (extra: Partial<Safety> = {}): Safety => ({
+  level: "high",
+  about_someone_else: false,
+  emergency_first: false,
+  offer_outreach: false,
+  guidance: {
+    title: "You don't have to go through this alone",
+    message: "What you wrote sounds really hard. Talking to someone today can help.",
+    steps: ["Reach out to someone you trust today.", "Contact one of the people below."],
+  },
+  resources: [
+    {
+      id: null,
+      label: "Local emergency services",
+      kind: "emergency",
+      phone: null,
+      url: null,
+      description: "Call your local emergency number.",
+      hours: "24 hours",
+    },
+    {
+      id: "c-1",
+      label: "Demo helpline",
+      kind: "helpline",
+      phone: "+91 (0) 11 5550 0100",
+      url: null,
+      description: "Synthetic demo entry.",
+      hours: "24 hours",
+    },
+  ],
+  counselling: {
+    has_care_team: true,
+    message_path: "/student/messages",
+    booking_path: "/student/therapists",
+  },
+  escalation: { status: "requested", basis: "consent", care_team_notified: true },
+  recommendations_paused: true,
+  paused_until: "2026-10-13T08:00:00Z",
+  disclaimer: "MindMitra is not an emergency service.",
   ...extra,
 });
 

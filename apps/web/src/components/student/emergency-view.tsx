@@ -29,7 +29,9 @@ export function dialable(phone: string): string {
   return phone.replace(/[^\d+]/g, "");
 }
 
-export function ContactCard({ c }: { c: CrisisContact }) {
+export type Contact = Pick<CrisisContact, "label" | "description" | "hours" | "phone" | "url">;
+
+export function ContactCard({ c }: { c: Contact }) {
   return (
     <li className="space-y-2 rounded-xl border bg-card p-4">
       <h3 className="font-medium">{c.label}</h3>

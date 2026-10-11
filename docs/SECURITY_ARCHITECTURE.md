@@ -289,6 +289,15 @@ privacy officer, and auto-expires.
     Teachers and administrators have no route to them. The therapist's view never reads or
     sends the student's notes.
   - Indicators never raise alerts or notifications; crisis detection stays rule-based.
+- Safety system ([ADR 0013](adr/0013-safety-and-escalation-system.md),
+  [SAFETY_SYSTEM.md](SAFETY_SYSTEM.md)):
+  - A check-in note alerts a person at `HIGH` only with the `journal_safety_scanning`
+    consent; `IMMEDIATE` always does (vital interest, stated in the consent text).
+  - Alerts and notifications carry category and urgency only, never what was written.
+  - `safety.safety_events` and the `safety_event.create` audit entry store enums only: no
+    text, matched rule or source id. Events are deleted after 90 days.
+  - Every step fails safe: the student always gets guidance and an emergency contact, and is
+    never told someone was alerted when they were not.
   - Model files are joblib pickles. The AI service loads only files listed in
     `models/manifest.json`, inside the model directory, with matching SHA-256 hashes and
     library versions, and answers 503 otherwise.

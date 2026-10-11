@@ -171,6 +171,20 @@ erDiagram
 - `set_updated_at` triggers on both new tables. Both are erased with the student and are in the
   data export. See [ADR 0012](adr/0012-personalised-recommendation-engine.md).
 
+### 0.1h Safety events (migration `0012`)
+
+- `safety.safety_events`: one row per `HIGH` or `IMMEDIATE` concern. `source` (`check_in`,
+  `companion`, `message`), `risk_level`, `concern`, `detector`, `rules_version`, `escalated`,
+  `basis`, `alert_id`, `recommendations_paused`, `hold_until`. **No text, excerpt, matched
+  rule or source id.** Checks: only `high`/`immediate`; an escalation needs an escalating
+  basis; an alert only when escalated; `hold_until` only when paused.
+- Composite FK to the student (cascading) and to `safety.risk_alerts (id, institution_id)`
+  (restricted), for which `risk_alerts` gains `uq_risk_alerts_link_tenant`.
+- Indexes on `(student_id, created_at)`, `created_at` (for the 90-day sweep) and a partial
+  index on `alert_id`. A `set_updated_at` trigger.
+- Deleted by the scheduler after 90 days, exported and erased with the student. See
+  [SAFETY_SYSTEM.md](SAFETY_SYSTEM.md) and [ADR 0013](adr/0013-safety-and-escalation-system.md).
+
 ### 0.2 Requirements checklist
 
 | Requirement | How it is met |

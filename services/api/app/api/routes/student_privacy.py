@@ -9,9 +9,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import app_state, get_db, require_permission
 from app.api.schemas import student as s
-from app.application import privacy, safety
+from app.application import privacy, safety, safety_workflow
 from app.domain.auth.permissions import Permission
 from app.domain.auth.policies import Principal
+from app.domain.safety.guidance import DISCLAIMER
 from app.infrastructure.db.enums import ConsentScope
 
 router = APIRouter(prefix="/me", tags=["student"])
@@ -89,6 +90,21 @@ async def create_support_request(
         already_open=result.already_open,
         reaches_care_team=result.assigned_to_care_team,
         created_at=result.alert.created_at,
+    )
+
+
+@router.get("/safety/status")
+async def safety_status(db: Db, principal: HelpRequester) -> s.SafetyStatusOut:
+    """Whether normal suggestions are paused after a HIGH or IMMEDIATE concern, and the support
+    to show meanwhile (ADR 0013)."""
+    hold = await safety_workflow.active_hold(db, principal)
+    support = (
+        s.safety_out(await safety_workflow.hold_outcome(db, principal, hold)) if hold else None
+    )
+    return s.SafetyStatusOut(
+        recommendations_paused=hold is not None,
+        support=support,
+        disclaimer=DISCLAIMER,
     )
 
 

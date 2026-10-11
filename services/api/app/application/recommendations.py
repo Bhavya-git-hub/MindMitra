@@ -2,6 +2,9 @@
 
 Suggestions are made by ``recommendation_engine``; ratings and preferences live in
 ``recommendation_feedback``. Everything here is the student's own and nobody else's.
+
+While the safety system has paused normal suggestions (a HIGH or IMMEDIATE concern, ADR 0013),
+the open list holds only what a therapist suggested; the history is unchanged.
 """
 
 import dataclasses
@@ -10,12 +13,13 @@ import uuid
 from sqlalchemy import Select, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.application import safety_workflow
 from app.application.access import NotFound, enforce
 from app.application.student_wellness import authorize_own
 from app.application.timeutil import now_utc
 from app.domain.auth.policies import Principal, can_use_own_student_record
 from app.infrastructure.db import models as m
-from app.infrastructure.db.enums import RecommendationStatus
+from app.infrastructure.db.enums import RecommendationSource, RecommendationStatus
 
 OPEN_STATUSES = (RecommendationStatus.PENDING, RecommendationStatus.VIEWED)
 MAX_HISTORY = 100
@@ -63,6 +67,8 @@ async def list_recommendations(
             m.Recommendation.status.in_(OPEN_STATUSES),
             or_(m.Recommendation.expires_at.is_(None), m.Recommendation.expires_at > now_utc()),
         )
+        if await safety_workflow.active_hold(db, actor) is not None:
+            stmt = stmt.where(m.Recommendation.source == RecommendationSource.THERAPIST)
     rows = await db.execute(
         stmt.order_by(m.Recommendation.created_at.desc(), m.Recommendation.id.desc())
         .offset(offset)
