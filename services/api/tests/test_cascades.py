@@ -11,6 +11,7 @@ from app.infrastructure.db.enums import (
     AIMessageRole,
     AuditOutcome,
     ConsentScope,
+    FeedbackRating,
     NotificationType,
     RecommendationSource,
     UserRole,
@@ -47,6 +48,7 @@ async def test_deleting_a_user_erases_their_wellness_data(session: AsyncSession)
     )
     session.add(
         m.Recommendation(
+            id=(rec_id := uuid7()),
             institution_id=inst_id,
             student_id=sid,
             source=RecommendationSource.RULE,
@@ -54,6 +56,16 @@ async def test_deleting_a_user_erases_their_wellness_data(session: AsyncSession)
             rationale="r",
         )
     )
+    await session.flush()
+    session.add(
+        m.RecommendationFeedback(
+            institution_id=inst_id,
+            student_id=sid,
+            recommendation_id=rec_id,
+            rating=FeedbackRating.HELPFUL,
+        )
+    )
+    session.add(m.RecommendationPreference(institution_id=inst_id, student_id=sid))
     await session.flush()
 
     await session.execute(text("DELETE FROM iam.users WHERE id = :i"), {"i": sid})
@@ -69,6 +81,8 @@ async def test_deleting_a_user_erases_their_wellness_data(session: AsyncSession)
         ("consent.consents", "user_id"),
         ("notify.notifications", "user_id"),
         ("ai.recommendations", "student_id"),
+        ("ai.recommendation_feedback", "student_id"),
+        ("ai.recommendation_preferences", "student_id"),
     ]:
         key = jid if col == "entry_id" else sid
         assert await helpers.count(session, table, f"{col} = :k", k=key) == 0, table

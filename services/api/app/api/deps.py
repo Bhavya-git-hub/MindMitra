@@ -71,6 +71,10 @@ def app_state(request: Request) -> AppState:
     return state
 
 
+def get_indicator_client(request: Request) -> IndicatorClient | None:
+    return app_state(request).indicators
+
+
 def client_ip(request: Request) -> str | None:
     # X-Forwarded-For is only trustworthy behind a known proxy; that is configured at deploy.
     return request.client.host if request.client else None

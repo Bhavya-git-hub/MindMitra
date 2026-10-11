@@ -309,8 +309,22 @@ async def export_data(db: AsyncSession, actor: Principal) -> dict[str, Any]:
             for r in await _all(db, m.WellnessGoal, actor, m.WellnessGoal.created_at)
         ],
         "recommendations": [
-            _row(r, ("created_at", "title", "rationale", "status", "source"))
+            _row(
+                r, ("created_at", "title", "rationale", "status", "source", "problem_area", "tags")
+            )
             for r in await _all(db, m.Recommendation, actor, m.Recommendation.created_at)
+        ],
+        "recommendation_feedback": [
+            _row(r, ("recommendation_id", "rating", "reason", "created_at", "updated_at"))
+            for r in await _all(
+                db, m.RecommendationFeedback, actor, m.RecommendationFeedback.created_at
+            )
+        ],
+        "recommendation_preferences": [
+            _row(r, ("preferred_formats", "max_minutes", "muted_areas", "use_indicators"))
+            for r in await _all(
+                db, m.RecommendationPreference, actor, m.RecommendationPreference.created_at
+            )
         ],
         "journal_entries": [_row(r, ("created_at", "title", "body", "mood_tag")) for r in journals],
         "appointments": [

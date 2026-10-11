@@ -17,6 +17,7 @@ import {
   messageSchema,
   moodEntrySchema,
   readSchema,
+  recommendationPreferencesSchema,
   recommendationSchema,
   resourceDetailSchema,
   resourceSchema,
@@ -30,8 +31,11 @@ import {
   trendsSchema,
   wellnessSummarySchema,
   type CancelReason,
+  type FeedbackRating,
+  type FeedbackReason,
   type GoalCategory,
   type GoalStatus,
+  type RecommendationPreferencesPatch,
 } from "./student-schemas";
 import { qs } from "./query-string";
 
@@ -152,6 +156,31 @@ export function createStudentApi(client: ApiClient, timeZone: () => string = bro
         method: "PATCH",
         body: { status },
         schema: recommendationSchema,
+      }),
+    recommendationHistory: (before?: string) =>
+      client.request(`/me/recommendations/history${qs({ limit: 50, before })}`, {
+        schema: list(recommendationSchema),
+      }),
+    rateRecommendation: (id: string, rating: FeedbackRating, reason?: FeedbackReason) =>
+      client.request(`/me/recommendations/${id}/feedback`, {
+        method: "PUT",
+        body: { rating, reason: reason ?? null },
+        schema: recommendationSchema,
+      }),
+    clearRecommendationRating: (id: string) =>
+      client.request(`/me/recommendations/${id}/feedback`, {
+        method: "DELETE",
+        schema: recommendationSchema,
+      }),
+    recommendationPreferences: () =>
+      client.request("/me/recommendations/preferences", {
+        schema: recommendationPreferencesSchema,
+      }),
+    updateRecommendationPreferences: (patch: RecommendationPreferencesPatch) =>
+      client.request("/me/recommendations/preferences", {
+        method: "PATCH",
+        body: patch,
+        schema: recommendationPreferencesSchema,
       }),
 
     resources: (filter: { type?: string; tag?: string; q?: string } = {}) =>

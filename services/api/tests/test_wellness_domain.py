@@ -1,4 +1,4 @@
-"""Pure rules: the wellbeing instrument, indicators, recommendations and the support prompt."""
+"""Pure rules: the wellbeing instrument, indicators and the support prompt."""
 
 import datetime as dt
 
@@ -6,7 +6,6 @@ import pytest
 
 from app.domain.consent_scopes import BY_SCOPE, SCOPES
 from app.domain.wellness import indicators, instruments
-from app.domain.wellness.recommendations import Facts, suggest
 from app.domain.wellness.support_prompt import show_support_prompt
 from app.infrastructure.db.enums import ConsentScope
 
@@ -79,49 +78,6 @@ def test_streak_counts_back_from_today_or_yesterday() -> None:
     assert indicators.streak_days({today - d(days=2)}, today) == 0
     assert indicators.streak_days(set(), today) == 0
     assert indicators.streak_days({today, today - d(days=2)}, today) == 1
-
-
-def _facts(**kw: object) -> Facts:
-    base: dict[str, object] = {
-        "avg_mood": 4.0,
-        "avg_stress": 2.0,
-        "avg_sleep_minutes": 450.0,
-        "days_since_check_in": 0,
-        "has_active_goal": True,
-        "latest_assessment_band": "doing_well",
-    }
-    return Facts(**{**base, **kw})  # type: ignore[arg-type]
-
-
-def test_no_suggestions_when_things_are_fine() -> None:
-    assert suggest(_facts()) == []
-
-
-def test_each_rule_fires_for_its_own_reason() -> None:
-    keys = lambda f: {s.key for s in suggest(f)}  # noqa: E731
-    assert "check_in_nudge" in keys(_facts(days_since_check_in=5))
-    assert "check_in_nudge" in keys(_facts(days_since_check_in=None))
-    assert "stress_skills" in keys(_facts(avg_stress=4.0))
-    assert "sleep_routine" in keys(_facts(avg_sleep_minutes=300))
-    assert "talk_to_someone" in keys(_facts(avg_mood=2.0))
-    assert "talk_to_someone" in keys(_facts(latest_assessment_band="lower"))
-    assert "set_a_goal" in keys(_facts(has_active_goal=False))
-    assert "set_a_goal" not in keys(_facts(has_active_goal=False, days_since_check_in=None))
-
-
-def test_suggestions_are_never_diagnostic() -> None:
-    worst = _facts(
-        avg_mood=1.0, avg_stress=5.0, avg_sleep_minutes=200, days_since_check_in=9,
-        has_active_goal=False, latest_assessment_band="lower",
-    )  # fmt: skip
-    for s in suggest(worst):
-        text = f"{s.title} {s.rationale}".lower()
-        assert s.rationale
-        assert not any(
-            w in text for w in ("depress", "disorder", "diagnos", "you have ", "illness")
-        )
-    talk = next(s for s in suggest(worst) if s.key == "talk_to_someone")
-    assert talk.suggests_counselling
 
 
 @pytest.mark.parametrize(

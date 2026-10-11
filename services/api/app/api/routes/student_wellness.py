@@ -14,7 +14,7 @@ from fastapi import APIRouter, Depends, Query, Request
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import app_state, get_db, require_permission
+from app.api.deps import app_state, get_db, get_indicator_client, require_permission
 from app.api.routes.me import MoodEntryOut
 from app.api.schemas import student as s
 from app.api.schemas.indicators import IndicatorsOut, indicators_out
@@ -22,6 +22,7 @@ from app.api.zone import Zone, since_days
 from app.application import (
     booking,
     goals,
+    recommendation_engine,
     recommendations,
     student_wellness,
     wellness_indicators,
@@ -30,7 +31,8 @@ from app.application.timeutil import local_today
 from app.domain.auth.permissions import Permission
 from app.domain.auth.policies import Principal
 from app.infrastructure.db import models as m
-from app.infrastructure.db.enums import GoalStatus, RecommendationStatus
+from app.infrastructure.db.enums import GoalStatus
+from app.infrastructure.ml_client import IndicatorClient
 
 log = logging.getLogger("mindmitra.student")
 
@@ -39,8 +41,8 @@ Db = Annotated[AsyncSession, Depends(get_db)]
 Reader = Annotated[Principal, Depends(require_permission(Permission.WELLNESS_READ_OWN))]
 Writer = Annotated[Principal, Depends(require_permission(Permission.WELLNESS_WRITE_OWN))]
 GoalManager = Annotated[Principal, Depends(require_permission(Permission.GOAL_MANAGE_OWN))]
-RecManager = Annotated[Principal, Depends(require_permission(Permission.RECOMMENDATION_MANAGE_OWN))]
 Limit = Annotated[int, Query(ge=1, le=200)]
+Indicators = Annotated[IndicatorClient | None, Depends(get_indicator_client)]
 
 
 def mood_out(r: m.MoodEntry) -> MoodEntryOut:
@@ -71,19 +73,21 @@ class CheckInOut(BaseModel):
 
 
 async def _refresh_recommendations_quietly(
-    db: AsyncSession, actor: Principal, zone: ZoneInfo
+    db: AsyncSession, actor: Principal, zone: ZoneInfo, client: IndicatorClient | None
 ) -> None:
     """New self-reports can change what is worth suggesting. A failure here must never lose
     the check-in that was just saved."""
     try:
-        await recommendations.refresh_recommendations(db, actor, zone)
+        await recommendation_engine.refresh_recommendations(db, actor, zone, client)
     except Exception:
         log.exception("could not refresh recommendations after a check-in")
         await db.rollback()
 
 
 @router.post("/check-ins", status_code=201)
-async def create_check_in(body: s.CheckInIn, db: Db, principal: Writer, zone: Zone) -> CheckInOut:
+async def create_check_in(
+    body: s.CheckInIn, db: Db, principal: Writer, zone: Zone, indicators: Indicators
+) -> CheckInOut:
     result = await student_wellness.record_check_in(
         db,
         principal,
@@ -104,7 +108,7 @@ async def create_check_in(body: s.CheckInIn, db: Db, principal: Writer, zone: Zo
         sleep=s.sleep_out(result.sleep) if result.sleep else None,
         support=s.SUPPORT_INFO if result.support_suggested else None,
     )
-    await _refresh_recommendations_quietly(db, principal, zone)
+    await _refresh_recommendations_quietly(db, principal, zone, indicators)
     return out
 
 
@@ -113,10 +117,10 @@ async def create_check_in(body: s.CheckInIn, db: Db, principal: Writer, zone: Zo
 
 @router.post("/wellness/mood-entries", status_code=201)
 async def create_mood_entry(
-    body: s.MoodEntryIn, db: Db, principal: Writer, zone: Zone
+    body: s.MoodEntryIn, db: Db, principal: Writer, zone: Zone, indicators: Indicators
 ) -> CheckInOut:
     """A mood-only check-in (the quick path)."""
-    return await create_check_in(s.CheckInIn(**body.model_dump()), db, principal, zone)
+    return await create_check_in(s.CheckInIn(**body.model_dump()), db, principal, zone, indicators)
 
 
 @router.get("/wellness/stress-entries")
@@ -135,10 +139,10 @@ async def list_stress_entries(
 
 @router.post("/wellness/stress-entries", status_code=201)
 async def create_stress_entry(
-    body: s.StressEntryIn, db: Db, principal: Writer, zone: Zone
+    body: s.StressEntryIn, db: Db, principal: Writer, zone: Zone, indicators: Indicators
 ) -> s.StressEntryOut:
     row = await student_wellness.log_stress(db, principal, body.stress_level, tuple(body.stressors))
-    await _refresh_recommendations_quietly(db, principal, zone)
+    await _refresh_recommendations_quietly(db, principal, zone, indicators)
     return s.stress_out(row)
 
 
@@ -157,13 +161,13 @@ async def list_sleep_entries(
 
 @router.put("/wellness/sleep-entries")
 async def upsert_sleep_entry(
-    body: s.SleepIn, db: Db, principal: Writer, zone: Zone
+    body: s.SleepIn, db: Db, principal: Writer, zone: Zone, indicators: Indicators
 ) -> s.SleepEntryOut:
     """One entry per morning: logging again for the same wake-up date replaces it."""
     row = await student_wellness.log_sleep(
         db, principal, student_wellness.SleepInput(body.bedtime, body.wake_time, body.quality), zone
     )
-    await _refresh_recommendations_quietly(db, principal, zone)
+    await _refresh_recommendations_quietly(db, principal, zone, indicators)
     return s.sleep_out(row)
 
 
@@ -234,10 +238,10 @@ async def list_assessments(
 
 @router.post("/wellness/assessments", status_code=201)
 async def submit_assessment(
-    body: s.AssessmentIn, db: Db, principal: Writer, zone: Zone
+    body: s.AssessmentIn, db: Db, principal: Writer, zone: Zone, indicators: Indicators
 ) -> s.AssessmentSnapshotOut:
     row = await student_wellness.submit_assessment(db, principal, body.responses)
-    await _refresh_recommendations_quietly(db, principal, zone)
+    await _refresh_recommendations_quietly(db, principal, zone, indicators)
     return s.assessment_out(row)
 
 
@@ -282,35 +286,3 @@ async def update_goal(
         status=GoalStatus(body.status) if body.status else None,
     )
     return s.goal_out(await goals.update_goal(db, principal, goal_id, patch))
-
-
-# ---- recommendations ------------------------------------------------------------------------
-
-
-@router.get("/recommendations")
-async def list_recommendations(
-    db: Db, principal: RecManager, include_closed: bool = False
-) -> list[s.RecommendationOut]:
-    rows = await recommendations.list_recommendations(db, principal, include_closed=include_closed)
-    return [s.recommendation_out(r) for r in rows]
-
-
-@router.post("/recommendations/refresh")
-async def refresh_recommendations(
-    db: Db, principal: RecManager, zone: Zone
-) -> list[s.RecommendationOut]:
-    rows = await recommendations.refresh_recommendations(db, principal, zone)
-    return [s.recommendation_out(r) for r in rows]
-
-
-@router.patch("/recommendations/{recommendation_id}")
-async def respond_to_recommendation(
-    recommendation_id: uuid.UUID,
-    body: s.RecommendationPatchIn,
-    db: Db,
-    principal: RecManager,
-) -> s.RecommendationOut:
-    view = await recommendations.respond(
-        db, principal, recommendation_id, RecommendationStatus(body.status)
-    )
-    return s.recommendation_out(view)

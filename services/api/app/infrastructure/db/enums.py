@@ -149,6 +149,22 @@ class RecommendationStatus(enum.StrEnum):
     COMPLETED = "completed"
 
 
+class FeedbackRating(enum.StrEnum):
+    HELPFUL = "helpful"
+    NOT_HELPFUL = "not_helpful"
+
+
+class FeedbackReason(enum.StrEnum):
+    """Why a suggestion wasn't helpful. A fixed list, never free text, so it can't hold
+    anything sensitive and each reason means one thing to the engine."""
+
+    NOT_RELEVANT = "not_relevant"
+    WRONG_FORMAT = "wrong_format"
+    TOO_LONG = "too_long"
+    ALREADY_DOING_THIS = "already_doing_this"
+    NOT_NOW = "not_now"
+
+
 class AlertSource(enum.StrEnum):
     MOOD_ENTRY = "mood_entry"
     JOURNAL = "journal"

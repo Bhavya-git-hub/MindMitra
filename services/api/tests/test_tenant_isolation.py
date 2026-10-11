@@ -16,7 +16,9 @@ from app.infrastructure.db import models as m
 from app.infrastructure.db.enums import (
     CareRole,
     ConsentScope,
+    FeedbackRating,
     NotificationType,
+    RecommendationSource,
     SessionMode,
 )
 from app.infrastructure.db.ids import uuid7
@@ -43,6 +45,36 @@ async def test_wellness_row_cannot_use_another_institutions_id(session: AsyncSes
         session,
         m.AIConversation(id=uuid7(), institution_id=other.id, student_id=s.user_id),
         match="fk_ai_conversations_student_id_institution_id_students",
+    )
+
+
+async def test_feedback_and_preferences_cannot_cross_institutions(session: AsyncSession) -> None:
+    s = await helpers.any_student(session)
+    other, _ = await helpers.other_institution(session)
+    rec = m.Recommendation(
+        id=uuid7(),
+        institution_id=s.institution_id,
+        student_id=s.user_id,
+        source=RecommendationSource.RULE,
+        title="t",
+        rationale="r",
+    )
+    session.add(rec)
+    await session.flush()
+    await rejected(
+        session,
+        m.RecommendationFeedback(
+            institution_id=other.id,
+            student_id=s.user_id,
+            recommendation_id=rec.id,
+            rating=FeedbackRating.HELPFUL,
+        ),
+        match="fk_recommendation_feedback_recommendation_id_recommendations",
+    )
+    await rejected(
+        session,
+        m.RecommendationPreference(institution_id=other.id, student_id=s.user_id),
+        match="fk_recommendation_preferences_student_id_students",
     )
 
 
