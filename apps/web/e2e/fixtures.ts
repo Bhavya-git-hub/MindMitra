@@ -24,6 +24,8 @@ const users: Record<Role, string> & {
   care_student_id: string;
   care_student_name: string;
   pending_therapist: string;
+  /** A student no other test uses: a crisis check-in pauses their suggestions. */
+  crisis_student: string;
   /** Set for the teacher portal: a class the teacher teaches and a student enrolled in it. */
   teacher_course_code: string;
   teacher_course_title: string;
@@ -42,6 +44,7 @@ export const carePair = {
   studentName: users.care_student_name,
 };
 export const pendingTherapistEmail = users.pending_therapist;
+export const crisisStudentEmail = users.crisis_student;
 export const teacherCourse = {
   code: users.teacher_course_code,
   title: users.teacher_course_title,

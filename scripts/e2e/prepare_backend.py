@@ -44,6 +44,7 @@ def main() -> int:
     users = asyncio.run(_pick_users())
     users.update(asyncio.run(_prepare_therapist_portal()))
     users.update(asyncio.run(_prepare_teacher_portal(users["teacher"], users["student"])))
+    users["crisis_student"] = asyncio.run(_pick_crisis_student(users["student"], users["care_student"]))
     out = Path(sys.argv[1])
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(users, indent=2) + "\n")
@@ -70,6 +71,29 @@ async def _pick_users() -> dict[str, str]:
     if missing:
         raise SystemExit(f"seed produced no active user for: {missing}")
     return {r: users[r] for r in ROLES}
+
+
+async def _pick_crisis_student(student_email: str, care_student_email: str) -> str:
+    """A student no other test signs in as. A crisis check-in pauses that student's suggestions
+    for 72 hours, so it must not be the shared student-portal or care-team student."""
+    engine = create_async_engine(os.environ["DATABASE_URL"])
+    try:
+        async with engine.connect() as conn:
+            email = (
+                await conn.execute(
+                    text(
+                        "select u.email from iam.users u join org.students s on s.user_id = u.id "
+                        "where u.role = 'student' and u.status = 'active' and u.deleted_at is null "
+                        "  and u.email not in (:a, :b) order by u.email limit 1"
+                    ),
+                    {"a": student_email, "b": care_student_email},
+                )
+            ).scalar_one_or_none()
+    finally:
+        await engine.dispose()
+    if email is None:
+        raise SystemExit("seed has no spare student for the crisis test")
+    return str(email)
 
 
 async def _prepare_therapist_portal() -> dict[str, str]:
