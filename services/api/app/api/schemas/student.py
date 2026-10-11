@@ -7,9 +7,10 @@ from typing import Annotated, Literal
 
 from pydantic import AwareDatetime, BaseModel, Field, StringConstraints
 
-from app.application import booking, recommendations
+from app.application import booking, recommendation_feedback, recommendations
 from app.application.student_wellness import DailyPoint, Summary
 from app.domain.wellness import indicators, instruments
+from app.domain.wellness.recommender.catalog import BY_KEY, MUTABLE_AREAS
 from app.infrastructure.db import models as m
 from app.infrastructure.db.enums import CancellationReason, GoalCategory, TherapySessionStatus
 
@@ -373,6 +374,12 @@ def resource_detail_out(r: m.Resource) -> ResourceDetailOut:
     return ResourceDetailOut(**resource_out(r).model_dump(), body=r.body)
 
 
+class RecommendationFeedbackOut(BaseModel):
+    rating: str
+    reason: str | None
+    updated_at: dt.datetime
+
+
 class RecommendationOut(BaseModel):
     id: uuid.UUID
     title: str
@@ -382,11 +389,20 @@ class RecommendationOut(BaseModel):
     created_at: dt.datetime
     expires_at: dt.datetime | None
     resource: ResourceOut | None
+    # Which part of student life it is about (None for older suggestions and a therapist's).
+    problem_area: str | None = None
+    # What the student can do with it: open the resource, book counselling, set a goal, check in.
+    action: str = "resource"
+    goal_category: str | None = None
+    feedback: RecommendationFeedbackOut | None = None
     disclaimer: str = "An optional idea based on what you reported. It is not advice."
 
 
 def recommendation_out(v: recommendations.RecommendationView) -> RecommendationOut:
     r = v.recommendation
+    idea = BY_KEY.get(r.intervention_key or "")
+    goal_category = (r.reasons or {}).get("goal_category")
+    fb = v.feedback
     return RecommendationOut(
         id=r.id,
         title=r.title,
@@ -396,11 +412,56 @@ def recommendation_out(v: recommendations.RecommendationView) -> RecommendationO
         created_at=r.created_at,
         expires_at=r.expires_at,
         resource=resource_out(v.resource) if v.resource else None,
+        problem_area=r.problem_area,
+        action=idea.action if idea else "resource",
+        goal_category=goal_category if isinstance(goal_category, str) else None,
+        feedback=RecommendationFeedbackOut(
+            rating=fb.rating.value,
+            reason=fb.reason.value if fb.reason else None,
+            updated_at=fb.updated_at,
+        )
+        if fb
+        else None,
     )
 
 
 class RecommendationPatchIn(BaseModel):
     status: Literal["viewed", "dismissed", "completed"]
+
+
+class RecommendationFeedbackIn(BaseModel):
+    rating: Literal["helpful", "not_helpful"]
+    reason: (
+        Literal["not_relevant", "wrong_format", "too_long", "already_doing_this", "not_now"] | None
+    ) = None
+
+
+class RecommendationPreferencesOut(BaseModel):
+    preferred_formats: list[str]
+    max_minutes: int | None
+    muted_areas: list[str]
+    use_indicators: bool
+    # What can be chosen, so the settings screen needs no list of its own.
+    available_formats: list[str]
+    available_areas: list[str]
+
+
+class RecommendationPreferencesPatchIn(BaseModel):
+    preferred_formats: list[str] | None = None
+    max_minutes: int | None = Field(default=None, ge=1, le=180)
+    muted_areas: list[str] | None = None
+    use_indicators: bool | None = None
+
+
+def preferences_out(p: recommendation_feedback.StoredPreferences) -> RecommendationPreferencesOut:
+    return RecommendationPreferencesOut(
+        preferred_formats=list(p.preferred_formats),
+        max_minutes=p.max_minutes,
+        muted_areas=list(p.muted_areas),
+        use_indicators=p.use_indicators,
+        available_formats=list(recommendation_feedback.FORMATS),
+        available_areas=list(MUTABLE_AREAS),
+    )
 
 
 # ---- therapists and appointments ------------------------------------------------------------

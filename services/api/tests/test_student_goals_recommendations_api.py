@@ -1,4 +1,5 @@
-"""Wellness goals and rule-based recommendations: behaviour and privacy."""
+"""Wellness goals and the recommendation list: behaviour and privacy. The engine, feedback and
+preferences have their own tests in ``test_recommendations_api``."""
 
 import datetime as dt
 
@@ -186,9 +187,9 @@ async def test_recommendations_follow_what_the_student_reported(
     assert "Try a short exercise to settle your stress" in titles
     assert "Ease into a better wind-down" in titles
     assert "Consider talking with someone" in titles
-    assert "Set one small wellness goal" in titles
     for rec in recs:
         assert rec["source"] == "rule"
+        assert rec["problem_area"]
         assert rec["rationale"]  # every suggestion says why
         assert "not advice" in rec["disclaimer"]
         low = (rec["title"] + rec["rationale"]).lower()

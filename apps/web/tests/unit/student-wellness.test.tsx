@@ -224,26 +224,34 @@ describe("wellness goals", () => {
   });
 });
 
+const preferences = (extra = {}) => ({
+  preferred_formats: [],
+  max_minutes: null,
+  muted_areas: [],
+  use_indicators: true,
+  available_formats: ["article", "video", "exercise", "audio", "service"],
+  available_areas: ["academic_burnout", "sleep_disruption", "counselling"],
+  ...extra,
+});
+
 describe("recommendations", () => {
   it("shows why each suggestion was made, and lets the student set it aside or finish it", async () => {
     const responses: unknown[] = [];
     const { container } = renderWithApp(
       <RecommendationsView />,
       studentSession({
-        "GET /me/recommendations": ({ query }) =>
-          json(
-            query.get("include_closed") === "true"
-              ? [
-                  recommendation(),
-                  recommendation({
-                    id: "rec-2",
-                    title: "Old idea",
-                    rationale: "From last month.",
-                    status: "completed",
-                  }),
-                ]
-              : [recommendation()],
-          ),
+        "GET /me/recommendations": () => json([recommendation()]),
+        "GET /me/recommendations/history": () =>
+          json([
+            recommendation(),
+            recommendation({
+              id: "rec-2",
+              title: "Old idea",
+              rationale: "From last month.",
+              status: "completed",
+            }),
+          ]),
+        "GET /me/recommendations/preferences": () => json(preferences()),
         "PATCH /me/recommendations/rec-1": ({ body }) => {
           responses.push(body);
           return json(recommendation({ status: "dismissed" }));
@@ -260,12 +268,127 @@ describe("recommendations", () => {
     await expectNoA11yViolations(container);
   });
 
+  it("lets the student say a suggestion was helpful, and take it back", async () => {
+    const calls: string[] = [];
+    let rated = false;
+    renderWithApp(
+      <RecommendationsView />,
+      studentSession({
+        "GET /me/recommendations": () =>
+          json([
+            recommendation(
+              rated
+                ? {
+                    feedback: {
+                      rating: "helpful",
+                      reason: null,
+                      updated_at: "2026-10-10T08:00:00Z",
+                    },
+                  }
+                : {},
+            ),
+          ]),
+        "GET /me/recommendations/history": () => json([]),
+        "GET /me/recommendations/preferences": () => json(preferences()),
+        "PUT /me/recommendations/rec-1/feedback": ({ body }) => {
+          calls.push(`PUT ${JSON.stringify(body)}`);
+          rated = true;
+          return json(recommendation());
+        },
+        "DELETE /me/recommendations/rec-1/feedback": () => {
+          calls.push("DELETE");
+          rated = false;
+          return json(recommendation());
+        },
+      }),
+    );
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: "Helpful" }));
+    await waitFor(() => expect(calls).toEqual(['PUT {"rating":"helpful","reason":null}']));
+    const pressed = await screen.findByRole("button", { name: "Helpful", pressed: true });
+    await user.click(pressed);
+    await waitFor(() => expect(calls.at(-1)).toBe("DELETE"));
+  });
+
+  it("asks why when a suggestion was not helpful, and the reason is optional", async () => {
+    const bodies: unknown[] = [];
+    renderWithApp(
+      <RecommendationsView />,
+      studentSession({
+        "GET /me/recommendations": () => json([recommendation()]),
+        "GET /me/recommendations/history": () => json([]),
+        "GET /me/recommendations/preferences": () => json(preferences()),
+        "PUT /me/recommendations/rec-1/feedback": ({ body }) => {
+          bodies.push(body);
+          return json(recommendation({ status: "dismissed" }));
+        },
+      }),
+    );
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: "Not helpful" }));
+    expect(screen.getByText("What didn't work? (optional)")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Too long" }));
+    await waitFor(() => expect(bodies).toEqual([{ rating: "not_helpful", reason: "too_long" }]));
+
+    await user.click(await screen.findByRole("button", { name: "Not helpful" }));
+    await user.click(screen.getByRole("button", { name: "Skip" }));
+    await waitFor(() => expect(bodies.at(-1)).toEqual({ rating: "not_helpful", reason: null }));
+  });
+
+  it("points a counselling suggestion at booking", async () => {
+    renderWithApp(
+      <RecommendationsView />,
+      studentSession({
+        "GET /me/recommendations": () =>
+          json([recommendation({ action: "book_counselling", title: "Talk it through" })]),
+        "GET /me/recommendations/history": () => json([]),
+        "GET /me/recommendations/preferences": () => json(preferences()),
+      }),
+    );
+    const link = await screen.findByRole("link", { name: "Book a counselling session" });
+    expect(link).toHaveAttribute("href", "/student/therapists");
+  });
+
+  it("saves what suits the student", async () => {
+    const patches: unknown[] = [];
+    renderWithApp(
+      <RecommendationsView />,
+      studentSession({
+        "GET /me/recommendations": () => json([]),
+        "GET /me/recommendations/history": () => json([]),
+        "GET /me/recommendations/preferences": () => json(preferences()),
+        "PATCH /me/recommendations/preferences": ({ body }) => {
+          patches.push(body);
+          return json(preferences({ max_minutes: 10, use_indicators: false }));
+        },
+      }),
+    );
+    const user = userEvent.setup();
+    await screen.findByRole("heading", { name: "What suits you" });
+    await user.selectOptions(screen.getByLabelText("Longest you want a resource to take"), "10");
+    await user.click(screen.getByRole("button", { name: "Video" }));
+    await user.click(screen.getByLabelText("Use my wellness indicators to tune suggestions"));
+    await user.click(screen.getByRole("button", { name: "Save preferences" }));
+    await waitFor(() =>
+      expect(patches).toEqual([
+        {
+          preferred_formats: ["video"],
+          max_minutes: 10,
+          muted_areas: [],
+          use_indicators: false,
+        },
+      ]),
+    );
+  });
+
   it("looks for new suggestions on request", async () => {
     let refreshed = false;
     renderWithApp(
       <RecommendationsView />,
       studentSession({
         "GET /me/recommendations": () => json([]),
+        "GET /me/recommendations/history": () => json([]),
+        "GET /me/recommendations/preferences": () => json(preferences()),
         "POST /me/recommendations/refresh": () => {
           refreshed = true;
           return json([]);

@@ -74,3 +74,22 @@ export const RESOURCE_TYPE_LABELS: Record<string, string> = {
   audio: "Audio",
   service: "Campus service",
 };
+
+/** Why a suggestion wasn't helpful. A fixed list: it is never free text. */
+export const FEEDBACK_REASON_LABELS: Record<string, string> = {
+  not_relevant: "Not relevant to me",
+  wrong_format: "Not the kind of resource I like",
+  too_long: "Too long",
+  already_doing_this: "I already do this",
+  not_now: "Not right now",
+};
+
+export const SUGGESTION_AREA_LABELS: Record<string, string> = {
+  academic_burnout: "Study pressure and burnout",
+  career_anxiety: "Career worries",
+  social_isolation: "Feeling disconnected",
+  sleep_disruption: "Sleep",
+  stress: "Stress",
+  mood: "Mood",
+  counselling: "Counselling suggestions",
+};

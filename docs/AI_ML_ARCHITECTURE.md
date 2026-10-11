@@ -232,6 +232,13 @@ with synthetic conversations only.
 - Scored on request, not after each check-in. Bands only, with no calibrated confidence and no
   per-student explanations yet. Indicators never raise alerts.
 
+[ADR 0012](adr/0012-personalised-recommendation-engine.md) adds a recommendation engine in the
+API. It is a transparent scoring engine over the student's own records, preferences and
+feedback, not a trained model: it maps needs (burnout, career worry, isolation, sleep,
+stress, mood) to non-medical ideas, can use the indicator bands as one input when the student
+allows it, learns per student from "helpful" and "not helpful", and never pools feedback or
+trains a shared model. Indicators still raise no alerts.
+
 Metrics are in `services/ml/evaluation/reports/REPORT.md`; limitations in
 `services/ml/model_cards/wellness-indicators.md` and `services/ml/model_cards/sentiment.md`.
 The designs below are the target.

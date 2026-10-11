@@ -120,6 +120,25 @@ export type Resource = z.infer<typeof resourceSchema>;
 export const resourceDetailSchema = resourceSchema.extend({ body: z.string().nullable() });
 export type ResourceDetail = z.infer<typeof resourceDetailSchema>;
 
+export const feedbackRatingSchema = z.enum(["helpful", "not_helpful"]);
+export type FeedbackRating = z.infer<typeof feedbackRatingSchema>;
+
+export const FEEDBACK_REASONS = [
+  "not_relevant",
+  "wrong_format",
+  "too_long",
+  "already_doing_this",
+  "not_now",
+] as const;
+export type FeedbackReason = (typeof FEEDBACK_REASONS)[number];
+
+export const recommendationFeedbackSchema = z.object({
+  rating: feedbackRatingSchema,
+  reason: z.string().nullable(),
+  updated_at: z.string(),
+});
+export type RecommendationFeedback = z.infer<typeof recommendationFeedbackSchema>;
+
 export const recommendationSchema = z.object({
   id: z.string(),
   title: z.string(),
@@ -129,9 +148,29 @@ export const recommendationSchema = z.object({
   created_at: z.string(),
   expires_at: z.string().nullable(),
   resource: resourceSchema.nullable(),
+  problem_area: z.string().nullable(),
+  action: z.string(),
+  goal_category: z.string().nullable(),
+  feedback: recommendationFeedbackSchema.nullable(),
   disclaimer: z.string(),
 });
 export type Recommendation = z.infer<typeof recommendationSchema>;
+
+export const recommendationPreferencesSchema = z.object({
+  preferred_formats: z.array(z.string()),
+  max_minutes: z.number().int().nullable(),
+  muted_areas: z.array(z.string()),
+  use_indicators: z.boolean(),
+  available_formats: z.array(z.string()),
+  available_areas: z.array(z.string()),
+});
+export type RecommendationPreferences = z.infer<typeof recommendationPreferencesSchema>;
+export type RecommendationPreferencesPatch = Partial<
+  Pick<
+    RecommendationPreferences,
+    "preferred_formats" | "max_minutes" | "muted_areas" | "use_indicators"
+  >
+>;
 
 export const appointmentSchema = z.object({
   id: z.string(),

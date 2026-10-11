@@ -367,6 +367,10 @@ including a "missed escalation" scenario.
 - **Transparency**: plain-language privacy centre, AI notice, access history.
 - **DPIA** completed before launch; Records of Processing maintained; DPO / privacy officer
   role named per institution.
+- **Recommendation feedback**: a student's "helpful" / "not helpful", its reason and their
+  suggestion preferences are visible to that student only, are never shown to therapists,
+  teachers or administrators, never feed group figures or a shared model, hold no free text, and
+  are exported and erased with the student ([ADR 0012](adr/0012-personalised-recommendation-engine.md)).
 - **Vendor management**: DPAs with LLM (Bedrock/AWS), email/SMS providers; sub-processor list.
 
 ## 11. Compliance mapping (design intent, not legal advice)

@@ -50,8 +50,9 @@ decided before any model was trained.
    - The API sends 28 days of per-day records to `POST /internal/v1/indicators` with the
      ADR 0010 service token. Indicator calls have their own circuit breaker, so missing models
      never switch the companion off.
-6. **Indicators never act.** No alert, notification, recommendation or flag comes from an
-   indicator. Crisis detection stays rule-based (ADR 0010) and does not depend on these models.
+6. **Indicators never act.** No alert, notification or flag comes from an indicator, and (as
+   amended by [ADR 0012](0012-personalised-recommendation-engine.md)) a recommendation only
+   when the student has allowed it and only alongside other evidence. Crisis detection stays rule-based (ADR 0010) and does not depend on these models.
 7. **The consent copy says what is shared.** `share_ai_signals_with_care_team` is now "Share AI
    wellness indicators with my therapist", listing the indicators and saying notes, journal and
    companion conversations are never shared.

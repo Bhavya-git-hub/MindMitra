@@ -145,6 +145,13 @@ trained and evaluated on synthetic data only, served to the student and, with co
 care-team therapist. Still to do: a web page for them, a pretrained text model, and calibration
 and fairness work on real, consented data before any real use.
 
+A personalised recommendation engine is built on top ([ADR 0012](docs/adr/0012-personalised-recommendation-engine.md)):
+non-medical ideas for academic burnout, career worry, isolation, sleep and stress, each with a
+stated reason, a "helpful" / "not helpful" answer that tunes that student's own later
+suggestions, history, and preferences. Still to do: review of the catalog and weights by the
+counselling team, per-institution workload scales, and an evaluation with informed students
+before any real use.
+
 ---
 
 ## Phase 7: Faculty & admin insights

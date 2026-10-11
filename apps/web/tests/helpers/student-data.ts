@@ -59,6 +59,10 @@ export const recommendation = (extra: Partial<Recommendation> = {}): Recommendat
     duration_minutes: 5,
     url: null,
   },
+  problem_area: "stress",
+  action: "resource",
+  goal_category: null,
+  feedback: null,
   disclaimer: "Not medical advice.",
   ...extra,
 });

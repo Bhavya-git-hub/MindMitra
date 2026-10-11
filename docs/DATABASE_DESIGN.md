@@ -30,7 +30,7 @@ gets `permission denied` on `therapy`, `comm` and `safety`.
 | `wellness` | `mood_entries`, `wellness_assessments`, `stress_assessments`, `sleep_entries`, `journal_entries`, `journal_shares`, `wellness_goals`, `resources` |
 | `therapy` (confidential) | `therapist_availability`, `appointments`, `therapy_sessions`, `therapy_notes`, `follow_ups` |
 | `comm` | `messages` |
-| `ai` | `ai_conversations`, `ai_messages`, `recommendations` |
+| `ai` | `ai_conversations`, `ai_messages`, `recommendations`, `recommendation_feedback`, `recommendation_preferences` |
 | `safety` | `risk_alerts`, `crisis_contacts` |
 | `consent` | `consents` |
 | `notify` | `notifications` |
@@ -154,6 +154,22 @@ erDiagram
 - Institution settings (`safety`) gain `companion_enabled` and `companion_daily_messages`
   (10 to 500), validated in code like the other settings.
 - See [ADR 0010](adr/0010-ai-wellness-companion-and-safety-layer.md).
+
+### 0.1g Recommendation engine (migration `0011`)
+
+- `ai.recommendations` gains `intervention_key`, `problem_area` (one of seven, checked),
+  `relevance` (0 to 1), `resource_format`, `tags`, `reasons` (JSON of signal names and numbers,
+  never text a student wrote) and `engine_version`. All empty on older and therapist-made rows.
+  It also gains `unique (id, student_id, institution_id)` as the target of feedback's foreign
+  key, and an index on `(student_id, created_at)` for history.
+- `ai.recommendation_feedback`: one row per suggestion (`unique (recommendation_id)`), `rating`
+  `helpful`/`not_helpful`, an optional `reason` from a fixed list that is only allowed with
+  `not_helpful`. Composite FK `(recommendation_id, student_id, institution_id)`, cascading.
+- `ai.recommendation_preferences`: one row per student: `preferred_formats`, `max_minutes` (1 to
+  180), `muted_areas`, `use_indicators`. No row means the defaults. Composite FK to the student,
+  cascading.
+- `set_updated_at` triggers on both new tables. Both are erased with the student and are in the
+  data export. See [ADR 0012](adr/0012-personalised-recommendation-engine.md).
 
 ### 0.2 Requirements checklist
 

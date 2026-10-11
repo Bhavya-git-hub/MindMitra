@@ -1,6 +1,12 @@
 """Importing this package registers every model on ``Base.metadata``."""
 
-from app.infrastructure.db.models.ai import AIConversation, AIMessage, Recommendation
+from app.infrastructure.db.models.ai import (
+    AIConversation,
+    AIMessage,
+    Recommendation,
+    RecommendationFeedback,
+    RecommendationPreference,
+)
 from app.infrastructure.db.models.audit import AuditLog
 from app.infrastructure.db.models.comm import Message
 from app.infrastructure.db.models.consent import Consent
@@ -78,6 +84,8 @@ __all__ = [
     "Notification",
     "OneTimeToken",
     "Recommendation",
+    "RecommendationFeedback",
+    "RecommendationPreference",
     "RefreshToken",
     "Resource",
     "Referral",
