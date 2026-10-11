@@ -6,6 +6,7 @@ what the student reported, not a judgement about them.
 
 import dataclasses
 import datetime as dt
+import math
 from collections.abc import Collection, Sequence
 
 Direction = str  # "up" | "steady" | "down"
@@ -74,3 +75,42 @@ def streak_days(check_in_days: Collection[dt.date], today: dt.date) -> int:
         count += 1
         cursor -= dt.timedelta(days=1)
     return count
+
+
+def _scale_to_percent(value: float) -> float:
+    """A 1-5 self-report scale mapped onto 0-100."""
+    return (value - 1) / 4 * 100
+
+
+def wellness_index(
+    mood: float | None, stress: float | None, sleep_quality: float | None
+) -> int | None:
+    """A transparent 0-100 summary of what a student reported, or None without enough.
+
+    Each component is a 1-5 self-report: mood and sleep quality count as they are (1 -> 0,
+    5 -> 100) and stress is inverted, so lower reported stress gives a higher figure
+    (``(5 - stress) / 4 * 100``). The index is the plain average of the components that are
+    present, and needs at least two of the three; otherwise it is None.
+
+    This is a self-reported summary to help someone see their own patterns over time. It is
+    not a clinical measure and says nothing about a person's health.
+    """
+    parts = [
+        part
+        for part in (
+            None if mood is None else _scale_to_percent(mood),
+            None if stress is None else _scale_to_percent(6 - stress),
+            None if sleep_quality is None else _scale_to_percent(sleep_quality),
+        )
+        if part is not None
+    ]
+    if len(parts) < 2:
+        return None
+    return math.floor(sum(parts) / len(parts) + 0.5)  # halves round up, not to even
+
+
+def goal_progress_percent(current_value: float, target_value: float | None) -> int | None:
+    """How far along a goal is, 0-100, or None when it has no target to measure against."""
+    if not target_value:
+        return None
+    return min(100, round(current_value * 100 / target_value))

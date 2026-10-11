@@ -22,6 +22,7 @@ THERAPIST = {"therapist"}
 
 ROUTES: list[tuple[str, str, Any, set[str]]] = [
     ("GET", "/therapist/dashboard", None, THERAPIST),
+    ("GET", "/therapist/analytics", None, THERAPIST),
     ("GET", "/therapist/profile", None, THERAPIST),
     ("PATCH", "/therapist/profile", {"bio": "Hello"}, THERAPIST),
     # invalid on purpose (422): the shared therapist must stay verified for the other tests

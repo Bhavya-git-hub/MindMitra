@@ -9,6 +9,7 @@ import { BarSeriesChart, TrendChart } from "@/components/charts";
 import { PageHeader } from "@/components/layout/page-header";
 import { EmptyState } from "@/components/states/empty-state";
 import { InlineAlert } from "@/components/states/inline-alert";
+import { WellnessOverTime, useWellnessAnalytics } from "@/components/student/analytics-sections";
 import { DataView } from "@/components/student/data-view";
 import { SaveButton, useSubmit } from "@/components/student/form-bits";
 import { MetricCard } from "@/components/student/metric-card";
@@ -333,6 +334,7 @@ export function TrendsView() {
   const api = useStudentApi();
   const [days, setDays] = React.useState<(typeof RANGES)[number]>(30);
   const trends = useQuery(`trends-${days}`, () => api.trends(days));
+  const analytics = useWellnessAnalytics();
 
   return (
     <>
@@ -438,6 +440,7 @@ export function TrendsView() {
           );
         }}
       </DataView>
+      <WellnessOverTime query={analytics} />
     </>
   );
 }

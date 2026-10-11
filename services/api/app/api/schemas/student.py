@@ -7,7 +7,13 @@ from typing import Annotated, Literal
 
 from pydantic import AwareDatetime, BaseModel, Field, StringConstraints
 
-from app.application import booking, recommendation_feedback, recommendations, safety_workflow
+from app.application import (
+    booking,
+    recommendation_feedback,
+    recommendations,
+    safety_workflow,
+    student_analytics,
+)
 from app.application.student_wellness import DailyPoint, Summary
 from app.domain.wellness import indicators, instruments
 from app.domain.wellness.recommender.catalog import BY_KEY, MUTABLE_AREAS
@@ -336,6 +342,87 @@ class TrendsOut(BaseModel):
     disclaimer: str = DISCLAIMER
 
 
+# ---- analytics ------------------------------------------------------------------------------
+
+
+class WeekOut(BaseModel):
+    week_start: dt.date  # the Monday, in the student's own time zone
+    wellness_index: int | None  # 0-100, from what the student reported
+    mood_avg: float | None
+    stress_avg: float | None
+    sleep_quality_avg: float | None
+    sleep_hours_avg: float | None
+    days_reported: int = Field(ge=0, le=7)
+    partial: bool  # the current week is not over yet
+
+
+class WellbeingCheckOut(BaseModel):
+    completed_at: dt.datetime
+    percent: int
+    band: BandOut
+
+
+class CategoryProgressOut(BaseModel):
+    category: str
+    active: int
+    completed: int
+    average_progress_percent: float | None
+
+
+class WeekCompletedOut(BaseModel):
+    week_start: dt.date
+    completed: int
+
+
+class GoalAnalyticsOut(BaseModel):
+    active: int
+    completed: int
+    other: int  # paused or set aside
+    average_progress_percent: float | None  # active goals that have a target
+    by_category: list[CategoryProgressOut]
+    completed_by_week: list[WeekCompletedOut]
+
+
+class WellnessAnalyticsOut(BaseModel):
+    weeks: list[WeekOut]  # oldest first, ending with the current (partial) week
+    wellbeing_checks: list[WellbeingCheckOut]  # the last 12, oldest first
+    goals: GoalAnalyticsOut
+    disclaimer: str = DISCLAIMER
+
+
+def analytics_out(a: student_analytics.StudentAnalytics) -> WellnessAnalyticsOut:
+    return WellnessAnalyticsOut(
+        weeks=[WeekOut(**vars(w)) for w in a.weeks],
+        wellbeing_checks=[
+            WellbeingCheckOut(
+                completed_at=r.completed_at,
+                percent=instruments.percentage(float(r.score)),
+                band=BandOut(**vars(instruments.band(float(r.score)))),
+            )
+            for r in a.wellbeing_checks
+        ],
+        goals=GoalAnalyticsOut(
+            active=a.goals.active,
+            completed=a.goals.completed,
+            other=a.goals.other,
+            average_progress_percent=a.goals.average_progress_percent,
+            by_category=[
+                CategoryProgressOut(
+                    category=c.category.value,
+                    active=c.active,
+                    completed=c.completed,
+                    average_progress_percent=c.average_progress_percent,
+                )
+                for c in a.goals.by_category
+            ],
+            completed_by_week=[
+                WeekCompletedOut(week_start=w.week_start, completed=w.completed)
+                for w in a.goals.completed_by_week
+            ],
+        ),
+    )
+
+
 # ---- assessment -----------------------------------------------------------------------------
 
 
@@ -417,9 +504,9 @@ class GoalOut(BaseModel):
 
 
 def goal_out(g: m.WellnessGoal) -> GoalOut:
-    progress: int | None = None
-    if g.target_value:
-        progress = min(100, round(float(g.current_value) * 100 / float(g.target_value)))
+    progress = indicators.goal_progress_percent(
+        float(g.current_value), None if g.target_value is None else float(g.target_value)
+    )
     return GoalOut(
         id=g.id,
         title=g.title,

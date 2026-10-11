@@ -30,6 +30,7 @@ import {
   therapistDetailSchema,
   therapistSchema,
   trendsSchema,
+  wellnessAnalyticsSchema,
   wellnessSummarySchema,
   type CancelReason,
   type FeedbackRating,
@@ -96,6 +97,11 @@ export function createStudentApi(client: ApiClient, timeZone: () => string = bro
       client.request(`/me/wellness/summary${qs(tz())}`, { schema: wellnessSummarySchema }),
     trends: (days: number) =>
       client.request(`/me/wellness/trends${qs({ ...tz(), days })}`, { schema: trendsSchema }),
+    /** Weekly self-reported figures, recent wellbeing checks and goal progress (4 to 12 weeks). */
+    wellnessAnalytics: (weeks: number) =>
+      client.request(`/me/wellness/analytics${qs({ ...tz(), weeks })}`, {
+        schema: wellnessAnalyticsSchema,
+      }),
 
     checkIn: (input: CheckInInput) =>
       client.request(`/me/check-ins${qs(tz())}`, {

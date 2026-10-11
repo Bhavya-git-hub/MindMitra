@@ -30,6 +30,7 @@ export function BarSeriesChart({
   xKey,
   series,
   height,
+  blankLabel,
 }: {
   title: string;
   description?: string;
@@ -37,13 +38,15 @@ export function BarSeriesChart({
   xKey: string;
   series: Series[];
   height?: number;
+  /** What the accessible table says where a value is missing, for example "Fewer than 5". */
+  blankLabel?: string;
 }) {
   return (
     <ChartFrame
       title={title}
       description={description}
       height={height}
-      table={seriesTable(title, data, xKey, series)}
+      table={seriesTable(title, data, xKey, series, blankLabel)}
     >
       <ResponsiveContainer width="100%" height="100%">
         <BarChart accessibilityLayer={false} data={data} margin={CHART_MARGIN}>

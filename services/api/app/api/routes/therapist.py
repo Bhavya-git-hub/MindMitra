@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import app_state, get_db, require_permission
 from app.api.schemas import teacher as ts
 from app.api.schemas import therapist as s
+from app.api.schemas import therapist_analytics as tas
 from app.api.schemas.indicators import IndicatorsOut, indicators_out
 from app.api.zone import Zone
 from app.application import (
@@ -23,6 +24,7 @@ from app.application import (
     referrals,
     rescheduling,
     risk_alerts,
+    therapist_analytics,
     therapist_appointments,
     therapist_dashboard,
     therapist_profile,
@@ -71,6 +73,17 @@ Limit = Annotated[int, Query(ge=1, le=200)]
 @router.get("/dashboard")
 async def dashboard(db: Db, principal: Own, zone: Zone) -> s.DashboardOut:
     return s.dashboard_out(await therapist_dashboard.build(db, principal, zone))
+
+
+@router.get("/analytics")
+async def analytics(
+    db: Db,
+    principal: Own,
+    zone: Zone,
+    weeks: Annotated[int | None, Query(description="4, 8 or 12 completed weeks")] = None,
+) -> tas.TherapistAnalyticsOut:
+    """Counts and averages over this therapist's own caseload and work (see the use case)."""
+    return tas.analytics_out(await therapist_analytics.build(db, principal, weeks, zone))
 
 
 @router.get("/profile")

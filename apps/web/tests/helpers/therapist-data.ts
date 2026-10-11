@@ -3,6 +3,7 @@ import type {
   CaseloadStudent,
   RiskAlert,
   StudentProfile,
+  TherapistAnalytics,
   TherapistAppointment,
   TherapistDashboard,
   TherapistProfile,
@@ -159,3 +160,129 @@ export const dashboard = (extra: Partial<TherapistDashboard> = {}): TherapistDas
   unread_messages: 3,
   ...extra,
 });
+
+const WEEK_STARTS = ["2026-09-14", "2026-09-21", "2026-09-28", "2026-10-05"];
+
+/** Four finished weeks of counts and averages; the last two weeks hold the figures. */
+export const analytics = (extra: Partial<TherapistAnalytics> = {}): TherapistAnalytics => ({
+  weeks: 4,
+  window_start: "2026-09-14",
+  window_end: "2026-10-11",
+  caseload: {
+    caseload_size: 5,
+    sharing_count: 3,
+    weekly: WEEK_STARTS.map((week_start, i) => ({
+      week_start,
+      students_reporting: i >= 2 ? 3 : 0,
+      mood_avg: i >= 2 ? 3.5 + (i - 2) / 2 : null,
+      stress_avg: i >= 2 ? 2.5 : null,
+      sleep_hours_avg: i >= 2 ? 7.25 : null,
+    })),
+  },
+  appointments: {
+    by_status: { requested: 0, confirmed: 1, completed: 6, cancelled: 2, no_show: 1 },
+    weekly: WEEK_STARTS.map((week_start, i) => ({
+      week_start,
+      scheduled: i === 3 ? 4 : 2,
+      completed: i === 3 ? 3 : 1,
+      no_show: i === 3 ? 0 : 1,
+      cancelled: i === 2 ? 1 : 0,
+    })),
+    rates: { completion: 67, no_show: 11, cancellation: 22 },
+    by_mode: { video: 7, in_person: 2, phone: 1 },
+  },
+  interventions: {
+    recommendations: {
+      total: 5,
+      by_status: { pending: 2, viewed: 1, dismissed: 0, completed: 2 },
+      completion_rate: 40,
+      weekly: WEEK_STARTS.map((week_start, i) => ({ week_start, count: i })),
+    },
+    follow_ups: {
+      total: 4,
+      by_status: { open: 2, done: 1, cancelled: 1 },
+      overdue: 1,
+      done_on_time_rate: 100,
+      by_kind: { check_in: 3, book_session: 1, referral: 0, paperwork: 0, other: 0 },
+    },
+  },
+  alerts: {
+    total: 3,
+    by_severity: { low: 1, moderate: 1, high: 1, imminent: 0 },
+    by_status: {
+      open: 1,
+      acknowledged: 1,
+      escalated: 0,
+      in_progress: 0,
+      resolved: 1,
+      dismissed: 0,
+    },
+    weekly: WEEK_STARTS.map((week_start, i) => ({
+      week_start,
+      count: i === 1 ? 2 : i === 3 ? 1 : 0,
+    })),
+    acknowledged_median_minutes: 75,
+    overdue_open: 1,
+    resolved_count: 1,
+  },
+  generated_at: "2026-10-11T08:00:00Z",
+  disclaimer: "Counts and averages only. Self-reported, not a diagnosis.",
+  ...extra,
+});
+
+/** A therapist with nobody on their caseload and nothing done yet. */
+export const emptyAnalytics = (weeks = 4): TherapistAnalytics => {
+  const base = analytics({ weeks });
+  const zero = (counts: Record<string, number>) =>
+    Object.fromEntries(Object.keys(counts).map((k) => [k, 0]));
+  return {
+    ...base,
+    caseload: {
+      caseload_size: 0,
+      sharing_count: 0,
+      weekly: base.caseload.weekly.map((w) => ({
+        week_start: w.week_start,
+        students_reporting: 0,
+        mood_avg: null,
+        stress_avg: null,
+        sleep_hours_avg: null,
+      })),
+    },
+    appointments: {
+      by_status: zero(base.appointments.by_status),
+      weekly: base.appointments.weekly.map((w) => ({
+        week_start: w.week_start,
+        scheduled: 0,
+        completed: 0,
+        no_show: 0,
+        cancelled: 0,
+      })),
+      rates: { completion: null, no_show: null, cancellation: null },
+      by_mode: zero(base.appointments.by_mode),
+    },
+    interventions: {
+      recommendations: {
+        total: 0,
+        by_status: zero(base.interventions.recommendations.by_status),
+        completion_rate: null,
+        weekly: base.interventions.recommendations.weekly.map((w) => ({ ...w, count: 0 })),
+      },
+      follow_ups: {
+        total: 0,
+        by_status: zero(base.interventions.follow_ups.by_status),
+        overdue: 0,
+        done_on_time_rate: null,
+        by_kind: zero(base.interventions.follow_ups.by_kind),
+      },
+    },
+    alerts: {
+      total: 0,
+      by_severity: zero(base.alerts.by_severity),
+      by_status: zero(base.alerts.by_status),
+      weekly: base.alerts.weekly.map((w) => ({ ...w, count: 0 })),
+      acknowledged_median_minutes: null,
+      overdue_open: 0,
+      resolved_count: 0,
+    },
+  };
+};

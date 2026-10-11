@@ -16,6 +16,7 @@ import {
   pageOf,
   platformAnalyticsSchema,
   reviewSchema,
+  serviceAnalyticsSchema,
   safetySettingsSchema,
   type SafetySettings,
   studentDetailSchema,
@@ -230,6 +231,10 @@ export function createAdminApi(client: ApiClient) {
     // aggregates
     analytics: (weeks: WindowWeeks) =>
       client.request(`/admin/analytics${qs({ weeks })}`, { schema: platformAnalyticsSchema }),
+    serviceAnalytics: (weeks: WindowWeeks) =>
+      client.request(`/admin/analytics/services${qs({ weeks })}`, {
+        schema: serviceAnalyticsSchema,
+      }),
     oversight: (weeks: WindowWeeks) =>
       client.request(`/admin/appointments/oversight${qs({ weeks })}`, {
         schema: oversightSchema,

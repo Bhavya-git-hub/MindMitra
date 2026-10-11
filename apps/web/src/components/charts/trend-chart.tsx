@@ -38,6 +38,7 @@ export function TrendChart({
   series,
   yDomain,
   height,
+  blankLabel,
 }: {
   title: string;
   description?: string;
@@ -46,13 +47,15 @@ export function TrendChart({
   series: Series[];
   yDomain?: [number, number];
   height?: number;
+  /** What the accessible table says where a value is missing, for example "Fewer than 5". */
+  blankLabel?: string;
 }) {
   return (
     <ChartFrame
       title={title}
       description={description}
       height={height}
-      table={seriesTable(title, data, xKey, series)}
+      table={seriesTable(title, data, xKey, series, blankLabel)}
     >
       <ResponsiveContainer width="100%" height="100%">
         <LineChart accessibilityLayer={false} data={data} margin={CHART_MARGIN}>

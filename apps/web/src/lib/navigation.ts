@@ -96,6 +96,7 @@ export const NAVIGATION: Record<Role, NavItem[]> = {
     { label: "Follow-ups", href: "/therapist/follow-ups", icon: ListChecks },
     { label: "Messages", href: "/therapist/messages", icon: MessageCircle },
     { label: "Referrals", href: "/therapist/referrals", icon: HeartHandshake },
+    { label: "Analytics", href: "/therapist/analytics", icon: LineChart },
     { label: "Profile", href: "/therapist/profile", icon: BadgeCheck },
     account("therapist"),
   ],

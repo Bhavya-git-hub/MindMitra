@@ -17,10 +17,12 @@ import {
   sessionSchema,
   slotSchema,
   studentProfileSchema,
+  therapistAnalyticsSchema,
   trendsSchema,
   type FollowUpKind,
 } from "./therapist-schemas";
 import { qs } from "./query-string";
+import type { WindowWeeks } from "./teacher-schemas";
 
 export interface ProfilePatch {
   bio?: string;
@@ -65,6 +67,12 @@ export function createTherapistApi(client: ApiClient, timeZone: () => string = b
 
   return {
     dashboard: () => client.request(`/therapist/dashboard${qs(tz())}`, { schema: dashboardSchema }),
+
+    /** Counts and averages over this therapist's own caseload and work, in finished weeks. */
+    analytics: (weeks: WindowWeeks) =>
+      client.request(`/therapist/analytics${qs({ ...tz(), weeks })}`, {
+        schema: therapistAnalyticsSchema,
+      }),
 
     profile: () => client.request("/therapist/profile", { schema: profileSchema }),
     updateProfile: (patch: ProfilePatch) =>

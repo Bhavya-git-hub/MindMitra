@@ -9,39 +9,40 @@ import { PageHeader } from "@/components/layout/page-header";
 import { DataView } from "@/components/student/data-view";
 import { AnalyticsPanel } from "@/components/teacher/analytics-panel";
 import { WindowTabs } from "@/components/teacher/shared";
+import { BarSeriesChart } from "@/components/charts";
 import type { WeekCount } from "@/lib/api/admin-schemas";
 import type { WindowWeeks } from "@/lib/api/teacher-schemas";
-import { formatShortDate, titleCase } from "@/lib/format";
+import { titleCase } from "@/lib/format";
 import { useAdminApi } from "@/lib/hooks/use-admin-api";
 import { useQuery } from "@/lib/hooks/use-query";
 
 import { PrivacyReminder } from "./dashboard-view";
 import { ROLE_LABELS, Table } from "./shared";
+import { FEWER_THAN_5, ServiceAnalyticsSections, countText, weekRows } from "./service-analytics";
 
-/** A count, or the words that stand in for a number from 1 to 4. */
-const count = (n: number | null) => (n === null ? "Fewer than 5" : String(n));
+/** Shown beside every weekly chart, because a hidden week is a gap in the picture. */
+const WEEKLY_NOTE =
+  "Weeks that have finished. A week with fewer than 5 has no bar and reads “Fewer than 5” in the table.";
 
 function WeeklyCounts({
   title,
-  caption,
+  label,
   rows,
 }: {
   title: string;
-  caption: string;
+  /** The chart's name, which is also the caption of its table. */
+  label: string;
   rows: WeekCount[];
 }) {
   return (
-    <SectionCard title={title} description="Weeks that have finished. Small numbers are not shown.">
-      <Table caption={caption} head={["Week starting", "Count"]} minWidth="18rem">
-        {rows.map((w) => (
-          <tr key={w.week_start}>
-            <th scope="row" className="py-2 pr-4 font-normal">
-              {formatShortDate(w.week_start)}
-            </th>
-            <td className="py-2 pr-4">{count(w.count)}</td>
-          </tr>
-        ))}
-      </Table>
+    <SectionCard title={title} description={WEEKLY_NOTE}>
+      <BarSeriesChart
+        title={label}
+        data={weekRows(rows, { count: (w) => w.count })}
+        xKey="week"
+        series={[{ key: "count", label: "Count" }]}
+        blankLabel={FEWER_THAN_5}
+      />
     </SectionCard>
   );
 }
@@ -50,6 +51,7 @@ export function AnalyticsView() {
   const api = useAdminApi();
   const [weeks, setWeeks] = React.useState<WindowWeeks>(8);
   const data = useQuery(`admin-analytics-${weeks}`, () => api.analytics(weeks));
+  const services = useQuery(`admin-service-analytics-${weeks}`, () => api.serviceAnalytics(weeks));
 
   return (
     <>
@@ -70,12 +72,12 @@ export function AnalyticsView() {
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
               <WeeklyCounts
                 title="Appointments booked"
-                caption="Appointments booked each week"
+                label="Appointments booked each week"
                 rows={a.appointments_booked}
               />
               <WeeklyCounts
                 title="Safety alerts raised"
-                caption="Safety alerts raised each week"
+                label="Safety alerts raised each week"
                 rows={a.alerts_raised}
               />
             </div>
@@ -111,10 +113,11 @@ export function AnalyticsView() {
               )}
             </SectionCard>
             <p className="text-sm text-muted-foreground">{a.small_number_note}</p>
-            <PrivacyReminder />
           </>
         )}
       </DataView>
+      <ServiceAnalyticsSections query={services} />
+      <PrivacyReminder />
     </>
   );
 }
@@ -169,14 +172,14 @@ export function OversightView() {
                       <th scope="row" className="py-2 pr-4 font-normal">
                         {titleCase(s.status)}
                       </th>
-                      <td className="py-2 pr-4">{count(s.count)}</td>
+                      <td className="py-2 pr-4">{countText(s.count)}</td>
                     </tr>
                   ))}
                 </Table>
               </SectionCard>
               <WeeklyCounts
                 title="Scheduled each week"
-                caption="Appointments scheduled each week"
+                label="Appointments scheduled each week"
                 rows={o.weekly_scheduled}
               />
             </div>
