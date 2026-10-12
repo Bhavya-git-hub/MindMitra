@@ -6,6 +6,7 @@ or the identity of anyone in a care relationship. Group figures reuse the teache
 ``AnalyticsOut``, which is built only from the privacy rules in ``domain.wellness.cohort``.
 """
 
+import dataclasses
 import datetime as dt
 import uuid
 from typing import Annotated, Any, Literal
@@ -500,19 +501,7 @@ class AuditEventOut(BaseModel):
 
 
 def audit_event_out(r: m.AuditLog) -> AuditEventOut:
-    return AuditEventOut(
-        seq=r.seq,
-        occurred_at=r.occurred_at,
-        actor_id=r.actor_id,
-        actor_role=r.actor_role.value if r.actor_role else None,
-        action=r.action,
-        outcome=r.outcome.value,
-        resource_type=r.resource_type,
-        resource_id=r.resource_id,
-        subject_student_id=r.subject_student_id,
-        reason=r.reason,
-        details=r.details,
-    )
+    return AuditEventOut(**dataclasses.asdict(admin_audit.shown(r)))
 
 
 class ChainStatusOut(BaseModel):

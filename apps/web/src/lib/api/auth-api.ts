@@ -51,10 +51,10 @@ export function createAuthApi(client: ApiClient) {
         auth: false,
       }),
 
-    verifyEmail: (token: string) =>
+    verifyEmail: (token: string, password: string) =>
       client.request("/auth/verify-email", {
         method: "POST",
-        body: { token },
+        body: { token, password },
         schema: acceptedSchema,
         auth: false,
       }),

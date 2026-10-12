@@ -166,30 +166,45 @@ describe("ResetPasswordForm", () => {
 });
 
 describe("VerifyEmailView", () => {
-  it("verifies the token exactly once and offers sign-in", async () => {
-    let calls = 0;
+  it("sends the token with the registered password once and offers sign-in", async () => {
+    const bodies: unknown[] = [];
     renderWithApp(
       <VerifyEmailView token="tok-1234567890" />,
       makeSession({
-        "POST /auth/verify-email": () => {
-          calls += 1;
+        "POST /auth/verify-email": (call) => {
+          bodies.push(call.body);
           return json({ status: "verified" });
         },
       }),
     );
+    const user = userEvent.setup();
+    await user.type(screen.getByLabelText("Password"), "Synthetic-passphrase-42");
+    await user.click(screen.getByRole("button", { name: "Verify email" }));
     expect(await screen.findByRole("heading", { name: "Email verified" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Sign in" })).toHaveAttribute("href", "/login");
-    expect(calls).toBe(1);
+    expect(bodies).toEqual([{ token: "tok-1234567890", password: "Synthetic-passphrase-42" }]);
   });
 
-  it("reports a bad or used token", async () => {
+  it("does not call the API before a password is entered", async () => {
+    const session = makeSession();
+    renderWithApp(<VerifyEmailView token="tok-1234567890" />, session);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Verify email" }));
+    expect(
+      await screen.findByText("Enter the password you chose when you registered"),
+    ).toBeInTheDocument();
+    expect(session.api.mock).not.toHaveBeenCalled();
+  });
+
+  it("reports a wrong password or a bad or used token the same way", async () => {
     renderWithApp(
       <VerifyEmailView token="tok-1234567890" />,
       makeSession({ "POST /auth/verify-email": () => problem(401, "Invalid token") }),
     );
-    expect(
-      await screen.findByText("This link has expired or was already used."),
-    ).toBeInTheDocument();
+    const user = userEvent.setup();
+    await user.type(screen.getByLabelText("Password"), "Wrong-passphrase-42");
+    await user.click(screen.getByRole("button", { name: "Verify email" }));
+    expect(await screen.findByText(/That password doesn't match/)).toBeInTheDocument();
   });
 
   it("handles a missing token without calling the API", async () => {

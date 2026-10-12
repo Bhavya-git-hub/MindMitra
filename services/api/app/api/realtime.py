@@ -85,13 +85,26 @@ async def _reader(ws: Socket) -> None:
 
 
 async def _writer(ws: Socket, conn: Connection, state: AppState, token: str) -> int:
-    """Forwards events; returns the close code when the connection must end."""
+    """Forwards events; returns the close code when the connection must end.
+
+    The session is re-checked on a fixed schedule, whether or not events are flowing: a steady
+    stream of events (an active chat, notifications read on another device) must not keep a
+    signed-out, suspended or expired session's socket open. An event that is due when the check
+    fails is dropped, not delivered.
+    """
+    loop = asyncio.get_running_loop()
+    next_check = loop.time() + REVALIDATE_EVERY
     while True:
-        try:
-            payload = await asyncio.wait_for(conn.queue.get(), REVALIDATE_EVERY)
-        except TimeoutError:
+        payload: dict[str, Any] | None = None
+        wait = next_check - loop.time()
+        if wait > 0:
+            with contextlib.suppress(TimeoutError):
+                payload = await asyncio.wait_for(conn.queue.get(), wait)
+        if loop.time() >= next_check:
             if not await _still_valid(state, token):
                 return CLOSE_UNAUTHENTICATED
+            next_check = loop.time() + REVALIDATE_EVERY
+        if payload is None:
             continue
         if conn.overflowed:
             return CLOSE_TRY_AGAIN

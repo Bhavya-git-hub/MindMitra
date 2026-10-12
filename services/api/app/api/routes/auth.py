@@ -56,6 +56,10 @@ class TokenIn(BaseModel):
     token: str = Field(min_length=10, max_length=200)
 
 
+class VerifyEmailIn(TokenIn):
+    password: str = Field(max_length=1024)
+
+
 class ForgotIn(BaseModel):
     email: str = Field(max_length=320)
     institution: str | None = Field(default=None, max_length=80)
@@ -140,9 +144,9 @@ async def register(body: RegisterIn, request: Request, auth: Auth) -> Accepted:
 
 
 @router.post("/verify-email", dependencies=[Depends(rate_limited("auth"))])
-async def verify_email(body: TokenIn, auth: Auth) -> Accepted:
-    """PUBLIC (one-time token)."""
-    await auth.verify_email(body.token)
+async def verify_email(body: VerifyEmailIn, auth: Auth) -> Accepted:
+    """PUBLIC (one-time token plus the password chosen at registration)."""
+    await auth.verify_email(body.token, body.password)
     return Accepted(status="verified")
 
 

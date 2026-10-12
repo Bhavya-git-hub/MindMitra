@@ -4,7 +4,9 @@ Only the current conversation, and only its recent part: the last ``MAX_TURNS`` 
 fit in ``MAX_CONTEXT_CHARS``, newest kept first. Earlier conversations, check-ins, journals,
 other people and any identifiers are never included (the API does not send them). Every
 earlier student message is scrubbed of personal details again, since rules may have improved
-since it was written.
+since it was written. An earlier message the input guard refuses (an attempt to change the
+companion's rules, a request for a diagnosis or medication advice) is left out together with
+the fixed reply to it, so a refused message cannot reach the model one turn later.
 """
 
 import dataclasses
@@ -12,7 +14,7 @@ from collections.abc import Sequence
 from typing import Final, Literal
 
 from safety.crisis_rules import Action, detect
-from safety.input_guard import scrub
+from safety.input_guard import Intent, classify_intent, scrub
 
 MAX_TURNS: Final = 12
 MAX_CONTEXT_CHARS: Final = 8000
@@ -48,18 +50,35 @@ def _merge(turns: Sequence[Turn]) -> list[Turn]:
     return out
 
 
+def _without_refused(history: Sequence[Turn]) -> list[Turn]:
+    """``history`` without refused student messages and the assistant reply that follows each."""
+    out: list[Turn] = []
+    refused = False
+    for turn in history:
+        if turn.role == "user":
+            refused = classify_intent(turn.content) is not Intent.CHAT
+            if refused:
+                continue
+        elif refused:
+            refused = False
+            continue
+        out.append(turn)
+    return out
+
+
 def build_context(history: Sequence[Turn], message: str) -> Context:
     """``history`` is oldest first and does not include ``message`` (already scrubbed)."""
+    allowed = _without_refused(history)
     recent: list[Turn] = []
     used = len(message)
-    for turn in reversed(history[-MAX_TURNS:]):
+    for turn in reversed(allowed[-MAX_TURNS:]):
         content = scrub(turn.content)[0] if turn.role == "user" else turn.content
         if used + len(content) > MAX_CONTEXT_CHARS:
             break
         recent.append(Turn(turn.role, content))
         used += len(content)
     recent.reverse()
-    trimmed = len(recent) < len(history)
+    trimmed = len(recent) < len(allowed)
     messages = _merge([*recent, Turn("user", message)])
 
     earlier_user = tuple(t.content for t in history if t.role == "user")

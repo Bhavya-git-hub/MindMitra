@@ -248,7 +248,8 @@ class AuthService:
         """Self-registration for students with an institutional e-mail address.
 
         The account starts as ``invited`` and becomes ``active`` once the e-mailed
-        verification link is used. Whether the e-mail was already registered is not revealed.
+        verification link is used together with the password chosen here. Whether the e-mail
+        was already registered is not revealed.
         """
         email = normalise_email(data.email)
         if not EMAIL_RE.match(email):
@@ -281,11 +282,16 @@ class AuthService:
 
         existing = (
             await self.db.execute(
-                select(m.User.id).where(m.User.institution_id == inst.id, m.User.email == email)
+                select(m.User).where(m.User.institution_id == inst.id, m.User.email == email)
             )
         ).scalar_one_or_none()
+        # Hashed on every path: returning before hashing made a registered e-mail answer
+        # ~25x faster, which revealed it in a single request.
+        password_hash = hash_password(data.password)
         if existing is not None:
-            return  # same response as a new registration: no account enumeration
+            # Same response as a new registration (no account enumeration).
+            await self._register_again(existing, password_hash, client_ip=client_ip)
+            return
 
         user = m.User(
             id=uuid7(),
@@ -295,7 +301,7 @@ class AuthService:
             role=UserRole.STUDENT,
             status=UserStatus.INVITED,
         )
-        user.credential = m.Credential(password_hash=hash_password(data.password))
+        user.credential = m.Credential(password_hash=password_hash)
         self.db.add(user)
         await self.db.flush()
         self.db.add(
@@ -336,11 +342,49 @@ class AuthService:
             token=token,
         )
 
-    async def verify_email(self, token: str) -> None:
+    async def _register_again(
+        self, user: m.User, password_hash: str, *, client_ip: str | None
+    ) -> None:
+        """Someone registered an e-mail that already has an account.
+
+        An active or admin-invited account is left alone and nothing is sent. A self-registered
+        account that was never verified takes the newest password and gets a fresh link (older
+        links stop working). Without this, whoever registered an address first kept it: a
+        stranger could register a student's address, and the student's own registration sent
+        nothing, leaving only the stranger's link, which activated the stranger's password.
+        """
+        if user.status is not UserStatus.INVITED or user.role is not UserRole.STUDENT:
+            return
+        cred = await self.db.get(m.Credential, user.id)
+        if cred is None:  # invited by an administrator: the set-up link is the way in
+            return
+        cred.password_hash = password_hash
+        token = await self._issue_one_time_token(
+            user,
+            OneTimeTokenPurpose.EMAIL_VERIFICATION,
+            self.settings.email_verification_ttl_seconds,
+        )
+        await self._audit(user, "auth.register", AuditOutcome.ALLOWED, client_ip=client_ip)
+        await self.db.commit()
+        await self.delivery.send(
+            user_id=user.id,
+            email=user.email,
+            purpose=OneTimeTokenPurpose.EMAIL_VERIFICATION,
+            token=token,
+        )
+
+    async def verify_email(self, token: str, password: str) -> None:
+        """Activates a self-registered account. The link proves the mailbox and the password
+        proves the person who registered, so a link sent because a stranger registered the
+        address cannot activate the stranger's password. A wrong password leaves the link
+        usable and answers like a bad link."""
         try:
             _ott, user = await self._consume_one_time_token(
                 token, (OneTimeTokenPurpose.EMAIL_VERIFICATION,)
             )
+            cred = await self.db.get(m.Credential, user.id)
+            if cred is None or not verify_password(cred.password_hash, password):
+                raise InvalidToken
         except InvalidToken:
             await self.db.rollback()
             raise
@@ -537,18 +581,28 @@ class AuthService:
                 m.Institution.slug == institution_slug
             )
         users = (await self.db.execute(stmt)).scalars().all()
-        if len(users) != 1 or users[0].status is not UserStatus.ACTIVE:
+        # Every active account at this address gets its own link. Requiring exactly one match
+        # let an administrator of another institution silently block someone's reset by
+        # creating an account with the same address there (the web form sends no slug).
+        active = [u for u in users if u.status is UserStatus.ACTIVE]
+        if not active:
             await self.db.rollback()
             return
-        user = users[0]
-        token = await self._issue_one_time_token(
-            user, OneTimeTokenPurpose.PASSWORD_RESET, self.settings.password_reset_ttl_seconds
-        )
-        await self._audit(user, "auth.password_reset_requested", AuditOutcome.ALLOWED)
+        issued: list[tuple[m.User, str]] = []
+        for user in active:
+            token = await self._issue_one_time_token(
+                user, OneTimeTokenPurpose.PASSWORD_RESET, self.settings.password_reset_ttl_seconds
+            )
+            await self._audit(user, "auth.password_reset_requested", AuditOutcome.ALLOWED)
+            issued.append((user, token))
         await self.db.commit()
-        await self.delivery.send(
-            user_id=user.id, email=email, purpose=OneTimeTokenPurpose.PASSWORD_RESET, token=token
-        )
+        for user, token in issued:
+            await self.delivery.send(
+                user_id=user.id,
+                email=email,
+                purpose=OneTimeTokenPurpose.PASSWORD_RESET,
+                token=token,
+            )
 
     async def reset_password(self, token: str, new_password: str) -> None:
         """Complete a reset or first-time account setup. Signs the user out everywhere."""
@@ -574,6 +628,19 @@ class AuthService:
             cred.locked_until = None
         if ott.purpose is OneTimeTokenPurpose.ACCOUNT_SETUP and user.status is UserStatus.INVITED:
             user.status = UserStatus.ACTIVE
+        # Any other outstanding reset or set-up link dies with this change; otherwise an older
+        # link could overwrite the password just chosen (and sign the person out everywhere).
+        await self.db.execute(
+            update(m.OneTimeToken)
+            .where(
+                m.OneTimeToken.user_id == user.id,
+                m.OneTimeToken.purpose.in_(
+                    (OneTimeTokenPurpose.PASSWORD_RESET, OneTimeTokenPurpose.ACCOUNT_SETUP)
+                ),
+                m.OneTimeToken.used_at.is_(None),
+            )
+            .values(used_at=now)
+        )
         await self.revoke_user_sessions(user.id, SessionRevokeReason.PASSWORD_CHANGED)
         await self._audit(user, f"auth.{ott.purpose.value}_completed", AuditOutcome.ALLOWED)
         await self.db.commit()

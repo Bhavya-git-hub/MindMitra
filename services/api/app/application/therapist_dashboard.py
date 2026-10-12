@@ -169,6 +169,8 @@ async def build(db: AsyncSession, actor: Principal, zone: ZoneInfo) -> Dashboard
                 m.Message.institution_id == actor.institution_id,
                 m.Message.sender_id != actor.user_id,
                 m.Message.read_at.is_(None),
+                # only conversations the therapist can still open (an ended link closes one)
+                m.Message.student_id.in_(active_students(actor)),
             )
         )
         or 0

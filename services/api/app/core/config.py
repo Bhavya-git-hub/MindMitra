@@ -9,7 +9,11 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+    # hide_input_in_errors: a rejected value (a DATABASE_URL with its password, a key, the ML
+    # token) must never be echoed into the startup error that ends up in deployment logs.
+    model_config = SettingsConfigDict(
+        env_file=".env", env_file_encoding="utf-8", extra="ignore", hide_input_in_errors=True
+    )
 
     # No default: an unset APP_ENV must fail loudly rather than silently mean "development"
     # (which would, for example, allow seeding synthetic data).

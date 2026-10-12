@@ -17,7 +17,7 @@ from app.application.access import NotFound, enforce, has_active_care_link
 from app.application.appointment_events import appointment_changed
 from app.application.errors import InvalidInput
 from app.application.notifications import notify
-from app.application.therapist_access import active_students, require_verified
+from app.application.therapist_access import active_students, require_care_link, require_verified
 from app.application.timeutil import now_utc
 from app.domain.auth.policies import (
     Principal,
@@ -157,6 +157,15 @@ async def start_session(
         resource_id=appt.id,
         subject_student_id=appt.student_id,
     )
+    await require_care_link(
+        db,
+        actor,
+        student_id=appt.student_id,
+        institution_id=appt.institution_id,
+        action="therapy_session.start",
+        resource_type="appointment",
+        resource_id=appt.id,
+    )
     if appt.status is not AppointmentStatus.CONFIRMED:
         raise InvalidInput("Only a confirmed appointment can be started.")
     now = now_utc()
@@ -199,6 +208,15 @@ async def finish_session(
 ) -> SessionView:
     await require_verified(db, actor, "therapy_session.update")
     session = await _own_session(db, actor, session_id, "therapy_session.update", lock=True)
+    await require_care_link(
+        db,
+        actor,
+        student_id=session.student_id,
+        institution_id=session.institution_id,
+        action="therapy_session.update",
+        resource_type="therapy_session",
+        resource_id=session.id,
+    )
     if outcome not in (TherapySessionStatus.COMPLETED, TherapySessionStatus.ABANDONED):
         raise InvalidInput("A session can be completed or abandoned.")
     if session.status is not TherapySessionStatus.IN_PROGRESS:

@@ -87,6 +87,33 @@ async def student_in_care(
     return student
 
 
+async def require_care_link(
+    db: AsyncSession,
+    actor: Principal,
+    *,
+    student_id: uuid.UUID,
+    institution_id: uuid.UUID,
+    action: str,
+    resource_type: str,
+    resource_id: uuid.UUID | None = None,
+) -> None:
+    """A therapist's own record about a student (a session, a follow-up) stays usable only
+    while the student is on their care team: ending the link ends access (ADR 0006). Once it
+    has ended, the record looks missing."""
+    linked = await has_active_care_link(
+        db, therapist_id=actor.user_id, student_id=student_id, now=now_utc()
+    )
+    enforce(
+        can_access_assigned_student(
+            actor, student_institution_id=institution_id, has_active_care_link=linked
+        ),
+        action=action,
+        resource_type=resource_type,
+        resource_id=resource_id,
+        subject_student_id=student_id,
+    )
+
+
 def active_students(actor: Principal) -> Select[Any]:
     """Ids of the students currently on the caller's care team (a sub-select for ``IN``)."""
     now = now_utc()

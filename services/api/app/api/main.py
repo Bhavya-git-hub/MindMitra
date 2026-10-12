@@ -7,6 +7,7 @@ Every route except those in ``PUBLIC_ROUTES`` declares an authorization guard fr
 import asyncio
 import contextlib
 import datetime as dt
+import logging
 import re
 import uuid
 from collections.abc import AsyncIterator, Awaitable, Callable
@@ -17,6 +18,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
+from app.api.body_limit import BodySizeLimit
 from app.api.deps import AppState, audit_denial
 from app.api.problems import install_problem_handlers, problem
 from app.api.rate_limit import SlidingWindowRateLimiter
@@ -67,6 +69,8 @@ from app.infrastructure.realtime_hub import Hub
 from app.workers.scheduler import run_forever
 
 API_PREFIX = "/api/v1"
+
+log = logging.getLogger("mindmitra.api")
 
 # (method, path) pairs reachable without signing in. Anything else must carry a guard.
 PUBLIC_ROUTES: frozenset[tuple[str, str]] = frozenset(
@@ -222,7 +226,14 @@ def create_app(
         incoming = request.headers.get("X-Request-ID", "")
         request_id = incoming if _REQUEST_ID_RE.match(incoming) else uuid.uuid4().hex
         request.state.request_id = request_id
-        response = await call_next(request)
+        try:
+            response = await call_next(request)
+        except Exception:
+            # Answer here rather than in the outermost error handler, which runs outside this
+            # middleware and CORS: the 500 would otherwise lack the security headers
+            # (no-store, nosniff, CSP, HSTS) and the request id.
+            log.exception("unhandled error request_id=%s", request_id)
+            response = problem(request, 500, "Something went wrong. Please try again.")
         response.headers["X-Request-ID"] = request_id
         for name, value in _SECURITY_HEADERS.items():
             response.headers.setdefault(name, value)
@@ -237,6 +248,9 @@ def create_app(
             allow_headers=["Authorization", "Content-Type", "X-CSRF-Token", "X-Request-ID"],
             expose_headers=["X-Request-ID", "Retry-After"],
         )
+
+    # Outermost, so an oversized body is refused before anything reads it.
+    app.add_middleware(BodySizeLimit)
 
     for router in ROUTERS:
         app.include_router(router, prefix=API_PREFIX)

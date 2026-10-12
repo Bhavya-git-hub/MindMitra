@@ -17,7 +17,7 @@ import datetime as dt
 import logging
 import time
 from collections.abc import Callable, Sequence
-from typing import Any, Literal, Protocol
+from typing import Any, Literal, Protocol, get_args
 
 import httpx
 import jwt
@@ -29,6 +29,8 @@ ISSUER = "mindmitra-api"
 TOKEN_LIFETIME = dt.timedelta(minutes=5)
 
 ReplyKind = Literal["reply", "crisis", "redirect", "fallback", "unavailable"]
+CrisisAction = Literal["none", "review", "escalate"]
+Severity = Literal["low", "moderate", "high", "imminent"]
 
 
 class MlUnavailable(Exception):
@@ -51,9 +53,9 @@ class HistoryTurn:
 
 @dataclasses.dataclass(frozen=True)
 class ServiceCrisis:
-    action: Literal["none", "review", "escalate"]
+    action: CrisisAction
     category: str | None
-    severity: Literal["low", "moderate", "high", "imminent"] | None
+    severity: Severity | None
     rules: tuple[str, ...]
     third_person: bool
 
@@ -124,15 +126,24 @@ def sign_service_token(secret: str, now: dt.datetime | None = None) -> str:
     )
 
 
+def _one_of(value: object, allowed: tuple[str, ...]) -> Any:
+    """The service's answer drives the crisis path, so an unknown value is a bad response
+    (which fails safe) rather than something to pass along."""
+    if value not in allowed:
+        raise ValueError("unexpected value")
+    return value
+
+
 def _parse(data: dict[str, Any]) -> CompanionReply:
     c = data["crisis"]
+    severity = c.get("severity")
     return CompanionReply(
-        kind=data["kind"],
+        kind=_one_of(data["kind"], get_args(ReplyKind)),
         reply=data.get("reply"),
         crisis=ServiceCrisis(
-            action=c["action"],
+            action=_one_of(c["action"], get_args(CrisisAction)),
             category=c.get("category"),
-            severity=c.get("severity"),
+            severity=None if severity is None else _one_of(severity, get_args(Severity)),
             rules=tuple(c.get("rules", ())),
             third_person=bool(c.get("third_person", False)),
         ),
